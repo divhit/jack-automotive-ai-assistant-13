@@ -52,6 +52,19 @@ export default {
 					DEFAULT: 'hsl(var(--card))',
 					foreground: 'hsl(var(--card-foreground))'
 				},
+				// Custom automotive-themed colors
+				automotive: {
+					primary: '#1E4D8C',    // Deep blue
+					secondary: '#3E78B2',  // Medium blue
+					accent: '#2E5EAA',     // Bright blue
+					gray: '#E5E7EB',       // Light gray
+					darkgray: '#4B5563',   // Dark gray
+					success: '#059669',    // Green
+					warning: '#D97706',    // Amber
+					danger: '#DC2626',     // Red
+					light: '#F3F4F6',      // Very light gray
+					dark: '#1F2937',       // Nearly black
+				},
 				sidebar: {
 					DEFAULT: 'hsl(var(--sidebar-background))',
 					foreground: 'hsl(var(--sidebar-foreground))',
