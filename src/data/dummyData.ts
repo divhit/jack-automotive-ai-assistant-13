@@ -1,4 +1,3 @@
-
 // Dummy data for the Jack Automotive AI Assistant prototype
 
 // Sales Dashboard Data
@@ -249,6 +248,7 @@ export const customerConversations = [
     lastMessagePreview: "Thanks for the information. Would it be possible to schedule a test drive this weekend?",
     timestamp: "2025-04-13T15:30:00",
     status: "Active",
+    leadSource: "Website",
     messages: [
       {
         type: "incoming",
@@ -285,6 +285,7 @@ export const customerConversations = [
     lastMessagePreview: "Perfect, I'll see you Saturday at 2pm for the test drive.",
     timestamp: "2025-04-12T16:45:00",
     status: "Active",
+    leadSource: "AutoTrader",
     messages: [
       {
         type: "incoming",
@@ -331,6 +332,7 @@ export const customerConversations = [
     lastMessagePreview: "I'll be stopping by tomorrow at 3pm as planned for the test drive.",
     timestamp: "2025-04-11T14:20:00",
     status: "Test Drive Scheduled",
+    leadSource: "Walk-in",
     messages: [
       {
         type: "incoming",
@@ -387,6 +389,7 @@ export const customerConversations = [
     lastMessagePreview: "Thank you for all your help. The extended warranty gives me peace of mind. I'm very happy with my new Q7!",
     timestamp: "2025-04-09T17:30:00",
     status: "Closed",
+    leadSource: "Facebook Marketplace",
     messages: [
       {
         type: "incoming",
@@ -424,6 +427,7 @@ export const customerConversations = [
     lastMessagePreview: "I'm specifically looking for the Lariat with the towing package. Do you have one in stock?",
     timestamp: "2025-04-13T11:45:00",
     status: "New",
+    leadSource: "Website",
     messages: [
       {
         type: "incoming",
@@ -616,18 +620,4 @@ Recommendation: ${vehicle.aiRecommendedPrice > vehicle.currentPrice ? 'Consider 
     
     topOpportunities.forEach((vehicle, index) => {
       const priceDiff = vehicle.aiRecommendedPrice - vehicle.currentPrice;
-      response += `${index + 1}. ${vehicle.year} ${vehicle.make} ${vehicle.model} (stock #${vehicle.stockNumber}): Currently $${vehicle.currentPrice.toLocaleString()}, recommend ${priceDiff > 0 ? 'increasing' : 'reducing'} to $${vehicle.aiRecommendedPrice.toLocaleString()} ${priceDiff > 0 ? '(+$' + priceDiff.toLocaleString() + ')' : '(-$' + Math.abs(priceDiff).toLocaleString() + ')'}\n\n`;
-    });
-    
-    const totalImpact = topOpportunities.reduce((sum, vehicle) => sum + (vehicle.aiRecommendedPrice - vehicle.currentPrice), 0);
-    
-    response += `Estimated net impact: ${totalImpact >= 0 ? '+' : ''}$${totalImpact.toLocaleString()}. Expected benefit: ${totalImpact >= 0 ? 'Increased revenue while maintaining competitive position' : 'Reduced carrying costs and faster inventory turn'}.`;
-    
-    return response;
-  },
-  
-  // Generic response for any unrecognized queries
-  getGenericResponse: (query: string) => {
-    return `I understand you're asking about "${query}". To provide the most accurate information, could you specify which vehicle you're interested in by stock number or make/model? Alternatively, I can help with market trends, inventory recommendations, or competitive analysis.`;
-  }
-};
+      response += `${index + 1}. ${vehicle.year} ${vehicle.make} ${vehicle.model} (stock #${vehicle.stockNumber}): Currently $${vehicle.currentPrice.toLocaleString()}, recommend ${priceDiff > 0 ? 'increasing' : 'reducing'} to $${vehicle.aiRecommendedPrice.toLocaleString()} ${
