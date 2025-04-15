@@ -5,3 +5,4 @@ export * from './chat/chatExamples';
 export * from './chat/jackResponses';
 export * from './conversations/customerConversations';
 export * from './market/marketInsights';
+export * from './market/marketComparableListings';

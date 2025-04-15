@@ -28,11 +28,16 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { inventoryItems } from "@/data";
+import { marketComparableListings } from "@/data/market/marketComparableListings";
+import { MarketListings } from "@/components/inventory/MarketListings";
+import { VehicleAnalysisDialog } from "@/components/inventory/VehicleAnalysisDialog";
 
 const InventoryDashboard = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortColumn, setSortColumn] = useState("stockNumber");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [selectedVehicle, setSelectedVehicle] = useState<string | null>(null);
+  const [showFullAnalysis, setShowFullAnalysis] = useState(false);
 
   // Filter inventory based on search term
   const filteredInventory = inventoryItems.filter((item) => {
@@ -91,6 +96,23 @@ const InventoryDashboard = () => {
     if (days <= 15) return "bg-green-100 text-green-800 hover:bg-green-100";
     if (days <= 30) return "bg-yellow-100 text-yellow-800 hover:bg-yellow-100";
     return "bg-red-100 text-red-800 hover:bg-red-100";
+  };
+  
+  // Handler for when a vehicle row is clicked
+  const handleVehicleClick = (stockNumber: string) => {
+    setSelectedVehicle(stockNumber);
+  };
+  
+  // Get the selected vehicle information
+  const getSelectedVehicleInfo = () => {
+    if (!selectedVehicle) return null;
+    return inventoryItems.find((item) => item.stockNumber === selectedVehicle);
+  };
+  
+  // Get market listings for the selected vehicle
+  const getMarketListings = () => {
+    if (!selectedVehicle) return [];
+    return marketComparableListings[selectedVehicle] || [];
   };
 
   return (
@@ -181,6 +203,16 @@ const InventoryDashboard = () => {
           <span>Sort</span>
         </Button>
       </div>
+
+      {/* Market Listings Section (conditionally rendered) */}
+      {selectedVehicle && (
+        <div className="mt-6">
+          <MarketListings 
+            listings={getMarketListings()} 
+            onViewFullAnalysis={() => setShowFullAnalysis(true)}
+          />
+        </div>
+      )}
 
       {/* Inventory Table */}
       <Card>
@@ -279,7 +311,12 @@ const InventoryDashboard = () => {
             </TableHeader>
             <TableBody>
               {sortedInventory.map((item) => (
-                <TableRow key={item.id}>
+                <TableRow 
+                  key={item.id} 
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={() => handleVehicleClick(item.stockNumber)}
+                  data-state={selectedVehicle === item.stockNumber ? "selected" : ""}
+                >
                   <TableCell className="font-medium">{item.stockNumber}</TableCell>
                   <TableCell>
                     {item.year} {item.make} {item.model}
@@ -310,6 +347,21 @@ const InventoryDashboard = () => {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Vehicle Analysis Dialog */}
+      {selectedVehicle && getSelectedVehicleInfo() && (
+        <VehicleAnalysisDialog
+          isOpen={showFullAnalysis}
+          onClose={() => setShowFullAnalysis(false)}
+          stockNumber={selectedVehicle}
+          vehicleInfo={{
+            year: getSelectedVehicleInfo()!.year,
+            make: getSelectedVehicleInfo()!.make,
+            model: getSelectedVehicleInfo()!.model,
+            trim: getSelectedVehicleInfo()!.trim,
+          }}
+        />
+      )}
     </div>
   );
 };
