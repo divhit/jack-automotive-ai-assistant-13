@@ -28,11 +28,16 @@ export const MarketListings = ({
   };
 
   return (
-    <div className="py-2 space-y-2"> {/* Reduced padding and space */}
+    <div className="py-0"> {/* Removed vertical padding completely */}
       {isExpanded && (
         <div>
+          {/* Header Bar */}
+          <div className="bg-blue-600 text-white px-3 py-2 font-medium">
+            Closest Market Matches
+          </div>
+
           {/* Column Headers */}
-          <div className="grid grid-cols-8 gap-4 px-3 py-2 bg-muted/50 rounded-t-lg text-sm font-medium text-muted-foreground">
+          <div className="grid grid-cols-8 gap-4 px-3 py-2 bg-muted/50 text-sm font-medium text-muted-foreground">
             <div>Model & Year</div>
             <div>Mileage</div>
             <div>Accident History</div>
@@ -48,7 +53,7 @@ export const MarketListings = ({
             {topListings.map((listing) => (
               <div 
                 key={listing.id}
-                className="grid grid-cols-8 gap-4 px-3 py-2 bg-muted/30 rounded-lg items-center text-sm border-b last:border-b-0"
+                className="grid grid-cols-8 gap-4 px-3 py-2 bg-muted/30 items-center text-sm border-b last:border-b-0"
               >
                 <div>
                   <div className="font-medium">
@@ -114,4 +119,3 @@ export const MarketListings = ({
     </div>
   );
 };
-
