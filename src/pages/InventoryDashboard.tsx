@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { 
   Card, 
@@ -28,7 +27,7 @@ import {
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { inventoryItems } from "@/data/dummyData";
+import { inventoryItems } from "@/data";
 
 const InventoryDashboard = () => {
   const [searchTerm, setSearchTerm] = useState("");

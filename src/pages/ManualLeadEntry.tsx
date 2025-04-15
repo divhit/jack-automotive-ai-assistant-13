@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { 
   Card, 
@@ -23,7 +22,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { SelectValue, SelectTrigger, SelectContent, SelectItem, Select } from "@/components/ui/select";
-import { salesLeads, inventoryItems } from "@/data/dummyData";
+import { salesLeads, inventoryItems } from "@/data";
 
 const ManualLeadEntry = () => {
   const { toast } = useToast();

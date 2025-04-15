@@ -10,7 +10,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Mic, Send, Car, Info, ChevronsDown } from "lucide-react";
-import { chatExamples, jackResponses } from "@/data/dummyData";
+import { chatExamples, jackResponses } from "@/data";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 

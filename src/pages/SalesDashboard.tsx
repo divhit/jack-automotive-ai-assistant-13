@@ -2,7 +2,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
-import { salesLeads } from "@/data/dummyData";
+import { salesLeads } from "@/data";
 import { 
   ArrowUpRight, 
   ArrowDownRight, 

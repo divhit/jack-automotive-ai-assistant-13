@@ -15,7 +15,7 @@ import {
   Building, 
   Package 
 } from "lucide-react";
-import { marketInsights } from "@/data/dummyData";
+import { marketInsights } from "@/data";
 import { Badge } from "@/components/ui/badge";
 
 const MarketInsights = () => {
