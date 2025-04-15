@@ -77,7 +77,8 @@ export const VehicleAnalysisDialog = ({
           </DialogTitle>
         </DialogHeader>
         
-        <ScrollArea className="flex-1 px-1">
+        {/* Updated ScrollArea component with proper height and styling */}
+        <ScrollArea className="flex-1 pr-4" style={{ height: "calc(90vh - 120px)" }}>
           <div className="space-y-6 pb-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <Card>
@@ -264,3 +265,4 @@ export const VehicleAnalysisDialog = ({
     </Dialog>
   );
 };
+
