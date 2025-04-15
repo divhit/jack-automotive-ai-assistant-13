@@ -39,7 +39,6 @@ const InventoryDashboard = () => {
   const [selectedVehicle, setSelectedVehicle] = useState<string | null>(null);
   const [showFullAnalysis, setShowFullAnalysis] = useState(false);
 
-  // Filter inventory based on search term
   const filteredInventory = inventoryItems.filter((item) => {
     const searchLower = searchTerm.toLowerCase();
     return (
@@ -50,7 +49,6 @@ const InventoryDashboard = () => {
     );
   });
 
-  // Sort inventory based on column and direction
   const sortedInventory = [...filteredInventory].sort((a, b) => {
     const directionMultiplier = sortDirection === "asc" ? 1 : -1;
     
@@ -74,7 +72,6 @@ const InventoryDashboard = () => {
     }
   });
 
-  // Function to handle sorting when clicking on a column header
   const handleSort = (column: string) => {
     if (sortColumn === column) {
       setSortDirection(sortDirection === "asc" ? "desc" : "asc");
@@ -84,32 +81,27 @@ const InventoryDashboard = () => {
     }
   };
 
-  // Calculate price difference and get appropriate style
   const getPriceDifferenceStyle = (current: number, recommended: number) => {
     const difference = recommended - current;
-    if (Math.abs(difference) < 500) return "text-gray-500"; // Negligible difference
+    if (Math.abs(difference) < 500) return "text-gray-500";
     return difference > 0 ? "text-green-600" : "text-red-600";
   };
 
-  // Helper function to get badge color based on days in inventory
   const getDaysInInventoryBadgeColor = (days: number) => {
     if (days <= 15) return "bg-green-100 text-green-800 hover:bg-green-100";
     if (days <= 30) return "bg-yellow-100 text-yellow-800 hover:bg-yellow-100";
     return "bg-red-100 text-red-800 hover:bg-red-100";
   };
-  
-  // Handler for when a vehicle row is clicked
+
   const handleVehicleClick = (stockNumber: string) => {
     setSelectedVehicle(stockNumber);
   };
-  
-  // Get the selected vehicle information
+
   const getSelectedVehicleInfo = () => {
     if (!selectedVehicle) return null;
     return inventoryItems.find((item) => item.stockNumber === selectedVehicle);
   };
-  
-  // Get market listings for the selected vehicle
+
   const getMarketListings = () => {
     if (!selectedVehicle) return [];
     return marketComparableListings[selectedVehicle] || [];
@@ -117,7 +109,6 @@ const InventoryDashboard = () => {
 
   return (
     <div className="space-y-6">
-      {/* Inventory Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="pb-2">
@@ -182,7 +173,6 @@ const InventoryDashboard = () => {
         </Card>
       </div>
 
-      {/* Search and Filter Section */}
       <div className="flex flex-col sm:flex-row items-center gap-4">
         <div className="relative w-full sm:w-96">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -204,7 +194,6 @@ const InventoryDashboard = () => {
         </Button>
       </div>
 
-      {/* Market Listings Section (conditionally rendered) */}
       {selectedVehicle && (
         <div className="mt-6">
           <MarketListings 
@@ -214,7 +203,6 @@ const InventoryDashboard = () => {
         </div>
       )}
 
-      {/* Inventory Table */}
       <Card>
         <CardHeader>
           <CardTitle className="text-xl">
@@ -311,44 +299,56 @@ const InventoryDashboard = () => {
             </TableHeader>
             <TableBody>
               {sortedInventory.map((item) => (
-                <TableRow 
-                  key={item.id} 
-                  className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => handleVehicleClick(item.stockNumber)}
-                  data-state={selectedVehicle === item.stockNumber ? "selected" : ""}
-                >
-                  <TableCell className="font-medium">{item.stockNumber}</TableCell>
-                  <TableCell>
-                    {item.year} {item.make} {item.model}
-                    <div className="text-xs text-muted-foreground">{item.trim}</div>
-                  </TableCell>
-                  <TableCell>{item.mileage.toLocaleString()}</TableCell>
-                  <TableCell>${item.currentPrice.toLocaleString()}</TableCell>
-                  <TableCell className={getPriceDifferenceStyle(item.currentPrice, item.aiRecommendedPrice)}>
-                    ${item.aiRecommendedPrice.toLocaleString()}
-                    {Math.abs(item.aiRecommendedPrice - item.currentPrice) > 500 && (
-                      <div className="text-xs">
-                        {item.aiRecommendedPrice > item.currentPrice ? "↑" : "↓"} 
-                        ${Math.abs(item.aiRecommendedPrice - item.currentPrice).toLocaleString()}
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Badge className={getDaysInInventoryBadgeColor(item.daysInInventory)}>
-                      {item.daysInInventory}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="max-w-xs">
-                    <div className="text-sm text-muted-foreground">{item.marketInsights}</div>
-                  </TableCell>
-                </TableRow>
+                <React.Fragment key={item.id}>
+                  <TableRow 
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => handleVehicleClick(item.stockNumber)}
+                    data-state={selectedVehicle === item.stockNumber ? "selected" : ""}
+                  >
+                    <TableCell className="font-medium">{item.stockNumber}</TableCell>
+                    <TableCell>
+                      {item.year} {item.make} {item.model}
+                      <div className="text-xs text-muted-foreground">{item.trim}</div>
+                    </TableCell>
+                    <TableCell>{item.mileage.toLocaleString()}</TableCell>
+                    <TableCell>${item.currentPrice.toLocaleString()}</TableCell>
+                    <TableCell className={getPriceDifferenceStyle(item.currentPrice, item.aiRecommendedPrice)}>
+                      ${item.aiRecommendedPrice.toLocaleString()}
+                      {Math.abs(item.aiRecommendedPrice - item.currentPrice) > 500 && (
+                        <div className="text-xs">
+                          {item.aiRecommendedPrice > item.currentPrice ? "↑" : "↓"} 
+                          ${Math.abs(item.aiRecommendedPrice - item.currentPrice).toLocaleString()}
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={getDaysInInventoryBadgeColor(item.daysInInventory)}>
+                        {item.daysInInventory}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="max-w-xs">
+                      <div className="text-sm text-muted-foreground">{item.marketInsights}</div>
+                    </TableCell>
+                  </TableRow>
+                  {selectedVehicle === item.stockNumber && (
+                    <TableRow>
+                      <TableCell colSpan={7} className="p-0">
+                        <div className="border-t">
+                          <MarketListings 
+                            listings={getMarketListings()} 
+                            onViewFullAnalysis={() => setShowFullAnalysis(true)}
+                          />
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </React.Fragment>
               ))}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
 
-      {/* Vehicle Analysis Dialog */}
       {selectedVehicle && getSelectedVehicleInfo() && (
         <VehicleAnalysisDialog
           isOpen={showFullAnalysis}
