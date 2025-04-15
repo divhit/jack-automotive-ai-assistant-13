@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { TableRow, TableCell } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { InventoryItem } from "@/data/inventory/inventoryItems";
@@ -24,11 +24,22 @@ export const InventoryTableRow = ({
   getPriceDifferenceStyle,
   getDaysInInventoryBadgeColor
 }: InventoryTableRowProps) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const handleRowClick = () => {
+    if (!isSelected) {
+      onSelect(item.stockNumber);
+      setIsExpanded(true);
+    } else {
+      setIsExpanded(!isExpanded);
+    }
+  };
+
   return (
     <React.Fragment>
       <TableRow 
         className="cursor-pointer hover:bg-muted/50"
-        onClick={() => onSelect(item.stockNumber)}
+        onClick={handleRowClick}
         data-state={isSelected ? "selected" : ""}
       >
         <TableCell className="font-medium">{item.stockNumber}</TableCell>
@@ -63,6 +74,8 @@ export const InventoryTableRow = ({
               <MarketListings 
                 listings={marketListings} 
                 onViewFullAnalysis={onViewFullAnalysis}
+                isExpanded={isExpanded}
+                onToggleExpand={() => setIsExpanded(!isExpanded)}
               />
             </div>
           </TableCell>

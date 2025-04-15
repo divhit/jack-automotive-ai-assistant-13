@@ -1,4 +1,3 @@
-
 // Market comparable listings for inventory items
 export type ComparableListing = {
   id: string;
@@ -14,6 +13,9 @@ export type ComparableListing = {
   accidents: number;
   daysListed: number;
   matchScore: number;
+  dealer: string;
+  distanceKm: number;
+  matchRationale: string;
 };
 
 // Map of stock numbers to their comparable listings
@@ -32,7 +34,10 @@ export const marketComparableListings: Record<string, ComparableListing[]> = {
       location: "Toronto, ON",
       accidents: 0,
       daysListed: 32,
-      matchScore: 97
+      matchScore: 97,
+      dealer: "Dealer A",
+      distanceKm: 10,
+      matchRationale: "Good condition, low mileage"
     },
     {
       id: "ML002",
@@ -47,7 +52,10 @@ export const marketComparableListings: Record<string, ComparableListing[]> = {
       location: "Vancouver, BC",
       accidents: 0,
       daysListed: 18,
-      matchScore: 93
+      matchScore: 93,
+      dealer: "Dealer B",
+      distanceKm: 15,
+      matchRationale: "Good condition, low mileage"
     },
     {
       id: "ML003",
@@ -62,7 +70,10 @@ export const marketComparableListings: Record<string, ComparableListing[]> = {
       location: "Montreal, QC",
       accidents: 0,
       daysListed: 45,
-      matchScore: 88
+      matchScore: 88,
+      dealer: "Dealer C",
+      distanceKm: 20,
+      matchRationale: "Good condition, low mileage"
     },
     {
       id: "ML004",
@@ -77,7 +88,10 @@ export const marketComparableListings: Record<string, ComparableListing[]> = {
       location: "Calgary, AB",
       accidents: 1,
       daysListed: 27,
-      matchScore: 82
+      matchScore: 82,
+      dealer: "Dealer D",
+      distanceKm: 25,
+      matchRationale: "Good condition, low mileage"
     },
     {
       id: "ML005",
@@ -92,7 +106,10 @@ export const marketComparableListings: Record<string, ComparableListing[]> = {
       location: "Ottawa, ON",
       accidents: 0,
       daysListed: 14,
-      matchScore: 85
+      matchScore: 85,
+      dealer: "Dealer E",
+      distanceKm: 30,
+      matchRationale: "Good condition, low mileage"
     },
   ],
   "AC22MD": [
@@ -109,7 +126,10 @@ export const marketComparableListings: Record<string, ComparableListing[]> = {
       location: "Edmonton, AB",
       accidents: 0,
       daysListed: 22,
-      matchScore: 96
+      matchScore: 96,
+      dealer: "Dealer F",
+      distanceKm: 35,
+      matchRationale: "Good condition, low mileage"
     },
     {
       id: "ML007",
@@ -124,7 +144,10 @@ export const marketComparableListings: Record<string, ComparableListing[]> = {
       location: "Winnipeg, MB",
       accidents: 0,
       daysListed: 31,
-      matchScore: 91
+      matchScore: 91,
+      dealer: "Dealer G",
+      distanceKm: 40,
+      matchRationale: "Good condition, low mileage"
     },
     {
       id: "ML008",
@@ -139,7 +162,10 @@ export const marketComparableListings: Record<string, ComparableListing[]> = {
       location: "Halifax, NS",
       accidents: 0,
       daysListed: 42,
-      matchScore: 87
+      matchScore: 87,
+      dealer: "Dealer H",
+      distanceKm: 45,
+      matchRationale: "Good condition, low mileage"
     },
     {
       id: "ML009",
@@ -154,7 +180,10 @@ export const marketComparableListings: Record<string, ComparableListing[]> = {
       location: "Quebec City, QC",
       accidents: 1,
       daysListed: 19,
-      matchScore: 89
+      matchScore: 89,
+      dealer: "Dealer I",
+      distanceKm: 50,
+      matchRationale: "Good condition, low mileage"
     },
     {
       id: "ML010",
@@ -169,7 +198,10 @@ export const marketComparableListings: Record<string, ComparableListing[]> = {
       location: "Toronto, ON",
       accidents: 0,
       daysListed: 8,
-      matchScore: 85
+      matchScore: 85,
+      dealer: "Dealer J",
+      distanceKm: 55,
+      matchRationale: "Good condition, low mileage"
     },
   ],
   // Adding more sample data for other vehicles
@@ -187,7 +219,10 @@ export const marketComparableListings: Record<string, ComparableListing[]> = {
       location: "Vancouver, BC",
       accidents: 0,
       daysListed: 25,
-      matchScore: 95
+      matchScore: 95,
+      dealer: "Dealer K",
+      distanceKm: 60,
+      matchRationale: "Good condition, low mileage"
     },
     // More listings would be here
   ],
@@ -205,7 +240,10 @@ export const marketComparableListings: Record<string, ComparableListing[]> = {
       location: "Toronto, ON",
       accidents: 0,
       daysListed: 37,
-      matchScore: 94
+      matchScore: 94,
+      dealer: "Dealer L",
+      distanceKm: 65,
+      matchRationale: "Good condition, low mileage"
     },
     // More listings would be here
   ],
@@ -223,7 +261,10 @@ export const marketComparableListings: Record<string, ComparableListing[]> = {
       location: "Calgary, AB",
       accidents: 0,
       daysListed: 16,
-      matchScore: 96
+      matchScore: 96,
+      dealer: "Dealer M",
+      distanceKm: 70,
+      matchRationale: "Good condition, low mileage"
     },
     // More listings would be here
   ],
@@ -241,7 +282,10 @@ export const marketComparableListings: Record<string, ComparableListing[]> = {
       location: "Ottawa, ON",
       accidents: 0,
       daysListed: 23,
-      matchScore: 93
+      matchScore: 93,
+      dealer: "Dealer N",
+      distanceKm: 75,
+      matchRationale: "Good condition, low mileage"
     },
     // More listings would be here
   ],
@@ -259,7 +303,10 @@ export const marketComparableListings: Record<string, ComparableListing[]> = {
       location: "Montreal, QC",
       accidents: 0,
       daysListed: 29,
-      matchScore: 92
+      matchScore: 92,
+      dealer: "Dealer O",
+      distanceKm: 80,
+      matchRationale: "Good condition, low mileage"
     },
     // More listings would be here
   ],
@@ -277,7 +324,10 @@ export const marketComparableListings: Record<string, ComparableListing[]> = {
       location: "Edmonton, AB",
       accidents: 0,
       daysListed: 19,
-      matchScore: 94
+      matchScore: 94,
+      dealer: "Dealer P",
+      distanceKm: 85,
+      matchRationale: "Good condition, low mileage"
     },
     // More listings would be here
   ]

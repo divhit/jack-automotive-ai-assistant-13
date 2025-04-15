@@ -1,8 +1,5 @@
 
-import { 
-  ExternalLink, 
-  AlertTriangle,
-} from "lucide-react";
+import { ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ComparableListing } from "@/data/market/marketComparableListings";
@@ -10,9 +7,16 @@ import { ComparableListing } from "@/data/market/marketComparableListings";
 interface MarketListingsProps {
   listings: ComparableListing[];
   onViewFullAnalysis: () => void;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
 }
 
-export const MarketListings = ({ listings, onViewFullAnalysis }: MarketListingsProps) => {
+export const MarketListings = ({ 
+  listings, 
+  onViewFullAnalysis,
+  isExpanded,
+  onToggleExpand,
+}: MarketListingsProps) => {
   // Sort listings by match score (highest first) and take top 5
   const topListings = [...listings]
     .sort((a, b) => b.matchScore - a.matchScore)
@@ -27,73 +31,106 @@ export const MarketListings = ({ listings, onViewFullAnalysis }: MarketListingsP
 
   return (
     <div className="py-4 space-y-4">
-      {/* Market Listings */}
-      <div className="space-y-2">
-        {topListings.map((listing) => (
-          <div 
-            key={listing.id}
-            className="bg-muted/50 p-3 rounded-lg flex items-center justify-between gap-4"
-          >
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <span className="font-medium">
-                  {listing.year} {listing.make} {listing.model}
-                </span>
-                <Badge variant="outline" className="text-xs">
-                  {listing.source}
-                </Badge>
-              </div>
-              <div className="text-sm text-muted-foreground mt-1">
-                {listing.trim}
-              </div>
-            </div>
-            <div className="flex-1 text-sm">
-              <div className="flex items-center gap-1">
-                <span className="text-muted-foreground">Mileage:</span>
-                <span>{listing.mileage.toLocaleString()} km</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="text-muted-foreground">Accidents:</span>
-                <span className="flex items-center">
-                  {listing.accidents}
-                  {listing.accidents > 0 && (
-                    <AlertTriangle className="ml-1 h-3.5 w-3.5 text-amber-500" />
-                  )}
-                </span>
-              </div>
-            </div>
-            <div className="flex-1">
-              <div className="font-medium">${listing.price.toLocaleString()}</div>
-              <div>
-                <a 
-                  href={listing.url} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-sm text-blue-600 hover:underline inline-flex items-center gap-1"
-                >
-                  View Listing
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </a>
-              </div>
-            </div>
-            <Badge className={getMatchScoreBadgeColor(listing.matchScore)}>
-              {listing.matchScore}% Match
-            </Badge>
-          </div>
-        ))}
-      </div>
+      <button 
+        onClick={onToggleExpand}
+        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+      >
+        {isExpanded ? (
+          <>
+            <ChevronUp className="h-4 w-4" />
+            Hide Similar Listings
+          </>
+        ) : (
+          <>
+            <ChevronDown className="h-4 w-4" />
+            Show Similar Listings
+          </>
+        )}
+      </button>
 
-      {/* Full Analysis Button */}
-      <div className="flex justify-end">
-        <Button 
-          onClick={onViewFullAnalysis}
-          variant="outline"
-          size="sm"
-          className="gap-2"
-        >
-          View Full Vehicle Market Analysis
-        </Button>
-      </div>
+      {isExpanded && (
+        <div className="space-y-4">
+          {/* Column Headers */}
+          <div className="grid grid-cols-8 gap-4 px-3 py-2 bg-muted/50 rounded-t-lg text-sm font-medium text-muted-foreground">
+            <div>Model & Year</div>
+            <div>Mileage</div>
+            <div>Accident History</div>
+            <div>Price</div>
+            <div>Location</div>
+            <div>Dealer</div>
+            <div>Distance</div>
+            <div>Match Score</div>
+          </div>
+
+          {/* Listings */}
+          <div className="space-y-2">
+            {topListings.map((listing) => (
+              <div 
+                key={listing.id}
+                className="grid grid-cols-8 gap-4 px-3 py-3 bg-muted/30 rounded-lg items-center text-sm"
+              >
+                <div>
+                  <div className="font-medium">
+                    {listing.year} {listing.make} {listing.model}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    {listing.trim}
+                  </div>
+                </div>
+
+                <div>{listing.mileage.toLocaleString()} km</div>
+
+                <div className="flex items-center gap-1">
+                  {listing.accidents} Claims
+                </div>
+
+                <div className="font-medium">
+                  ${listing.price.toLocaleString()}
+                </div>
+
+                <div>{listing.location}</div>
+
+                <div>{listing.dealer}</div>
+
+                <div>{listing.distanceKm} km</div>
+
+                <div className="space-y-1">
+                  <Badge className={getMatchScoreBadgeColor(listing.matchScore)}>
+                    {listing.matchScore}% Match
+                  </Badge>
+                  <div className="text-xs text-muted-foreground">
+                    {listing.matchRationale}
+                  </div>
+                  <div className="space-y-0.5">
+                    <div className="text-xs font-medium">{listing.source}</div>
+                    <a 
+                      href={listing.url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1"
+                    >
+                      View Link
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Full Analysis Button */}
+          <div className="flex justify-end pt-2">
+            <Button 
+              onClick={onViewFullAnalysis}
+              variant="outline"
+              size="sm"
+              className="gap-2"
+            >
+              View Full Vehicle Market Analysis
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
