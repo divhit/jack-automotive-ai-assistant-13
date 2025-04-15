@@ -51,7 +51,7 @@ export const MarketListings = ({
       {isExpanded && (
         <div className="space-y-4">
           {/* Column Headers */}
-          <div className="grid grid-cols-8 gap-4 px-3 py-2 bg-muted/50 rounded-t-lg text-sm font-medium text-muted-foreground">
+          <div className="grid grid-cols-9 gap-4 px-3 py-2 bg-muted/50 rounded-t-lg text-sm font-medium text-muted-foreground">
             <div>Model & Year</div>
             <div>Mileage</div>
             <div>Accident History</div>
@@ -60,6 +60,7 @@ export const MarketListings = ({
             <div>Dealer</div>
             <div>Distance</div>
             <div>Match Score</div>
+            <div>Source</div>
           </div>
 
           {/* Listings */}
@@ -67,7 +68,7 @@ export const MarketListings = ({
             {topListings.map((listing) => (
               <div 
                 key={listing.id}
-                className="grid grid-cols-8 gap-4 px-3 py-3 bg-muted/30 rounded-lg items-center text-sm"
+                className="grid grid-cols-9 gap-4 px-3 py-3 bg-muted/30 rounded-lg items-center text-sm"
               >
                 <div>
                   <div className="font-medium">
@@ -101,18 +102,19 @@ export const MarketListings = ({
                   <div className="text-xs text-muted-foreground">
                     {listing.matchRationale}
                   </div>
-                  <div className="space-y-0.5">
-                    <div className="text-xs font-medium">{listing.source}</div>
-                    <a 
-                      href={listing.url} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1"
-                    >
-                      View Link
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
-                  </div>
+                </div>
+
+                <div className="space-y-0.5">
+                  <div className="text-xs font-medium">{listing.source}</div>
+                  <a 
+                    href={listing.url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1"
+                  >
+                    View Link
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
                 </div>
               </div>
             ))}
@@ -134,3 +136,4 @@ export const MarketListings = ({
     </div>
   );
 };
+
