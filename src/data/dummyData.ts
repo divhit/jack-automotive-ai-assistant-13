@@ -1,3 +1,4 @@
+
 // Dummy data for the Jack Automotive AI Assistant prototype
 
 // Sales Dashboard Data
@@ -620,4 +621,18 @@ Recommendation: ${vehicle.aiRecommendedPrice > vehicle.currentPrice ? 'Consider 
     
     topOpportunities.forEach((vehicle, index) => {
       const priceDiff = vehicle.aiRecommendedPrice - vehicle.currentPrice;
-      response += `${index + 1}. ${vehicle.year} ${vehicle.make} ${vehicle.model} (stock #${vehicle.stockNumber}): Currently $${vehicle.currentPrice.toLocaleString()}, recommend ${priceDiff > 0 ? 'increasing' : 'reducing'} to $${vehicle.aiRecommendedPrice.toLocaleString()} ${
+      response += `${index + 1}. ${vehicle.year} ${vehicle.make} ${vehicle.model} (stock #${vehicle.stockNumber}): Currently $${vehicle.currentPrice.toLocaleString()}, recommend ${priceDiff > 0 ? 'increasing' : 'reducing'} to $${vehicle.aiRecommendedPrice.toLocaleString()} ${priceDiff > 0 ? '(+$' + priceDiff.toLocaleString() + ')' : '(-$' + Math.abs(priceDiff).toLocaleString() + ')'}\n\n`;
+    });
+    
+    const totalImpact = topOpportunities.reduce((sum, vehicle) => sum + (vehicle.aiRecommendedPrice - vehicle.currentPrice), 0);
+    
+    response += `Estimated net impact: ${totalImpact >= 0 ? '+' : ''}$${totalImpact.toLocaleString()}. Expected benefit: ${totalImpact >= 0 ? 'Increased revenue while maintaining competitive position' : 'Reduced carrying costs and faster inventory turn'}.`;
+    
+    return response;
+  },
+  
+  // Generic response for any unrecognized queries
+  getGenericResponse: (query: string) => {
+    return `I understand you're asking about "${query}". To provide the most accurate information, could you specify which vehicle you're interested in by stock number or make/model? Alternatively, I can help with market trends, inventory recommendations, or competitive analysis.`;
+  }
+};
