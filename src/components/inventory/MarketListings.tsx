@@ -1,5 +1,5 @@
 
-import { ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ComparableListing } from "@/data/market/marketComparableListings";
@@ -17,12 +17,10 @@ export const MarketListings = ({
   isExpanded,
   onToggleExpand,
 }: MarketListingsProps) => {
-  // Sort listings by match score (highest first) and take top 5
   const topListings = [...listings]
     .sort((a, b) => b.matchScore - a.matchScore)
     .slice(0, 5);
 
-  // Helper function to get badge color based on match score
   const getMatchScoreBadgeColor = (score: number) => {
     if (score >= 90) return "bg-green-100 text-green-800 hover:bg-green-100";
     if (score >= 80) return "bg-blue-100 text-blue-800 hover:bg-blue-100";
@@ -31,33 +29,15 @@ export const MarketListings = ({
 
   return (
     <div className="py-4 space-y-4">
-      <button 
-        onClick={onToggleExpand}
-        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-      >
-        {isExpanded ? (
-          <>
-            <ChevronUp className="h-4 w-4" />
-            Hide Similar Listings
-          </>
-        ) : (
-          <>
-            <ChevronDown className="h-4 w-4" />
-            Show Similar Listings
-          </>
-        )}
-      </button>
-
       {isExpanded && (
         <div className="space-y-4">
           {/* Column Headers */}
-          <div className="grid grid-cols-9 gap-4 px-3 py-2 bg-muted/50 rounded-t-lg text-sm font-medium text-muted-foreground">
+          <div className="grid grid-cols-8 gap-4 px-3 py-2 bg-muted/50 rounded-t-lg text-sm font-medium text-muted-foreground">
             <div>Model & Year</div>
             <div>Mileage</div>
             <div>Accident History</div>
             <div>Price</div>
             <div>Location</div>
-            <div>Dealer</div>
             <div>Distance</div>
             <div>Match Score</div>
             <div>Source</div>
@@ -68,7 +48,7 @@ export const MarketListings = ({
             {topListings.map((listing) => (
               <div 
                 key={listing.id}
-                className="grid grid-cols-9 gap-4 px-3 py-3 bg-muted/30 rounded-lg items-center text-sm"
+                className="grid grid-cols-8 gap-4 px-3 py-3 bg-muted/30 rounded-lg items-center text-sm"
               >
                 <div>
                   <div className="font-medium">
@@ -90,8 +70,6 @@ export const MarketListings = ({
                 </div>
 
                 <div>{listing.location}</div>
-
-                <div>{listing.dealer}</div>
 
                 <div>{listing.distanceKm} km</div>
 
