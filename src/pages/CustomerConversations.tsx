@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { 
   Card, 
@@ -40,7 +39,6 @@ const CustomerConversations = () => {
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
 
-  // Filter conversations based on search term
   const filteredConversations = customerConversations.filter((conversation) => {
     const searchLower = searchTerm.toLowerCase();
     return (
@@ -51,7 +49,6 @@ const CustomerConversations = () => {
     );
   });
 
-  // Sort conversations based on column and direction
   const sortedConversations = [...filteredConversations].sort((a, b) => {
     const directionMultiplier = sortDirection === "asc" ? 1 : -1;
     
@@ -71,7 +68,6 @@ const CustomerConversations = () => {
     }
   });
 
-  // Function to handle sorting when clicking on a column header
   const handleSort = (column: string) => {
     if (sortColumn === column) {
       setSortDirection(sortDirection === "asc" ? "desc" : "asc");
@@ -81,7 +77,6 @@ const CustomerConversations = () => {
     }
   };
 
-  // Format date to readable format
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -102,7 +97,6 @@ const CustomerConversations = () => {
     }
   };
 
-  // Helper function to get badge color based on conversation status
   const getStatusBadgeColor = (status: string) => {
     switch (status) {
       case "Active":
@@ -122,7 +116,6 @@ const CustomerConversations = () => {
 
   return (
     <div className="space-y-6">
-      {/* Search and Filter Section */}
       <div className="flex flex-col sm:flex-row items-center gap-4">
         <div className="relative w-full sm:w-96">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -140,7 +133,6 @@ const CustomerConversations = () => {
         </Button>
       </div>
 
-      {/* Conversations Table */}
       <Card>
         <CardHeader>
           <CardTitle className="text-xl">
@@ -193,32 +185,9 @@ const CustomerConversations = () => {
                     )}
                   </div>
                 </TableHead>
-                <TableHead 
-                  className="cursor-pointer hover:text-primary"
-                  onClick={() => handleSort("timestamp")}
-                >
-                  <div className="flex items-center">
-                    Time
-                    {sortColumn === "timestamp" && (
-                      sortDirection === "asc" ? 
-                        <ArrowUp className="ml-1 h-4 w-4" /> : 
-                        <ArrowDown className="ml-1 h-4 w-4" />
-                    )}
-                  </div>
-                </TableHead>
-                <TableHead 
-                  className="cursor-pointer hover:text-primary"
-                  onClick={() => handleSort("status")}
-                >
-                  <div className="flex items-center">
-                    Status
-                    {sortColumn === "status" && (
-                      sortDirection === "asc" ? 
-                        <ArrowUp className="ml-1 h-4 w-4" /> : 
-                        <ArrowDown className="ml-1 h-4 w-4" />
-                    )}
-                  </div>
-                </TableHead>
+                <TableHead>Lead Source</TableHead>
+                <TableHead>Time</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -235,6 +204,11 @@ const CustomerConversations = () => {
                   <TableCell className="max-w-xs">
                     <div className="text-sm truncate">{conversation.lastMessagePreview}</div>
                   </TableCell>
+                  <TableCell>
+                    <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
+                      {conversation.leadSource}
+                    </Badge>
+                  </TableCell>
                   <TableCell>{formatDate(conversation.timestamp)}</TableCell>
                   <TableCell>
                     <Badge className={getStatusBadgeColor(conversation.status)}>
@@ -242,79 +216,81 @@ const CustomerConversations = () => {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <Dialog onOpenChange={(open) => {
-                      if (open) setSelectedConversation(conversation.id);
-                    }}>
-                      <DialogTrigger asChild>
-                        <Button variant="ghost" size="sm" className="gap-1">
-                          <span>View</span>
-                          <ChevronRight className="h-4 w-4" />
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="sm:max-w-[500px]">
-                        <DialogHeader>
-                          <DialogTitle>Conversation with {conversation.customerName}</DialogTitle>
-                        </DialogHeader>
-                        <div className="flex items-center gap-3 mt-2">
-                          <Avatar className="h-10 w-10">
-                            <AvatarFallback className="bg-automotive-primary text-white">
-                              {conversation.customerName.charAt(0)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <div className="font-medium">{conversation.customerName}</div>
-                            <div className="text-sm text-muted-foreground flex items-center gap-2">
-                              <Phone className="h-3.5 w-3.5" />
-                              <span>{conversation.customerPhone}</span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
-                          <User className="h-3.5 w-3.5" />
-                          <span>Inquiring about: {conversation.vehicleInquiry}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Clock className="h-3.5 w-3.5" />
-                          <span>Status: {conversation.status}</span>
-                        </div>
-                        <ScrollArea className="h-[300px] mt-4 p-4 border rounded-md">
-                          {selectedConversation && customerConversations.find(c => c.id === selectedConversation)?.messages.map((message, index) => (
-                            <div 
-                              key={index} 
-                              className={`flex ${message.type === "outgoing" ? "justify-end" : "justify-start"} mb-4`}
-                            >
-                              <div 
-                                className={`max-w-[80%] p-3 rounded-lg ${
-                                  message.type === "outgoing" 
-                                    ? "bg-automotive-primary text-white" 
-                                    : "bg-gray-100 text-gray-800"
-                                }`}
-                              >
-                                <div>{message.message}</div>
-                                <div className="text-xs mt-1 opacity-70">
-                                  {new Date(message.timestamp).toLocaleTimeString([], { 
-                                    hour: '2-digit', 
-                                    minute: '2-digit',
-                                    month: 'short',
-                                    day: 'numeric'
-                                  })}
-                                </div>
+                    <div className="flex items-center gap-2">
+                      <Dialog onOpenChange={(open) => {
+                        if (open) setSelectedConversation(conversation.id);
+                      }}>
+                        <DialogTrigger asChild>
+                          <Button variant="ghost" size="sm" className="gap-1">
+                            <span>View</span>
+                            <ChevronRight className="h-4 w-4" />
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-[500px]">
+                          <DialogHeader>
+                            <DialogTitle>Conversation with {conversation.customerName}</DialogTitle>
+                          </DialogHeader>
+                          <div className="flex items-center gap-3 mt-2">
+                            <Avatar className="h-10 w-10">
+                              <AvatarFallback className="bg-automotive-primary text-white">
+                                {conversation.customerName.charAt(0)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <div className="font-medium">{conversation.customerName}</div>
+                              <div className="text-sm text-muted-foreground flex items-center gap-2">
+                                <Phone className="h-3.5 w-3.5" />
+                                <span>{conversation.customerPhone}</span>
                               </div>
                             </div>
-                          ))}
-                        </ScrollArea>
-                        <div className="flex mt-4">
-                          <Input placeholder="Type a message..." className="mr-2" />
-                          <Button>
-                            <MessageSquare className="h-4 w-4 mr-2" />
-                            Send
-                          </Button>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
-                    <Button variant="ghost" size="icon">
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+                            <User className="h-3.5 w-3.5" />
+                            <span>Inquiring about: {conversation.vehicleInquiry}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Clock className="h-3.5 w-3.5" />
+                            <span>Status: {conversation.status}</span>
+                          </div>
+                          <ScrollArea className="h-[300px] mt-4 p-4 border rounded-md">
+                            {selectedConversation && customerConversations.find(c => c.id === selectedConversation)?.messages.map((message, index) => (
+                              <div 
+                                key={index} 
+                                className={`flex ${message.type === "outgoing" ? "justify-end" : "justify-start"} mb-4`}
+                              >
+                                <div 
+                                  className={`max-w-[80%] p-3 rounded-lg ${
+                                    message.type === "outgoing" 
+                                      ? "bg-automotive-primary text-white" 
+                                      : "bg-gray-100 text-gray-800"
+                                  }`}
+                                >
+                                  <div>{message.message}</div>
+                                  <div className="text-xs mt-1 opacity-70">
+                                    {new Date(message.timestamp).toLocaleTimeString([], { 
+                                      hour: '2-digit', 
+                                      minute: '2-digit',
+                                      month: 'short',
+                                      day: 'numeric'
+                                    })}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </ScrollArea>
+                          <div className="flex mt-4">
+                            <Input placeholder="Type a message..." className="mr-2" />
+                            <Button>
+                              <MessageSquare className="h-4 w-4 mr-2" />
+                              Send
+                            </Button>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                      <Button variant="outline" size="sm">
+                        Follow Up
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

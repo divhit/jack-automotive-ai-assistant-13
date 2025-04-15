@@ -10,7 +10,7 @@ import MarketInsights from "@/pages/MarketInsights";
 import { Car, Users, MessageSquare, Phone, UserPlus, BarChart3 } from "lucide-react";
 
 const Layout = () => {
-  const [activeTab, setActiveTab] = useState("sales");
+  const [activeTab, setActiveTab] = useState("inventory");
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -31,14 +31,6 @@ const Layout = () => {
       <main className="container mx-auto py-6 px-4">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid grid-cols-6 mb-8">
-            <TabsTrigger 
-              value="sales" 
-              className="flex items-center gap-2 py-3"
-              data-state={activeTab === "sales" ? "active" : "inactive"}
-            >
-              <Users className="h-4 w-4" />
-              <span>Sales Dashboard</span>
-            </TabsTrigger>
             <TabsTrigger 
               value="inventory" 
               className="flex items-center gap-2 py-3"
@@ -64,6 +56,14 @@ const Layout = () => {
               <span>Customer Conversations</span>
             </TabsTrigger>
             <TabsTrigger 
+              value="insights" 
+              className="flex items-center gap-2 py-3"
+              data-state={activeTab === "insights" ? "active" : "inactive"}
+            >
+              <BarChart3 className="h-4 w-4" />
+              <span>Market Insights</span>
+            </TabsTrigger>
+            <TabsTrigger 
               value="leads" 
               className="flex items-center gap-2 py-3"
               data-state={activeTab === "leads" ? "active" : "inactive"}
@@ -72,18 +72,14 @@ const Layout = () => {
               <span>Manual Lead Entry</span>
             </TabsTrigger>
             <TabsTrigger 
-              value="insights" 
+              value="sales" 
               className="flex items-center gap-2 py-3"
-              data-state={activeTab === "insights" ? "active" : "inactive"}
+              data-state={activeTab === "sales" ? "active" : "inactive"}
             >
-              <BarChart3 className="h-4 w-4" />
-              <span>Market Insights</span>
+              <Users className="h-4 w-4" />
+              <span>Sales Dashboard</span>
             </TabsTrigger>
           </TabsList>
-
-          <TabsContent value="sales" className="mt-0">
-            <SalesDashboard />
-          </TabsContent>
 
           <TabsContent value="inventory" className="mt-0">
             <InventoryDashboard />
@@ -97,12 +93,16 @@ const Layout = () => {
             <CustomerConversations />
           </TabsContent>
 
+          <TabsContent value="insights" className="mt-0">
+            <MarketInsights />
+          </TabsContent>
+
           <TabsContent value="leads" className="mt-0">
             <ManualLeadEntry />
           </TabsContent>
 
-          <TabsContent value="insights" className="mt-0">
-            <MarketInsights />
+          <TabsContent value="sales" className="mt-0">
+            <SalesDashboard />
           </TabsContent>
         </Tabs>
       </main>
