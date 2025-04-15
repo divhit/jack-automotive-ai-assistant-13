@@ -1,4 +1,21 @@
-// Inventory items dummy data
+export interface InventoryItem {
+  id: string;
+  stockNumber: string;
+  year: number;
+  make: string;
+  model: string;
+  trim: string;
+  mileage: number;
+  currentPrice: number;
+  aiRecommendedPrice: number;
+  marketInsights: string;
+  daysInInventory: number;
+  condition: string;
+  exteriorColor: string;
+  interiorColor: string;
+  fuelType: string;
+}
+
 export const inventoryItems = [
   {
     id: "A1234",
