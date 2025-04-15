@@ -28,9 +28,9 @@ export const MarketListings = ({
   };
 
   return (
-    <div className="py-4 space-y-4">
+    <div className="py-2 space-y-2"> {/* Reduced padding and space */}
       {isExpanded && (
-        <div className="space-y-4">
+        <div>
           {/* Column Headers */}
           <div className="grid grid-cols-8 gap-4 px-3 py-2 bg-muted/50 rounded-t-lg text-sm font-medium text-muted-foreground">
             <div>Model & Year</div>
@@ -44,11 +44,11 @@ export const MarketListings = ({
           </div>
 
           {/* Listings */}
-          <div className="space-y-2">
+          <div>
             {topListings.map((listing) => (
               <div 
                 key={listing.id}
-                className="grid grid-cols-8 gap-4 px-3 py-3 bg-muted/30 rounded-lg items-center text-sm"
+                className="grid grid-cols-8 gap-4 px-3 py-2 bg-muted/30 rounded-lg items-center text-sm border-b last:border-b-0"
               >
                 <div>
                   <div className="font-medium">
