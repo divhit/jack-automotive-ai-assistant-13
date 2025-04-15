@@ -11,13 +11,12 @@ interface ListingCardProps {
 export const ListingCard = ({ listing, getMatchScoreBadgeColor }: ListingCardProps) => {
   return (
     <div className="grid grid-cols-8 gap-4 px-3 py-2 bg-muted/30 items-center text-sm border-b last:border-b-0">
-      <div>
-        <div className="font-medium">
-          {listing.year} {listing.make} {listing.model}
-        </div>
-        <div className="text-xs text-muted-foreground mt-0.5">
-          {listing.trim}
-        </div>
+      <div className="font-medium">
+        {listing.year} {listing.make} {listing.model}
+      </div>
+
+      <div className="text-muted-foreground">
+        {listing.trim}
       </div>
 
       <div>{listing.mileage.toLocaleString()} km</div>
@@ -30,9 +29,9 @@ export const ListingCard = ({ listing, getMatchScoreBadgeColor }: ListingCardPro
         ${listing.price.toLocaleString()}
       </div>
 
-      <div>{listing.location}</div>
-
-      <div>{listing.distanceKm} km</div>
+      <div>
+        {listing.location}
+      </div>
 
       <div className="space-y-1">
         <Badge className={getMatchScoreBadgeColor(listing.matchScore)}>
