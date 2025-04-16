@@ -35,7 +35,7 @@ export const ListingCard = ({ listing, getMatchScoreBadgeColor }: ListingCardPro
       </div>
 
       <div className="flex items-center gap-2">
-        <Badge className={getMatchScoreBadgeColor(listing.matchScore)}>
+        <Badge className={`${getMatchScoreBadgeColor(listing.matchScore)} whitespace-nowrap`}>
           {listing.matchScore}% Match
         </Badge>
         <HoverCard>
