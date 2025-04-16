@@ -1,4 +1,3 @@
-
 import { ComparableListing } from "@/data/market/types/ComparableListing";
 import { Badge } from "@/components/ui/badge";
 import { ExternalLink, Info } from "lucide-react";
@@ -10,6 +9,17 @@ interface ListingCardProps {
 }
 
 export const ListingCard = ({ listing, getMatchScoreBadgeColor }: ListingCardProps) => {
+  const getMatchDetails = (score: number) => {
+    let details = [];
+    
+    if (Math.abs(listing.price - 32000) < 1000) details.push("Price within market average");
+    if (Math.abs(listing.mileage - 45000) < 5000) details.push("Similar mileage");
+    if (listing.year >= 2020) details.push("Recent model year");
+    if (listing.accidents === 0) details.push("Clean history");
+    
+    return details.join(" • ");
+  };
+
   return (
     <div className="grid grid-cols-8 gap-4 px-3 py-2 bg-muted/30 items-center text-sm border-b last:border-b-0">
       <div className="font-medium">
@@ -35,22 +45,22 @@ export const ListingCard = ({ listing, getMatchScoreBadgeColor }: ListingCardPro
       </div>
 
       <div className="flex items-center gap-2">
-        <Badge className={`${getMatchScoreBadgeColor(listing.matchScore)} whitespace-nowrap`}>
-          {listing.matchScore}% Match
-        </Badge>
         <HoverCard>
-          <HoverCardTrigger asChild>
-            <Info className="h-4 w-4 text-muted-foreground cursor-help hover:text-foreground transition-colors" />
+          <HoverCardTrigger>
+            <Badge className={`${getMatchScoreBadgeColor(listing.matchScore)} whitespace-nowrap cursor-help`}>
+              {listing.matchScore}% Match
+            </Badge>
           </HoverCardTrigger>
           <HoverCardContent className="w-80">
             <div className="space-y-2">
-              <h4 className="font-semibold">Match Score Details</h4>
-              <p className="text-sm text-muted-foreground">
-                {listing.matchRationale}
-              </p>
-              <p className="text-xs text-muted-foreground border-t pt-2">
-                Match scores indicate how well this vehicle matches your inventory item based on factors like year, mileage, trim level, and market conditions.
-              </p>
+              <h4 className="font-semibold">Match Score: {listing.matchScore}%</h4>
+              <div className="space-y-1.5">
+                <p className="text-sm">{getMatchDetails(listing.matchScore)}</p>
+                <p className="text-xs text-muted-foreground border-t pt-2">
+                  Match scores are calculated based on similarities in price, mileage, year, and vehicle condition. 
+                  A score above 90% indicates an excellent market comparison.
+                </p>
+              </div>
             </div>
           </HoverCardContent>
         </HoverCard>
