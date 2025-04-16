@@ -1,7 +1,8 @@
 
-import { ComparableListing } from "@/data/market/marketComparableListings";
+import { ComparableListing } from "@/data/market/types/ComparableListing";
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Info } from "lucide-react";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 
 interface ListingCardProps {
   listing: ComparableListing;
@@ -33,13 +34,26 @@ export const ListingCard = ({ listing, getMatchScoreBadgeColor }: ListingCardPro
         {listing.location}
       </div>
 
-      <div className="space-y-1">
+      <div className="flex items-center gap-2">
         <Badge className={getMatchScoreBadgeColor(listing.matchScore)}>
           {listing.matchScore}% Match
         </Badge>
-        <div className="text-xs text-muted-foreground">
-          {listing.matchRationale}
-        </div>
+        <HoverCard>
+          <HoverCardTrigger asChild>
+            <Info className="h-4 w-4 text-muted-foreground cursor-help hover:text-foreground transition-colors" />
+          </HoverCardTrigger>
+          <HoverCardContent className="w-80">
+            <div className="space-y-2">
+              <h4 className="font-semibold">Match Score Details</h4>
+              <p className="text-sm text-muted-foreground">
+                {listing.matchRationale}
+              </p>
+              <p className="text-xs text-muted-foreground border-t pt-2">
+                Match scores indicate how well this vehicle matches your inventory item based on factors like year, mileage, trim level, and market conditions.
+              </p>
+            </div>
+          </HoverCardContent>
+        </HoverCard>
       </div>
 
       <div className="space-y-0.5">
