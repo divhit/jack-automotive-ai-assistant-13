@@ -1,11 +1,14 @@
-
 import { ComparableListing } from "@/data/market/types/ComparableListing";
 import { Badge } from "@/components/ui/badge";
 import { ExternalLink } from "lucide-react";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 
-// Helper to get MDX demo images based on year/trim
+// Helper to get MDX demo images based on year/trim or explicit photo
 const getListingImage = (listing: ComparableListing): string => {
+  // If explicit photo field exists, use it
+  if (listing.photoUrl) return listing.photoUrl;
+
+  // Old logic fallback for other vehicles/sample MDXs
   // Case: 2022 Acura MDX
   if (
     listing.make.toLowerCase() === "acura" &&
@@ -21,18 +24,17 @@ const getListingImage = (listing: ComparableListing): string => {
     listing.year === 2023 &&
     listing.trim.toLowerCase().includes("ultra")
   ) {
-    // Use the new image from your link:
     return "https://mkt-vehicleimages-prd.autotradercdn.ca/photos/import/202504/1607/4851/cd2213e2-5c62-4d27-965b-c0f949a7468e_overlay.jpg-1024x786";
   }
-  // Case: 2019 Acura MDX (fallback, since only a page—not an image—link was provided)
+  // Case: 2019 Acura MDX
   if (
     listing.make.toLowerCase() === "acura" &&
     listing.model.toLowerCase() === "mdx" &&
     listing.year === 2019
   ) {
-    return "https://mkt-vehicleimages-prd.autotradercdn.ca/photos/import/202505/0121/3706/bfa3e0b6-9878-4726-924e-282d5e3e48ce_overlay.jpg-1024x786";
+    return "https://mkt-vehicleimages-prd.autotradercdn.ca/photos/import/202504/1807/0648/6b6ee905-f68b-4f91-97b1-21fa3a93dac0_overlay.jpg-1024x786";
   }
-  // Fallback placeholder image (can use an online placeholder or a solid color)
+  // Fallback placeholder image
   return "https://cdn.motor1.com/images/mgl/n8vEX/s1/2022-acura-mdx-type-s.jpg";
 };
 

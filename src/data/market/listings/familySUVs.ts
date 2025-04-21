@@ -17,10 +17,47 @@ export const familySUVListings: Record<string, ComparableListing[]> = {
       daysListed: 22,
       matchScore: 96,
       distanceKm: 35,
-      matchRationale: "Good condition, low mileage"
+      matchRationale: "Good condition, low mileage",
+      photoUrl: "https://mkt-vehicleimages-prd.autotradercdn.ca/photos/import/202504/1603/0734/93f86dfe-f754-4de5-89d9-e277c276011b_overlay.jpg-1024x786"
     },
     {
-      id: "ML007",
+      id: "ML011",
+      source: "AutoTrader",
+      url: "#",
+      year: 2023,
+      make: "Acura",
+      model: "MDX",
+      trim: "S Ultra",
+      mileage: 6200,
+      price: 59200,
+      location: "Vancouver, BC",
+      accidents: 0,
+      daysListed: 10,
+      matchScore: 93,
+      distanceKm: 38,
+      matchRationale: "Low mileage, latest S Ultra trim",
+      photoUrl: "https://mkt-vehicleimages-prd.autotradercdn.ca/photos/import/202504/1607/4851/cd2213e2-5c62-4d27-965b-c0f949a7468e_overlay.jpg-1024x786"
+    },
+    {
+      id: "ML012",
+      source: "AutoTrader",
+      url: "#",
+      year: 2019,
+      make: "Acura",
+      model: "MDX",
+      trim: "Elite Package",
+      mileage: 32780,
+      price: 41800,
+      location: "Richmond, BC",
+      accidents: 1,
+      daysListed: 29,
+      matchScore: 89,
+      distanceKm: 41,
+      matchRationale: "Older, accident claim, value buy",
+      photoUrl: "https://mkt-vehicleimages-prd.autotradercdn.ca/photos/import/202504/1807/0648/6b6ee905-f68b-4f91-97b1-21fa3a93dac0_overlay.jpg-1024x786"
+    },
+    {
+      id: "ML013",
       source: "Facebook Marketplace",
       url: "#",
       year: 2022,
@@ -34,10 +71,11 @@ export const familySUVListings: Record<string, ComparableListing[]> = {
       daysListed: 31,
       matchScore: 91,
       distanceKm: 40,
-      matchRationale: "Good condition, low mileage"
+      matchRationale: "A-Spec trim, good spec",
+      photoUrl: "https://mkt-vehicleimages-prd.autotradercdn.ca/photos/import/202504/1303/0724/19e77d7b-4639-483c-8752-f7be39f6a6de_overlay.jpg-1024x786"
     },
     {
-      id: "ML008",
+      id: "ML014",
       source: "AutoTrader",
       url: "#",
       year: 2021,
@@ -51,41 +89,7 @@ export const familySUVListings: Record<string, ComparableListing[]> = {
       daysListed: 42,
       matchScore: 87,
       distanceKm: 45,
-      matchRationale: "Good condition, low mileage"
-    },
-    {
-      id: "ML009",
-      source: "Facebook Marketplace",
-      url: "#",
-      year: 2022,
-      make: "Acura",
-      model: "MDX",
-      trim: "Advance Package",
-      mileage: 14200,
-      price: 55100,
-      location: "Nanaimo, BC",
-      accidents: 1,
-      daysListed: 19,
-      matchScore: 89,
-      distanceKm: 50,
-      matchRationale: "Good condition, low mileage"
-    },
-    {
-      id: "ML010",
-      source: "AutoTrader",
-      url: "#",
-      year: 2023,
-      make: "Acura",
-      model: "MDX",
-      trim: "Technology Package",
-      mileage: 5300,
-      price: 59700,
-      location: "Prince George, BC",
-      accidents: 0,
-      daysListed: 8,
-      matchScore: 85,
-      distanceKm: 55,
-      matchRationale: "Good condition, low mileage"
+      matchRationale: "Tech pkg, one owner, very clean"
     },
   ],
   "HO22CR": [
@@ -106,7 +110,6 @@ export const familySUVListings: Record<string, ComparableListing[]> = {
       distanceKm: 75,
       matchRationale: "Good condition, low mileage"
     },
-    // More listings would be here
   ],
   "TO22RA": [
     {
@@ -126,6 +129,5 @@ export const familySUVListings: Record<string, ComparableListing[]> = {
       distanceKm: 85,
       matchRationale: "Good condition, low mileage"
     },
-    // More listings would be here
   ],
 };

@@ -1,4 +1,3 @@
-
 export type ComparableListing = {
   id: string;
   source: string;
@@ -15,4 +14,5 @@ export type ComparableListing = {
   matchScore: number;
   distanceKm: number;
   matchRationale: string;
+  photoUrl?: string; // Add support for explicit listing photo
 };
