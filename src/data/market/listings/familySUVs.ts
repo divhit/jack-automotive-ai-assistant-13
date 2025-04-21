@@ -1,3 +1,4 @@
+
 import { ComparableListing } from "../types/ComparableListing";
 
 export const familySUVListings: Record<string, ComparableListing[]> = {
@@ -89,7 +90,8 @@ export const familySUVListings: Record<string, ComparableListing[]> = {
       daysListed: 42,
       matchScore: 87,
       distanceKm: 45,
-      matchRationale: "Tech pkg, one owner, very clean"
+      matchRationale: "Tech pkg, one owner, very clean",
+      photoUrl: "https://images.cars.com/cldstatic/wp-content/uploads/acura-mdx-type-s-2024-02-exterior-front-angle-scaled.jpg"
     },
   ],
   "HO22CR": [
