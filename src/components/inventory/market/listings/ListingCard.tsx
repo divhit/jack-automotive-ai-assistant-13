@@ -1,7 +1,39 @@
+
 import { ComparableListing } from "@/data/market/types/ComparableListing";
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink, Info } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+
+// Helper to get MDX demo images based on year/trim
+const getListingImage = (listing: ComparableListing): string => {
+  // Case: 2022 Acura MDX
+  if (
+    listing.make.toLowerCase() === "acura" &&
+    listing.model.toLowerCase() === "mdx" &&
+    listing.year === 2022
+  ) {
+    return "https://mkt-vehicleimages-prd.autotradercdn.ca/photos/import/202504/1603/0734/93f86dfe-f754-4de5-89d9-e277c276011b_overlay.jpg-1024x786";
+  }
+  // Case: 2023 Acura MDX (S Ultra, demo via uploaded image)
+  if (
+    listing.make.toLowerCase() === "acura" &&
+    listing.model.toLowerCase() === "mdx" &&
+    listing.year === 2023 &&
+    listing.trim.toLowerCase().includes("ultra")
+  ) {
+    return "/lovable-uploads/9ce29ebe-3103-4bcf-a99e-4ec5d58d54fc.png";
+  }
+  // Case: 2019 Acura MDX
+  if (
+    listing.make.toLowerCase() === "acura" &&
+    listing.model.toLowerCase() === "mdx" &&
+    listing.year === 2019
+  ) {
+    return "https://mkt-vehicleimages-prd.autotradercdn.ca/photos/import/202505/0121/3706/bfa3e0b6-9878-4726-924e-282d5e3e48ce_overlay.jpg-1024x786";
+  }
+  // Fallback placeholder image (can use an online placeholder or a solid color)
+  return "https://cdn.motor1.com/images/mgl/n8vEX/s1/2022-acura-mdx-type-s.jpg";
+};
 
 interface ListingCardProps {
   listing: ComparableListing;
@@ -21,8 +53,18 @@ export const ListingCard = ({ listing, getMatchScoreBadgeColor }: ListingCardPro
   };
 
   return (
-    <div className="grid grid-cols-8 gap-4 px-3 py-2 bg-muted/30 items-center text-sm border-b last:border-b-0">
-      <div className="font-medium">
+    <div className="grid grid-cols-9 gap-4 px-3 py-2 bg-muted/30 items-center text-sm border-b last:border-b-0">
+      {/* Image cell */}
+      <div className="flex justify-center items-center">
+        <img
+          src={getListingImage(listing)}
+          alt={`${listing.year} ${listing.make} ${listing.model}`}
+          className="w-16 h-12 object-cover rounded-md border"
+          loading="lazy"
+        />
+      </div>
+
+      <div className="font-medium col-span-1">
         {listing.year} {listing.make} {listing.model}
       </div>
 
@@ -44,6 +86,7 @@ export const ListingCard = ({ listing, getMatchScoreBadgeColor }: ListingCardPro
         {listing.location}
       </div>
 
+      {/* Match score tag and hover rationale */}
       <div className="flex items-center gap-2">
         <HoverCard>
           <HoverCardTrigger>
@@ -57,8 +100,9 @@ export const ListingCard = ({ listing, getMatchScoreBadgeColor }: ListingCardPro
               <div className="space-y-1.5">
                 <p className="text-sm">{getMatchDetails(listing.matchScore)}</p>
                 <p className="text-xs text-muted-foreground border-t pt-2">
-                  Match scores are calculated based on similarities in price, mileage, year, and vehicle condition. 
-                  A score above 90% indicates an excellent market comparison.
+                  <span className="font-semibold">How this is calculated:</span> Each listing is scored based on price similarity to market average, mileage, model year, and accident history. <br />
+                  A higher score means this vehicle is a stronger comparison for your inventory. <br />
+                  Match rationale: <span className="italic">{listing.matchRationale}</span>
                 </p>
               </div>
             </div>
