@@ -14,16 +14,17 @@ const getListingImage = (listing: ComparableListing): string => {
   ) {
     return "https://mkt-vehicleimages-prd.autotradercdn.ca/photos/import/202504/1603/0734/93f86dfe-f754-4de5-89d9-e277c276011b_overlay.jpg-1024x786";
   }
-  // Case: 2023 Acura MDX (S Ultra, demo via uploaded image)
+  // Case: 2023 Acura MDX (S Ultra)
   if (
     listing.make.toLowerCase() === "acura" &&
     listing.model.toLowerCase() === "mdx" &&
     listing.year === 2023 &&
     listing.trim.toLowerCase().includes("ultra")
   ) {
-    return "/lovable-uploads/9ce29ebe-3103-4bcf-a99e-4ec5d58d54fc.png";
+    // Use the new image from your link:
+    return "https://mkt-vehicleimages-prd.autotradercdn.ca/photos/import/202504/1607/4851/cd2213e2-5c62-4d27-965b-c0f949a7468e_overlay.jpg-1024x786";
   }
-  // Case: 2019 Acura MDX
+  // Case: 2019 Acura MDX (fallback, since only a page—not an image—link was provided)
   if (
     listing.make.toLowerCase() === "acura" &&
     listing.model.toLowerCase() === "mdx" &&
