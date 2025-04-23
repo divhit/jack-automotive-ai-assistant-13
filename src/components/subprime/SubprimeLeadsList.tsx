@@ -70,14 +70,26 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
   };
 
   const getProgressTooltip = (lead: SubprimeLead) => {
+    // Calculate days in conversation based on conversation history
+    const firstContactDate = lead.conversations.length > 0 
+      ? new Date(lead.conversations[0].timestamp)
+      : new Date(lead.lastTouchpoint);
+    
     const daysInConversation = Math.floor(
-      (new Date().getTime() - new Date(lead.firstContact).getTime()) / (1000 * 60 * 60 * 24)
+      (new Date().getTime() - firstContactDate.getTime()) / (1000 * 60 * 60 * 24)
     );
     
+    // Count messages
+    const messageCount = lead.conversations.length;
+    
+    // Estimate unanswered prompts and call counts
+    const unansweredCount = lead.nextAction.isOverdue ? 1 : 0;
+    const callCount = lead.conversations.filter(c => c.type === "call").length;
+    
     return `In conversation for ${daysInConversation} days
-${lead.messageCount} messages exchanged
-${lead.unansweredCount || 0} unanswered prompts
-${lead.callCount || 0} voice call${lead.callCount !== 1 ? 's' : ''} initiated`;
+${messageCount} messages exchanged
+${unansweredCount} unanswered prompts
+${callCount} voice call${callCount !== 1 ? 's' : ''} initiated`;
   };
 
   const handleRowClick = (lead: SubprimeLead, e: React.MouseEvent) => {

@@ -1,14 +1,12 @@
 
 import { useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import SalesDashboard from "@/pages/SalesDashboard";
 import InventoryDashboard from "@/pages/InventoryDashboard";
 import ChatWithJack from "@/pages/ChatWithJack";
 import CustomerConversations from "@/pages/CustomerConversations";
-import ManualLeadEntry from "@/pages/ManualLeadEntry";
 import MarketInsights from "@/pages/MarketInsights";
 import SubprimeDashboard from "@/pages/SubprimeDashboard";
-import { Car, Users, MessageSquare, Phone, UserPlus, BarChart3, CircleDollarSign } from "lucide-react";
+import { Car, Users, MessageSquare, Phone, BarChart3, CircleDollarSign } from "lucide-react";
 
 const Layout = () => {
   const [activeTab, setActiveTab] = useState("inventory");
@@ -31,7 +29,7 @@ const Layout = () => {
       {/* Main Content */}
       <main className="container mx-auto py-6 px-4">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid grid-cols-7 mb-8">
+          <TabsList className="grid grid-cols-5 mb-8">
             <TabsTrigger 
               value="inventory" 
               className="flex items-center gap-2 py-3"
@@ -65,22 +63,6 @@ const Layout = () => {
               <span>Market Insights</span>
             </TabsTrigger>
             <TabsTrigger 
-              value="leads" 
-              className="flex items-center gap-2 py-3"
-              data-state={activeTab === "leads" ? "active" : "inactive"}
-            >
-              <UserPlus className="h-4 w-4" />
-              <span>Manual Lead Entry</span>
-            </TabsTrigger>
-            <TabsTrigger 
-              value="sales" 
-              className="flex items-center gap-2 py-3"
-              data-state={activeTab === "sales" ? "active" : "inactive"}
-            >
-              <Users className="h-4 w-4" />
-              <span>Sales Dashboard</span>
-            </TabsTrigger>
-            <TabsTrigger 
               value="subprime" 
               className="flex items-center gap-2 py-3"
               data-state={activeTab === "subprime" ? "active" : "inactive"}
@@ -104,14 +86,6 @@ const Layout = () => {
 
           <TabsContent value="insights" className="mt-0">
             <MarketInsights />
-          </TabsContent>
-
-          <TabsContent value="leads" className="mt-0">
-            <ManualLeadEntry />
-          </TabsContent>
-
-          <TabsContent value="sales" className="mt-0">
-            <SalesDashboard />
           </TabsContent>
 
           <TabsContent value="subprime" className="mt-0">
