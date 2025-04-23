@@ -154,7 +154,7 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
                   </div>
 
                   {/* Progress Steps with Tooltip */}
-                  <div className="col-span-3 pl-4">
+                  <div className="col-span-3 pl-6">
                     <Tooltip>
                       <TooltipTrigger className="w-full">
                         <div className="flex items-center gap-1">
