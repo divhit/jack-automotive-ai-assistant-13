@@ -2,10 +2,15 @@
 import { useState } from "react";
 import { SubprimeLead } from "@/data/subprime/subprimeLeads";
 import { Card } from "@/components/ui/card";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { formatDistanceToNow } from "date-fns";
-import { ChevronDown, ChevronUp, Pause, Play, Check, Clock, AlertCircle } from "lucide-react";
+import { Play, Pause, Check, Clock, AlertCircle } from "lucide-react";
 import { SubprimeLeadDetail } from "./SubprimeLeadDetail";
 
 interface SubprimeLeadsListProps {
@@ -13,14 +18,7 @@ interface SubprimeLeadsListProps {
 }
 
 export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
-  const [openLeads, setOpenLeads] = useState<Record<string, boolean>>({});
-
-  const toggleLead = (id: string) => {
-    setOpenLeads(prev => ({
-      ...prev,
-      [id]: !prev[id]
-    }));
-  };
+  const [selectedLead, setSelectedLead] = useState<SubprimeLead | null>(null);
 
   const getSentimentIcon = (sentiment: SubprimeLead['sentiment']) => {
     switch (sentiment) {
@@ -83,53 +81,60 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       {leads.length === 0 ? (
         <Card className="p-4 text-center text-gray-500">
           No leads match your current filters
         </Card>
       ) : (
-        leads.map(lead => (
-          <Collapsible
-            key={lead.id}
-            open={!!openLeads[lead.id]}
-            onOpenChange={() => toggleLead(lead.id)}
-            className="border rounded-md overflow-hidden"
-          >
-            <CollapsibleTrigger className="w-full">
-              <div className="p-4 flex items-center justify-between bg-white hover:bg-gray-50 transition-colors">
-                <div className="flex items-center space-x-4">
-                  <div>
-                    {getChaseStatusIcon(lead.chaseStatus)}
-                  </div>
-                  <div className="font-medium">{lead.customerName}</div>
-                  <Badge className={getReadinessBadgeColor(lead.fundingReadiness)}>
-                    {lead.fundingReadiness}
-                  </Badge>
+        <>
+          {leads.map(lead => (
+            <Card 
+              key={lead.id} 
+              className="p-3 cursor-pointer hover:bg-gray-50 transition-colors"
+              onClick={() => setSelectedLead(lead)}
+            >
+              <div className="grid grid-cols-12 gap-4 items-center">
+                <div className="col-span-3 flex items-center space-x-2">
+                  <span className="font-medium">{lead.customerName}</span>
+                  {getChaseStatusIcon(lead.chaseStatus)}
                   <div className="text-xl">
                     {getSentimentIcon(lead.sentiment)}
                   </div>
                 </div>
-                <div className="flex items-center space-x-4">
-                  <div className="text-sm text-gray-500">
-                    <Clock className="inline h-3 w-3 mr-1" />
-                    {formatLastTouchpoint(lead.lastTouchpoint)}
-                  </div>
-                  <Badge variant="outline" className={getNextActionBadgeColor(lead.nextAction.isAutomated, lead.nextAction.isOverdue)}>
+                <div className="col-span-2">
+                  <Badge className={getReadinessBadgeColor(lead.fundingReadiness)}>
+                    {lead.fundingReadiness}
+                  </Badge>
+                </div>
+                <div className="col-span-3 text-sm text-gray-500 flex items-center">
+                  <Clock className="inline h-3 w-3 mr-1" />
+                  {formatLastTouchpoint(lead.lastTouchpoint)}
+                </div>
+                <div className="col-span-4 flex justify-end">
+                  <Badge 
+                    variant="outline" 
+                    className={getNextActionBadgeColor(
+                      lead.nextAction.isAutomated, 
+                      lead.nextAction.isOverdue
+                    )}
+                  >
                     {lead.nextAction.type}
                   </Badge>
-                  {openLeads[lead.id] ? 
-                    <ChevronUp className="h-5 w-5 text-gray-400" /> : 
-                    <ChevronDown className="h-5 w-5 text-gray-400" />
-                  }
                 </div>
               </div>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <SubprimeLeadDetail lead={lead} />
-            </CollapsibleContent>
-          </Collapsible>
-        ))
+            </Card>
+          ))}
+
+          <Dialog open={!!selectedLead} onOpenChange={() => setSelectedLead(null)}>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Lead Details</DialogTitle>
+              </DialogHeader>
+              {selectedLead && <SubprimeLeadDetail lead={selectedLead} />}
+            </DialogContent>
+          </Dialog>
+        </>
       )}
     </div>
   );

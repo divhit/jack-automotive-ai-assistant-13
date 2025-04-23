@@ -1,4 +1,3 @@
-
 import { SubprimeLead } from "@/data/subprime/subprimeLeads";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +17,6 @@ export const SubprimeLeadDetail = ({ lead }: SubprimeLeadDetailProps) => {
   const [autoChase, setAutoChase] = useState(lead.chaseStatus === "Auto Chase Running");
   const [internalNote, setInternalNote] = useState("");
   
-  // Progress calculation for steps
   const progressSteps = ["contacted", "screening", "qualification", "routing", "submitted"];
   const currentStepIndex = progressSteps.indexOf(lead.scriptProgress.currentStep);
   
@@ -26,22 +24,17 @@ export const SubprimeLeadDetail = ({ lead }: SubprimeLeadDetailProps) => {
     return ((currentStepIndex + 1) / progressSteps.length) * 100;
   };
 
-  // Format conversation timestamps
   const formatMessageTime = (timestamp: string) => {
     return format(new Date(timestamp), "MMM d, h:mm a");
   };
 
-  // Just simulate handling for demo purposes
   const handleToggleAutoChase = () => {
     setAutoChase(!autoChase);
-    // In a real app, this would update the lead status
   };
 
   const handleAddNote = () => {
     if (internalNote.trim()) {
-      // In a real app, this would add the note to the lead
       setInternalNote("");
-      // Show a success toast or feedback
     }
   };
 
@@ -52,11 +45,25 @@ export const SubprimeLeadDetail = ({ lead }: SubprimeLeadDetailProps) => {
     if (sentBy === "lead") return "bg-gray-100";
     return "bg-automotive-primary text-white";
   };
-  
+
   return (
-    <div className="p-4 bg-gray-50 border-t">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Left Panel - Lead Info */}
+    <div className="space-y-6">
+      <Card className="p-4 bg-blue-50/50">
+        <h4 className="font-medium mb-2 flex items-center gap-2">
+          <span>AI Summary</span>
+          <Badge variant="secondary" className="text-xs">Auto-generated</Badge>
+        </h4>
+        <p className="text-sm text-gray-700">
+          {lead.sentiment === "Frustrated" ? 
+            "Customer shows signs of frustration with the approval process. Recommend human intervention and empathetic approach." :
+            lead.sentiment === "Warm" ?
+            "Lead is engaging positively and moving through the qualification process well. Next steps focused on document collection." :
+            "Regular follow-up maintaining current engagement level. Following standard qualification process."
+          }
+        </p>
+      </Card>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
@@ -131,7 +138,6 @@ export const SubprimeLeadDetail = ({ lead }: SubprimeLeadDetailProps) => {
             </div>
           </Card>
           
-          {/* Script Progress Tracker */}
           <Card className="p-4">
             <h4 className="font-medium mb-2">Funding Journey Progress</h4>
             
@@ -175,11 +181,10 @@ export const SubprimeLeadDetail = ({ lead }: SubprimeLeadDetailProps) => {
           </Card>
         </div>
         
-        {/* Middle Panel - Conversation */}
-        <div className="lg:col-span-2">
-          <h4 className="font-medium mb-2">Conversation History</h4>
+        <div className="lg:col-span-2 space-y-4">
+          <h4 className="font-medium">Conversation History</h4>
           
-          <div className="bg-white rounded-lg border h-96 overflow-y-auto p-4 space-y-3">
+          <div className="bg-white rounded-lg border h-96 overflow-y-auto p-4 space-y-4">
             {lead.conversations.map((message, index) => (
               <div 
                 key={index} 
@@ -201,7 +206,6 @@ export const SubprimeLeadDetail = ({ lead }: SubprimeLeadDetailProps) => {
             ))}
           </div>
           
-          {/* Quick Action Toolbar */}
           <div className="mt-4 flex flex-wrap gap-2">
             <Button size="sm" variant="outline" className="flex items-center gap-1">
               <MessageSquare className="h-4 w-4" />
@@ -221,7 +225,6 @@ export const SubprimeLeadDetail = ({ lead }: SubprimeLeadDetailProps) => {
             </Button>
           </div>
           
-          {/* Internal Notes */}
           <div className="mt-4">
             <h5 className="text-sm font-medium mb-1">Add Internal Note</h5>
             <Textarea 
