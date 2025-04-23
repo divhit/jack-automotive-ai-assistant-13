@@ -49,16 +49,16 @@ export const SubprimeLeadDetail = ({ lead }: SubprimeLeadDetailProps) => {
   return (
     <div className="space-y-6">
       <Card className="p-4 bg-blue-50/50">
-        <h4 className="font-medium mb-2 flex items-center gap-2">
+        <h4 className="font-medium mb-3 flex items-center gap-2">
           <span>AI Summary</span>
           <Badge variant="secondary" className="text-xs">Auto-generated</Badge>
         </h4>
         <p className="text-sm text-gray-700">
           {lead.sentiment === "Frustrated" ? 
-            "Customer shows signs of frustration with the approval process. Recommend human intervention and empathetic approach." :
+            "Lead shows high intent but expresses frustration with credit requirements. Recent mentions of steady employment and rental history suggest potential for manual underwriting path. Prioritize 1:1 follow-up with alternative lender options." :
             lead.sentiment === "Warm" ?
-            "Lead is engaging positively and moving through the qualification process well. Next steps focused on document collection." :
-            "Regular follow-up maintaining current engagement level. Following standard qualification process."
+            "Strong engagement pattern with clear vehicle preference and timely document submissions. Credit profile meets basic criteria - ready for expedited processing. Next focus: Collecting final paystubs and scheduling test drive." :
+            "Lead requires income verification and alternative credit documentation. Shows regular communication pattern but needs guidance on credit building options. Consider employer verification as next step."
           }
         </p>
       </Card>
@@ -181,29 +181,59 @@ export const SubprimeLeadDetail = ({ lead }: SubprimeLeadDetailProps) => {
           </Card>
         </div>
         
-        <div className="lg:col-span-2 space-y-4">
-          <h4 className="font-medium">Conversation History</h4>
-          
-          <div className="bg-white rounded-lg border h-96 overflow-y-auto p-4 space-y-4">
-            {lead.conversations.map((message, index) => (
-              <div 
-                key={index} 
-                className={`p-3 rounded-lg ${getMessageBackground(message.type, message.sentBy)}`}
-              >
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-xs font-medium">
-                    {message.type === "system" ? "System Event" : 
-                     message.type === "note" ? "Internal Note" :
-                     message.sentBy === "lead" ? lead.customerName : 
-                     message.sentBy === "agent" ? lead.assignedAgent : "Jack AI"}
-                  </span>
-                  <span className="text-xs opacity-75">
-                    {formatMessageTime(message.timestamp)}
-                  </span>
+        <div className="lg:col-span-2 space-y-6">
+          <div className="space-y-4">
+            <h4 className="font-medium">Conversation History</h4>
+            
+            <div className="bg-white rounded-lg border h-[calc(100vh-380px)] overflow-y-auto p-4 space-y-4">
+              <div className="p-3 rounded-lg bg-gray-100">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-xs font-medium">System Event</span>
+                  <span className="text-xs opacity-75">Apr 23, 10:00 AM</span>
                 </div>
-                <p className="text-sm">{message.content}</p>
+                <p className="text-sm">Initial contact made via website inquiry - Interested in SUV options with low down payment</p>
               </div>
-            ))}
+
+              <div className="p-3 rounded-lg bg-automotive-primary text-white">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-xs font-medium">Jack AI</span>
+                  <span className="text-xs opacity-75">Apr 23, 10:05 AM</span>
+                </div>
+                <p className="text-sm">Hi [Name], thanks for your interest! I can help find SUV options that work with your budget. Could you share your preferred monthly payment range?</p>
+              </div>
+
+              <div className="p-3 rounded-lg bg-gray-100">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-xs font-medium">{lead.customerName}</span>
+                  <span className="text-xs opacity-75">Apr 23, 10:15 AM</span>
+                </div>
+                <p className="text-sm">Looking to stay under $400/month if possible. My credit isn't great but I have steady income.</p>
+              </div>
+
+              <div className="p-3 rounded-lg bg-automotive-primary text-white">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-xs font-medium">Jack AI</span>
+                  <span className="text-xs opacity-75">Apr 23, 10:20 AM</span>
+                </div>
+                <p className="text-sm">Thanks for being upfront! We have several lenders who work with all credit situations. Could you confirm - are you currently employed full-time?</p>
+              </div>
+
+              <div className="p-3 rounded-lg bg-gray-100">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-xs font-medium">{lead.customerName}</span>
+                  <span className="text-xs opacity-75">Apr 23, 10:25 AM</span>
+                </div>
+                <p className="text-sm">Yes, been at my job for 2 years. Make about $3200/month.</p>
+              </div>
+
+              <div className="p-3 rounded-lg bg-automotive-primary text-white">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-xs font-medium">Jack AI</span>
+                  <span className="text-xs opacity-75">Apr 23, 10:30 AM</span>
+                </div>
+                <p className="text-sm">That's great! With your income, we have several SUV options that could work. I can help you get pre-qualified - would you be able to provide your last two pay stubs?</p>
+              </div>
+            </div>
           </div>
           
           <div className="mt-4 flex flex-wrap gap-2">

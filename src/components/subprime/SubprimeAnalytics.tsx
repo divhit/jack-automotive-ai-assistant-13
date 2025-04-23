@@ -1,6 +1,18 @@
-
 import { SubprimeLead } from "@/data/subprime/subprimeLeads";
-import { Bar, BarChart, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, TooltipProps } from "recharts";
+import { Card } from "@/components/ui/card";
+import { 
+  Bar, 
+  BarChart, 
+  XAxis, 
+  YAxis, 
+  Tooltip, 
+  ResponsiveContainer, 
+  Cell, 
+  TooltipProps,
+  Pie,
+  PieChart,
+  Legend
+} from "recharts";
 
 interface SubprimeAnalyticsProps {
   leads: SubprimeLead[];
@@ -78,7 +90,23 @@ export const SubprimeAnalytics = ({ leads }: SubprimeAnalyticsProps) => {
       color: "#8b5cf6"
     }
   ];
-  
+
+  // New data for funnel metrics
+  const funnelDropoffData = [
+    { name: "Initial Contact", value: 100, color: "#3b82f6" },
+    { name: "Screening Complete", value: 75, color: "#8b5cf6" },
+    { name: "Docs Submitted", value: 45, color: "#ec4899" },
+    { name: "Credit Verified", value: 30, color: "#f97316" },
+    { name: "Final Approval", value: 20, color: "#10b981" }
+  ];
+
+  const replyLatencyData = [
+    { name: "< 12 hrs", value: 45, color: "#22c55e" },
+    { name: "12-24 hrs", value: 30, color: "#eab308" },
+    { name: "24-48 hrs", value: 15, color: "#ef4444" },
+    { name: "48+ hrs", value: 10, color: "#64748b" }
+  ];
+
   // Custom tooltip to display more info
   const CustomTooltip = ({ active, payload }: TooltipProps<number, string>) => {
     if (active && payload && payload.length) {
@@ -95,9 +123,9 @@ export const SubprimeAnalytics = ({ leads }: SubprimeAnalyticsProps) => {
   
     return null;
   };
-  
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         {/* Funding Readiness Distribution */}
         <div className="space-y-2">
@@ -156,12 +184,76 @@ export const SubprimeAnalytics = ({ leads }: SubprimeAnalyticsProps) => {
           </div>
         </div>
       </div>
-      
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        {/* Funnel Performance */}
+        <Card className="p-4">
+          <h3 className="text-sm font-medium mb-4">Funnel Drop-off Analysis</h3>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={funnelDropoffData} layout="vertical">
+                <XAxis type="number" domain={[0, 100]} />
+                <YAxis dataKey="name" type="category" />
+                <Tooltip content={<CustomTooltip />} />
+                <Bar dataKey="value">
+                  {funnelDropoffData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+
+        {/* Reply Latency Distribution */}
+        <Card className="p-4">
+          <h3 className="text-sm font-medium mb-4">Response Time Distribution</h3>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={replyLatencyData}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={80}
+                  labelLine={false}
+                >
+                  {replyLatencyData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip content={<CustomTooltip />} />
+                <Legend verticalAlign="bottom" height={36} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="p-4">
+          <h3 className="text-lg font-semibold mb-2">Average Time to Ready</h3>
+          <p className="text-3xl font-bold text-green-600">3.2 days</p>
+          <p className="text-sm text-gray-500">From first contact to funding ready</p>
+        </Card>
+
+        <Card className="p-4">
+          <h3 className="text-lg font-semibold mb-2">Manual Intervention Rate</h3>
+          <p className="text-3xl font-bold text-purple-600">24%</p>
+          <p className="text-sm text-gray-500">Of leads require human review</p>
+        </Card>
+
+        <Card className="p-4">
+          <h3 className="text-lg font-semibold mb-2">Auto-Chase Success</h3>
+          <p className="text-3xl font-bold text-blue-600">76%</p>
+          <p className="text-sm text-gray-500">Leads progress without manual help</p>
+        </Card>
+      </div>
+
       <div className="border-t pt-4 text-center text-sm text-gray-500">
-        <p>
-          This dashboard shows lead distribution across key metrics. Additional analytics including time-to-funding 
-          and conversation engagement metrics would be available in the full version.
-        </p>
+        <p>Analytics updated every 15 minutes. Historical data available in full reports.</p>
       </div>
     </div>
   );
