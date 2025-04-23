@@ -1,3 +1,4 @@
+
 import { SubprimeLead } from "@/data/subprime/subprimeLeads";
 import { Card } from "@/components/ui/card";
 import { 
@@ -105,6 +106,14 @@ export const SubprimeAnalytics = ({ leads }: SubprimeAnalyticsProps) => {
     { name: "12-24 hrs", value: 30, color: "#eab308" },
     { name: "24-48 hrs", value: 15, color: "#ef4444" },
     { name: "48+ hrs", value: 10, color: "#64748b" }
+  ];
+
+  // Script variant performance data
+  const scriptVariantData = [
+    { name: "Standard", replies: 68, escalations: 12, color: "#3b82f6" },
+    { name: "Friendly", replies: 75, escalations: 8, color: "#22c55e" },
+    { name: "Direct", replies: 62, escalations: 15, color: "#f97316" },
+    { name: "Educational", replies: 70, escalations: 10, color: "#8b5cf6" }
   ];
 
   // Custom tooltip to display more info
@@ -231,6 +240,23 @@ export const SubprimeAnalytics = ({ leads }: SubprimeAnalyticsProps) => {
           </div>
         </Card>
       </div>
+
+      {/* Script Variant Performance */}
+      <Card className="p-4">
+        <h3 className="text-sm font-medium mb-4">Script Variant Performance</h3>
+        <div className="h-64">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={scriptVariantData} barSize={20}>
+              <XAxis dataKey="name" />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Bar name="Reply Rate (%)" dataKey="replies" fill="#3b82f6" />
+              <Bar name="Escalation Rate (%)" dataKey="escalations" fill="#ef4444" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="p-4">

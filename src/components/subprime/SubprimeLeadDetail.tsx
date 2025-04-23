@@ -1,3 +1,4 @@
+
 import { SubprimeLead } from "@/data/subprime/subprimeLeads";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -55,10 +56,10 @@ export const SubprimeLeadDetail = ({ lead }: SubprimeLeadDetailProps) => {
         </h4>
         <p className="text-sm text-gray-700">
           {lead.sentiment === "Frustrated" ? 
-            "Lead shows high intent but expresses frustration with credit requirements. Recent mentions of steady employment and rental history suggest potential for manual underwriting path. Prioritize 1:1 follow-up with alternative lender options." :
+            "URGENT: Customer shows high frustration about credit requirements - needs direct human follow-up. Has stable job (2+ years) and rental history that could qualify for alternative underwriting. Recommend immediate 1:1 call with special financing specialist." :
             lead.sentiment === "Warm" ?
-            "Strong engagement pattern with clear vehicle preference and timely document submissions. Credit profile meets basic criteria - ready for expedited processing. Next focus: Collecting final paystubs and scheduling test drive." :
-            "Lead requires income verification and alternative credit documentation. Shows regular communication pattern but needs guidance on credit building options. Consider employer verification as next step."
+            "HOT PROSPECT: Strong engagement with quick document submissions. Credit meets requirements (680+) and income verification complete. Vehicle test drive should be scheduled within 24 hours. Customer showing high purchase intent." :
+            "ACTION NEEDED: Missing income verification documents. Shows consistent communication pattern but needs help with credit options. Employer verification required before moving forward. Send customized credit-building guidance."
           }
         </p>
       </Card>
@@ -148,21 +149,32 @@ export const SubprimeLeadDetail = ({ lead }: SubprimeLeadDetailProps) => {
               ></div>
             </div>
             
-            <div className="grid grid-cols-5 gap-1 text-xs">
-              <div className={`text-center ${currentStepIndex >= 0 ? "text-automotive-primary font-medium" : "text-gray-500"}`}>
-                Contacted
+            <div className="grid grid-cols-5 text-xs">
+              {/* Fix spacing by using flex-col and better spacing */}
+              <div className="flex flex-col items-center">
+                <span className={`${currentStepIndex >= 0 ? "text-automotive-primary font-medium" : "text-gray-500"}`}>
+                  Contacted
+                </span>
               </div>
-              <div className={`text-center ${currentStepIndex >= 1 ? "text-automotive-primary font-medium" : "text-gray-500"}`}>
-                Screening
+              <div className="flex flex-col items-center">
+                <span className={`${currentStepIndex >= 1 ? "text-automotive-primary font-medium" : "text-gray-500"}`}>
+                  Screening
+                </span>
               </div>
-              <div className={`text-center ${currentStepIndex >= 2 ? "text-automotive-primary font-medium" : "text-gray-500"}`}>
-                Qualification
+              <div className="flex flex-col items-center">
+                <span className={`${currentStepIndex >= 2 ? "text-automotive-primary font-medium" : "text-gray-500"}`}>
+                  Qualification
+                </span>
               </div>
-              <div className={`text-center ${currentStepIndex >= 3 ? "text-automotive-primary font-medium" : "text-gray-500"}`}>
-                Routing
+              <div className="flex flex-col items-center">
+                <span className={`${currentStepIndex >= 3 ? "text-automotive-primary font-medium" : "text-gray-500"}`}>
+                  Routing
+                </span>
               </div>
-              <div className={`text-center ${currentStepIndex >= 4 ? "text-automotive-primary font-medium" : "text-gray-500"}`}>
-                Submitted
+              <div className="flex flex-col items-center">
+                <span className={`${currentStepIndex >= 4 ? "text-automotive-primary font-medium" : "text-gray-500"}`}>
+                  Submitted
+                </span>
               </div>
             </div>
             
@@ -199,7 +211,7 @@ export const SubprimeLeadDetail = ({ lead }: SubprimeLeadDetailProps) => {
                   <span className="text-xs font-medium">Jack AI</span>
                   <span className="text-xs opacity-75">Apr 23, 10:05 AM</span>
                 </div>
-                <p className="text-sm">Hi [Name], thanks for your interest! I can help find SUV options that work with your budget. Could you share your preferred monthly payment range?</p>
+                <p className="text-sm">Hi {lead.customerName.split(' ')[0]}, thanks for your interest! I can help find SUV options that work with your budget. Could you share your preferred monthly payment range?</p>
               </div>
 
               <div className="p-3 rounded-lg bg-gray-100">
@@ -232,6 +244,38 @@ export const SubprimeLeadDetail = ({ lead }: SubprimeLeadDetailProps) => {
                   <span className="text-xs opacity-75">Apr 23, 10:30 AM</span>
                 </div>
                 <p className="text-sm">That's great! With your income, we have several SUV options that could work. I can help you get pre-qualified - would you be able to provide your last two pay stubs?</p>
+              </div>
+
+              <div className="p-3 rounded-lg bg-gray-100">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-xs font-medium">{lead.customerName}</span>
+                  <span className="text-xs opacity-75">Apr 23, 11:45 AM</span>
+                </div>
+                <p className="text-sm">I can get those to you tonight. What kind of interest rate could I expect with my credit situation?</p>
+              </div>
+
+              <div className="p-3 rounded-lg bg-automotive-primary text-white">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-xs font-medium">Jack AI</span>
+                  <span className="text-xs opacity-75">Apr 23, 11:50 AM</span>
+                </div>
+                <p className="text-sm">Great! Rates vary based on several factors, but with your steady employment history, we can work to find competitive options. Once we have your documents, our finance team can provide specific rate estimates for different vehicles.</p>
+              </div>
+
+              <div className="p-3 rounded-lg bg-gray-100">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-xs font-medium">{lead.customerName}</span>
+                  <span className="text-xs opacity-75">Apr 23, 4:30 PM</span>
+                </div>
+                <p className="text-sm">Just sent over my pay stubs. Do you have anything like a Honda CR-V or Toyota RAV4 in my price range?</p>
+              </div>
+
+              <div className="p-3 rounded-lg bg-automotive-primary text-white">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-xs font-medium">Jack AI</span>
+                  <span className="text-xs opacity-75">Apr 23, 4:35 PM</span>
+                </div>
+                <p className="text-sm">Thanks for sending those! I received your documents and they look good. We do have several CR-Vs and RAV4s that could work with your budget. Would you prefer a newer model with higher mileage or slightly older with lower mileage?</p>
               </div>
             </div>
           </div>

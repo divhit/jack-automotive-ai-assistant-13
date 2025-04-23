@@ -7,10 +7,12 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { formatDistanceToNow } from "date-fns";
-import { Play, Pause, Check, Clock, AlertCircle } from "lucide-react";
+import { Play, Pause, Check, Clock, AlertCircle, Eye, PhoneCall } from "lucide-react";
 import { SubprimeLeadDetail } from "./SubprimeLeadDetail";
 
 interface SubprimeLeadsListProps {
@@ -91,27 +93,54 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
           {leads.map(lead => (
             <Card 
               key={lead.id} 
-              className="p-3 cursor-pointer hover:bg-gray-50 transition-colors"
-              onClick={() => setSelectedLead(lead)}
+              className="p-3 hover:bg-gray-50 transition-colors"
             >
               <div className="grid grid-cols-12 gap-4 items-center">
-                <div className="col-span-3 flex items-center space-x-2">
-                  <span className="font-medium">{lead.customerName}</span>
-                  {getChaseStatusIcon(lead.chaseStatus)}
-                  <div className="text-xl">
-                    {getSentimentIcon(lead.sentiment)}
+                {/* Name and Status Icons - Better aligned with fixed widths */}
+                <div className="col-span-3 flex items-center">
+                  <div className="font-medium w-24 min-w-24 truncate">{lead.customerName}</div>
+                  <div className="flex items-center space-x-2 w-20 min-w-20 justify-center">
+                    {getChaseStatusIcon(lead.chaseStatus)}
+                    <div className="text-xl">
+                      {getSentimentIcon(lead.sentiment)}
+                    </div>
                   </div>
                 </div>
+
+                {/* Funding Readiness Badge */}
                 <div className="col-span-2">
                   <Badge className={getReadinessBadgeColor(lead.fundingReadiness)}>
                     {lead.fundingReadiness}
                   </Badge>
                 </div>
+
+                {/* Last Touchpoint */}
                 <div className="col-span-3 text-sm text-gray-500 flex items-center">
                   <Clock className="inline h-3 w-3 mr-1" />
                   {formatLastTouchpoint(lead.lastTouchpoint)}
                 </div>
-                <div className="col-span-4 flex justify-end">
+
+                {/* Action Buttons and Next Action Badge */}
+                <div className="col-span-4 flex justify-end items-center space-x-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="h-8 px-2"
+                    onClick={() => setSelectedLead(lead)}
+                  >
+                    <Eye className="h-3.5 w-3.5 mr-1" />
+                    <span>View</span>
+                  </Button>
+                  
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="h-8 px-2"
+                  >
+                    <PhoneCall className="h-3.5 w-3.5 mr-1" />
+                    <span>Call</span>
+                  </Button>
+
                   <Badge 
                     variant="outline" 
                     className={getNextActionBadgeColor(
@@ -130,6 +159,9 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Lead Details</DialogTitle>
+                <DialogDescription>
+                  View and manage details for this lead
+                </DialogDescription>
               </DialogHeader>
               {selectedLead && <SubprimeLeadDetail lead={selectedLead} />}
             </DialogContent>
