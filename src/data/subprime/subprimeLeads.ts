@@ -1,4 +1,38 @@
-import { SubprimeLead } from './types';
+
+// Define the SubprimeLead type directly in this file
+export interface SubprimeLead {
+  id: string;
+  customerName: string;
+  phoneNumber: string;
+  email?: string;
+  chaseStatus: "Auto Chase Running" | "Paused" | "Completed" | "Manual Review";
+  fundingReadiness: "Ready" | "Partial" | "Not Ready";
+  fundingReadinessReason: string;
+  sentiment: "Warm" | "Neutral" | "Negative" | "Ghosted" | "Cold" | "Frustrated" | "Needs Human";
+  lastTouchpoint: string;
+  nextAction: {
+    type: string;
+    dueDate: string;
+    isAutomated: boolean;
+    isOverdue: boolean;
+  };
+  scriptProgress: {
+    currentStep: "contacted" | "screening" | "qualification" | "routing" | "submitted";
+    completedSteps: string[];
+  };
+  creditProfile?: {
+    scoreRange: string;
+    knownIssues: string[];
+  };
+  vehiclePreference?: string;
+  conversations: {
+    type: string;
+    content: string;
+    timestamp: string;
+    sentBy?: "system" | "lead" | "agent";
+  }[];
+  assignedAgent?: string;
+}
 
 export const subprimeLeads: SubprimeLead[] = [
   {
