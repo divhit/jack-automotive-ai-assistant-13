@@ -145,7 +145,9 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
                     <Tooltip>
                       <TooltipTrigger className="flex items-center">
                         <Clock className="inline h-3 w-3 mr-1" />
-                        {formatDistanceToNow(new Date(lead.lastTouchpoint), { addSuffix: true })}
+                        <span className="whitespace-nowrap">
+                          {formatDistanceToNow(new Date(lead.lastTouchpoint), { addSuffix: true })}
+                        </span>
                       </TooltipTrigger>
                       <TooltipContent>
                         <p className="text-sm">Last interaction details</p>
@@ -154,7 +156,7 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
                   </div>
 
                   {/* Progress Steps with Tooltip */}
-                  <div className="col-span-3 pl-6">
+                  <div className="col-span-3 pl-4">
                     <Tooltip>
                       <TooltipTrigger className="w-full">
                         <div className="flex items-center gap-1">
