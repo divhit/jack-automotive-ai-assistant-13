@@ -13,8 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { formatDistanceToNow } from "date-fns";
 import { 
   Clock,
-  ChevronRight,
-  HelpCircle
+  HelpCircle,
+  CircleDot 
 } from "lucide-react";
 import { 
   Tooltip,
@@ -32,30 +32,39 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
   const [selectedLead, setSelectedLead] = useState<SubprimeLead | null>(null);
 
   const getStatusInfo = (lead: SubprimeLead) => {
+    // Ready for Submission (Green)
     if (lead.fundingReadiness === "Ready") {
       return {
+        status: "Ready to Submit",
         color: "bg-green-100 text-green-800 hover:bg-green-100",
         hoverText: "Profile complete for funding manager"
       };
     }
-    
+
+    // Dormant/Closed (Gray)
     if (lead.sentiment === "Ghosted") {
       return {
+        status: "Ghosted",
         color: "bg-gray-100 text-gray-800 hover:bg-gray-100",
         hoverText: "No reply after 3+ follow-ups"
       };
     }
-    
+
+    // Blocked/Stalled (Red)
     if (lead.nextAction.isOverdue || lead.sentiment === "Frustrated") {
+      const isStalled = lead.nextAction.isOverdue;
       return {
+        status: isStalled ? "Stalled" : "Tone Flagged",
         color: "bg-red-100 text-red-800 hover:bg-red-100",
-        hoverText: lead.sentiment === "Frustrated" 
-          ? "Customer seems frustrated"
-          : "No response after multiple attempts"
+        hoverText: isStalled 
+          ? "No response after multiple attempts"
+          : "Customer seems frustrated"
       };
     }
-    
+
+    // In Progress (Yellow)
     return {
+      status: lead.nextAction.type === "Document Collection" ? "Docs Requested" : "In Chase",
       color: "bg-yellow-100 text-yellow-800 hover:bg-yellow-100",
       hoverText: lead.nextAction.type === "Document Collection" 
         ? "Waiting on income and ID docs"
@@ -63,10 +72,13 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
     };
   };
 
-  const getProgressPercentage = (lead: SubprimeLead) => {
+  const getProgressSteps = (lead: SubprimeLead) => {
     const steps = ["contacted", "screening", "qualification", "routing", "submitted"];
     const currentIndex = steps.indexOf(lead.scriptProgress.currentStep);
-    return ((currentIndex + 1) / steps.length) * 100;
+    return {
+      current: currentIndex + 1,
+      total: steps.length
+    };
   };
 
   const getProgressTooltip = (lead: SubprimeLead) => {
@@ -78,18 +90,11 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
       (new Date().getTime() - firstContactDate.getTime()) / (1000 * 60 * 60 * 24)
     );
     
-    const messageCount = lead.conversations.length;
-    const unansweredCount = lead.nextAction.isOverdue ? 1 : 0;
-    const callCount = lead.conversations.filter(c => c.type === "call").length;
-    
-    return `In conversation for ${daysInConversation} days
-${messageCount} messages exchanged
-${unansweredCount} unanswered prompts
-${callCount} voice call${callCount !== 1 ? 's' : ''} initiated`;
+    return `In conversation for ${daysInConversation} days\n${lead.conversations.length} messages exchanged\n${lead.conversations.filter(c => c.type === "call").length} calls made`;
   };
 
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-1">
       {leads.length === 0 ? (
         <Card className="p-4 text-center text-gray-500">
           No leads match your current filters
@@ -98,11 +103,13 @@ ${callCount} voice call${callCount !== 1 ? 's' : ''} initiated`;
         <>
           {leads.map(lead => {
             const status = getStatusInfo(lead);
+            const progress = getProgressSteps(lead);
+            
             return (
               <Card 
                 key={lead.id} 
                 className={cn(
-                  "p-4 hover:bg-gray-50 transition-colors cursor-pointer",
+                  "p-3 hover:bg-gray-50 transition-colors cursor-pointer",
                   "border-l-4",
                   lead.sentiment === "Frustrated" && "border-l-red-400",
                   lead.fundingReadiness === "Ready" && "border-l-green-400",
@@ -110,7 +117,7 @@ ${callCount} voice call${callCount !== 1 ? 's' : ''} initiated`;
                 )}
                 onClick={() => setSelectedLead(lead)}
               >
-                <div className="grid grid-cols-12 gap-2 items-center">
+                <div className="grid grid-cols-12 gap-4 items-center">
                   {/* Name */}
                   <div className="col-span-3">
                     <div className="font-medium text-base">{lead.customerName}</div>
@@ -122,7 +129,7 @@ ${callCount} voice call${callCount !== 1 ? 's' : ''} initiated`;
                       <TooltipTrigger>
                         <Badge className={status.color}>
                           <span className="flex items-center gap-1">
-                            {lead.fundingReadiness}
+                            {status.status}
                             <HelpCircle className="h-3 w-3" />
                           </span>
                         </Badge>
@@ -139,17 +146,22 @@ ${callCount} voice call${callCount !== 1 ? 's' : ''} initiated`;
                     {formatDistanceToNow(new Date(lead.lastTouchpoint), { addSuffix: true })}
                   </div>
 
-                  {/* Progress Bar with Tooltip */}
+                  {/* Progress Steps with Tooltip */}
                   <div className="col-span-4">
                     <Tooltip>
                       <TooltipTrigger className="w-full">
-                        <div className="w-full">
-                          <div className="text-xs text-gray-500 mb-1">Progress</div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div
-                              className="bg-blue-600 h-2 rounded-full"
-                              style={{ width: `${getProgressPercentage(lead)}%` }}
-                            />
+                        <div className="flex items-center gap-1">
+                          <div className="text-xs text-gray-500">Progress:</div>
+                          <div className="flex items-center gap-0.5">
+                            {Array.from({ length: progress.total }).map((_, i) => (
+                              <CircleDot 
+                                key={i}
+                                className={cn(
+                                  "h-3 w-3",
+                                  i < progress.current ? "text-blue-600" : "text-gray-200"
+                                )}
+                              />
+                            ))}
                           </div>
                         </div>
                       </TooltipTrigger>
