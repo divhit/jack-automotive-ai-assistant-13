@@ -1,3 +1,4 @@
+
 // Define the SubprimeLead type directly in this file
 export interface SubprimeLead {
   id: string;
@@ -527,4 +528,4 @@ export const subprimeLeads: SubprimeLead[] = [
   }
 ];
 
-export { subprimeLeads };
+// Removing the duplicate export at the end of the file
