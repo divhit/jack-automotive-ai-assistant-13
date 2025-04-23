@@ -1,12 +1,10 @@
+
 import { useState } from "react";
 import { SubprimeLead } from "@/data/subprime/subprimeLeads";
 import { Card } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { formatDistanceToNow } from "date-fns";
@@ -105,6 +103,7 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
           {leads.map(lead => {
             const status = getStatusInfo(lead);
             const progress = getProgressSteps(lead);
+            const progressTooltip = getProgressTooltip(lead);
             
             return (
               <Card 
@@ -124,7 +123,7 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
                     <div className="font-medium text-base">{lead.customerName}</div>
                   </div>
 
-                  {/* Status with Tooltip - Now with flex-nowrap */}
+                  {/* Status with Tooltip */}
                   <div className="col-span-2 flex-shrink-0">
                     <Tooltip>
                       <TooltipTrigger>
@@ -141,14 +140,21 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
                     </Tooltip>
                   </div>
 
-                  {/* Last Reply */}
+                  {/* Last Reply with Tooltip */}
                   <div className="col-span-2 text-sm text-gray-500 flex items-center">
-                    <Clock className="inline h-3 w-3 mr-1" />
-                    {formatDistanceToNow(new Date(lead.lastTouchpoint), { addSuffix: true })}
+                    <Tooltip>
+                      <TooltipTrigger className="flex items-center">
+                        <Clock className="inline h-3 w-3 mr-1" />
+                        {formatDistanceToNow(new Date(lead.lastTouchpoint), { addSuffix: true })}
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="text-sm">Last interaction details</p>
+                      </TooltipContent>
+                    </Tooltip>
                   </div>
 
                   {/* Progress Steps with Tooltip */}
-                  <div className="col-span-3">
+                  <div className="col-span-3 pl-4">
                     <Tooltip>
                       <TooltipTrigger className="w-full">
                         <div className="flex items-center gap-1">
@@ -167,7 +173,7 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
                       </TooltipTrigger>
                       <TooltipContent>
                         <p className="text-sm whitespace-pre-line">
-                          {getProgressTooltip(lead)}
+                          {progressTooltip}
                         </p>
                       </TooltipContent>
                     </Tooltip>
