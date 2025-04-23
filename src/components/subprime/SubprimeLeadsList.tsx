@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { SubprimeLead } from "@/data/subprime/subprimeLeads";
 import { Card } from "@/components/ui/card";
@@ -11,7 +10,8 @@ import { formatDistanceToNow } from "date-fns";
 import { 
   Clock,
   HelpCircle,
-  CircleDot 
+  CircleDot,
+  Eye
 } from "lucide-react";
 import { 
   Tooltip,
@@ -31,7 +31,6 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
   const [selectedLead, setSelectedLead] = useState<SubprimeLead | null>(null);
 
   const getStatusInfo = (lead: SubprimeLead) => {
-    // Ready for Submission (Green)
     if (lead.fundingReadiness === "Ready") {
       return {
         status: "Ready to Submit",
@@ -40,7 +39,6 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
       };
     }
 
-    // Dormant/Closed (Gray)
     if (lead.sentiment === "Ghosted") {
       return {
         status: "Ghosted",
@@ -49,7 +47,6 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
       };
     }
 
-    // Blocked/Stalled (Red)
     if (lead.nextAction.isOverdue || lead.sentiment === "Frustrated") {
       const isStalled = lead.nextAction.isOverdue;
       return {
@@ -61,7 +58,6 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
       };
     }
 
-    // In Progress (Yellow)
     return {
       status: lead.nextAction.type === "Document Collection" ? "Docs Requested" : "In Chase",
       color: "bg-yellow-100 text-yellow-800 hover:bg-yellow-100",
@@ -92,6 +88,19 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
     return `In conversation for ${daysInConversation} days\n${lead.conversations.length} messages exchanged\n${lead.conversations.filter(c => c.type === "call").length} calls made`;
   };
 
+  const getBorderColor = (lead: SubprimeLead) => {
+    if (lead.fundingReadiness === "Ready") {
+      return "border-l-green-500";
+    }
+    if (lead.sentiment === "Ghosted") {
+      return "border-l-gray-400";
+    }
+    if (lead.nextAction.isOverdue || lead.sentiment === "Frustrated") {
+      return "border-l-red-500";
+    }
+    return "border-l-yellow-400";
+  };
+
   return (
     <div className="space-y-1">
       {leads.length === 0 ? (
@@ -104,26 +113,22 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
             const status = getStatusInfo(lead);
             const progress = getProgressSteps(lead);
             const progressTooltip = getProgressTooltip(lead);
+            const borderColor = getBorderColor(lead);
             
             return (
               <Card 
                 key={lead.id} 
                 className={cn(
-                  "p-3 hover:bg-gray-50 transition-colors cursor-pointer",
+                  "p-3 hover:bg-gray-50 transition-colors",
                   "border-l-4",
-                  lead.sentiment === "Frustrated" && "border-l-red-400",
-                  lead.fundingReadiness === "Ready" && "border-l-green-400",
-                  lead.nextAction.isOverdue && "border-l-yellow-400"
+                  borderColor
                 )}
-                onClick={() => setSelectedLead(lead)}
               >
                 <div className="grid grid-cols-12 gap-2 items-center">
-                  {/* Name */}
                   <div className="col-span-3">
                     <div className="font-medium text-base">{lead.customerName}</div>
                   </div>
 
-                  {/* Status with Tooltip */}
                   <div className="col-span-2 flex-shrink-0">
                     <Tooltip>
                       <TooltipTrigger>
@@ -140,8 +145,7 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
                     </Tooltip>
                   </div>
 
-                  {/* Last Reply with Tooltip */}
-                  <div className="col-span-2 text-sm text-gray-500 flex items-center">
+                  <div className="col-span-2 text-sm text-gray-500">
                     <Tooltip>
                       <TooltipTrigger className="flex items-center">
                         <Clock className="inline h-3 w-3 mr-1" />
@@ -155,8 +159,7 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
                     </Tooltip>
                   </div>
 
-                  {/* Progress Steps with Tooltip */}
-                  <div className="col-span-3 pl-4">
+                  <div className="col-span-2">
                     <Tooltip>
                       <TooltipTrigger className="w-full">
                         <div className="flex items-center gap-1">
@@ -181,13 +184,20 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
                     </Tooltip>
                   </div>
 
-                  {/* Action Buttons */}
-                  <div className="col-span-2 flex justify-end gap-2">
+                  <div className="col-span-3 flex justify-end gap-2">
                     <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
                       <Phone className="h-4 w-4" />
                     </Button>
                     <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
                       <MessageSquare className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-8 w-8 p-0"
+                      onClick={() => setSelectedLead(lead)}
+                    >
+                      <Eye className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>

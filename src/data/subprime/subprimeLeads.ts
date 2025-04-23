@@ -1,4 +1,3 @@
-
 // Define the SubprimeLead type directly in this file
 export interface SubprimeLead {
   id: string;
@@ -389,5 +388,143 @@ export const subprimeLeads: SubprimeLead[] = [
       }
     ],
     assignedAgent: "Lisa Chen"
+  },
+  {
+    id: "sl11",
+    customerName: "Sarah Wilson",
+    phoneNumber: "(555) 987-1234",
+    email: "swilson@email.com",
+    chaseStatus: "Auto Chase Running",
+    fundingReadiness: "Partial",
+    fundingReadinessReason: "Missing proof of residence",
+    sentiment: "Warm",
+    lastTouchpoint: "2025-04-23T11:30:00Z",
+    nextAction: {
+      type: "Document Collection",
+      dueDate: "2025-04-24T11:30:00Z",
+      isAutomated: true,
+      isOverdue: false
+    },
+    scriptProgress: {
+      currentStep: "qualification",
+      completedSteps: ["contacted", "screening"]
+    },
+    creditProfile: {
+      scoreRange: "640-680",
+      knownIssues: ["Recent Hard Inquiry"]
+    },
+    conversations: [
+      {
+        type: "message",
+        content: "Hi Sarah, please send your utility bill for address verification.",
+        timestamp: "2025-04-23T11:30:00Z",
+        sentBy: "system"
+      }
+    ],
+    assignedAgent: "Mike Thompson"
+  },
+  {
+    id: "sl12",
+    customerName: "James Lee",
+    phoneNumber: "(555) 456-7890",
+    email: "jlee@email.com",
+    chaseStatus: "Manual Review",
+    fundingReadiness: "Not Ready",
+    fundingReadinessReason: "Recent bankruptcy discharge",
+    sentiment: "Frustrated",
+    lastTouchpoint: "2025-04-22T13:45:00Z",
+    nextAction: {
+      type: "Credit Review",
+      dueDate: "2025-04-23T13:45:00Z",
+      isAutomated: false,
+      isOverdue: true
+    },
+    scriptProgress: {
+      currentStep: "screening",
+      completedSteps: ["contacted"]
+    },
+    creditProfile: {
+      scoreRange: "560-600",
+      knownIssues: ["Recent Bankruptcy", "Multiple Collections"]
+    },
+    conversations: [
+      {
+        type: "message",
+        content: "I've been waiting for an update on my application for days now.",
+        timestamp: "2025-04-22T13:45:00Z",
+        sentBy: "lead"
+      }
+    ],
+    assignedAgent: "Lisa Chen"
+  },
+  {
+    id: "sl13",
+    customerName: "Maria Garcia",
+    phoneNumber: "(555) 789-0123",
+    email: "mgarcia@email.com",
+    chaseStatus: "Auto Chase Running",
+    fundingReadiness: "Ready",
+    fundingReadinessReason: "All documents verified",
+    sentiment: "Warm",
+    lastTouchpoint: "2025-04-23T10:15:00Z",
+    nextAction: {
+      type: "Schedule Signing",
+      dueDate: "2025-04-24T10:15:00Z",
+      isAutomated: true,
+      isOverdue: false
+    },
+    scriptProgress: {
+      currentStep: "submitted",
+      completedSteps: ["contacted", "screening", "qualification", "routing"]
+    },
+    creditProfile: {
+      scoreRange: "700-740",
+      knownIssues: []
+    },
+    conversations: [
+      {
+        type: "message",
+        content: "Great! Looking forward to finalizing everything tomorrow.",
+        timestamp: "2025-04-23T10:15:00Z",
+        sentBy: "lead"
+      }
+    ],
+    assignedAgent: "Bob Williams"
+  },
+  {
+    id: "sl14",
+    customerName: "Alex Thompson",
+    phoneNumber: "(555) 234-5678",
+    email: "athompson@email.com",
+    chaseStatus: "Paused",
+    fundingReadiness: "Not Ready",
+    fundingReadinessReason: "Income verification failed",
+    sentiment: "Ghosted",
+    lastTouchpoint: "2025-04-20T15:00:00Z",
+    nextAction: {
+      type: "Follow-up call",
+      dueDate: "2025-04-23T15:00:00Z",
+      isAutomated: true,
+      isOverdue: true
+    },
+    scriptProgress: {
+      currentStep: "screening",
+      completedSteps: ["contacted"]
+    },
+    creditProfile: {
+      scoreRange: "600-640",
+      knownIssues: ["Inconsistent Income"]
+    },
+    conversations: [
+      {
+        type: "call",
+        content: "Left voicemail requesting callback",
+        timestamp: "2025-04-20T15:00:00Z",
+        sentBy: "agent"
+      }
+    ],
+    assignedAgent: "Sarah Wilson"
   }
 ];
+
+export { subprimeLeads };
