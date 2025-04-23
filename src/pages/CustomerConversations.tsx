@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { 
   Card, 
@@ -25,7 +24,8 @@ import {
   User,
   Clock,
   MoreHorizontal,
-  ChevronRight
+  ChevronRight,
+  Plus
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -128,10 +128,16 @@ const CustomerConversations = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <Button variant="outline" className="gap-2">
-          <Filter className="h-4 w-4" />
-          <span>Filter</span>
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" className="gap-2">
+            <Filter className="h-4 w-4" />
+            <span>Filter</span>
+          </Button>
+          <Button className="gap-2">
+            <Plus className="h-4 w-4" />
+            <span>Add Lead</span>
+          </Button>
+        </div>
       </div>
 
       <Card>

@@ -12,8 +12,20 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDistanceToNow } from "date-fns";
-import { Play, Pause, Check, Clock, AlertCircle, Eye, PhoneCall } from "lucide-react";
+import { 
+  Eye, 
+  AlertCircle, 
+  Clock,
+  ChevronRight,
+  HelpCircle
+} from "lucide-react";
+import { 
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { SubprimeLeadDetail } from "./SubprimeLeadDetail";
+import { cn } from "@/lib/utils";
 
 interface SubprimeLeadsListProps {
   leads: SubprimeLead[];
@@ -22,64 +34,56 @@ interface SubprimeLeadsListProps {
 export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
   const [selectedLead, setSelectedLead] = useState<SubprimeLead | null>(null);
 
-  const getSentimentIcon = (sentiment: SubprimeLead['sentiment']) => {
-    switch (sentiment) {
-      case "Warm":
-        return <span title="Warm" className="text-green-500">😊</span>;
-      case "Neutral":
-        return <span title="Neutral" className="text-gray-500">😐</span>;
-      case "Negative":
-        return <span title="Negative" className="text-orange-500">😕</span>;
-      case "Ghosted":
-        return <span title="Ghosted" className="text-gray-400">😴</span>;
-      case "Cold":
-        return <span title="Cold" className="text-blue-500">🧊</span>;
-      case "Frustrated":
-        return <span title="Frustrated" className="text-red-500">🗯️</span>;
-      case "Needs Human":
-        return <span title="Needs Human" className="text-purple-500">🙋</span>;
-      default:
-        return <span title="Unknown" className="text-gray-500">❓</span>;
-    }
+  const getStatusInfo = (lead: SubprimeLead) => {
+    const statusMap = {
+      "In Progress": {
+        color: "bg-yellow-100 text-yellow-800 hover:bg-yellow-100",
+        hoverText: lead.nextAction.type === "Document Collection" 
+          ? "Docs requested, no response yet"
+          : lead.sentiment === "Frustrated"
+          ? "Customer seems frustrated – tone flagged by Jack"
+          : lead.nextAction.isOverdue
+          ? "Soft stall: hasn't replied in 36h"
+          : "Mid-script, income question pending"
+      },
+      "Blocked": {
+        color: "bg-red-100 text-red-800 hover:bg-red-100",
+        hoverText: "Needs immediate manual attention - critical blocker"
+      },
+      "Ready": {
+        color: "bg-green-100 text-green-800 hover:bg-green-100",
+        hoverText: "Ready for final submission and handoff"
+      },
+      "Dormant": {
+        color: "bg-gray-100 text-gray-800 hover:bg-gray-100",
+        hoverText: "No activity for over 7 days - considered dormant"
+      }
+    };
+    
+    return statusMap[lead.fundingReadiness as keyof typeof statusMap] || statusMap["In Progress"];
   };
 
-  const getChaseStatusIcon = (status: SubprimeLead['chaseStatus']) => {
-    switch (status) {
-      case "Auto Chase Running":
-        return <Play className="h-4 w-4 text-green-600" />;
-      case "Paused":
-        return <Pause className="h-4 w-4 text-yellow-600" />;
-      case "Completed":
-        return <Check className="h-4 w-4 text-blue-600" />;
-      case "Manual Review":
-        return <AlertCircle className="h-4 w-4 text-purple-600" />;
-      default:
-        return null;
-    }
+  const getProgressPercentage = (lead: SubprimeLead) => {
+    const steps = ["contacted", "screening", "qualification", "routing", "submitted"];
+    const currentIndex = steps.indexOf(lead.scriptProgress.currentStep);
+    return ((currentIndex + 1) / steps.length) * 100;
   };
 
-  const getReadinessBadgeColor = (readiness: SubprimeLead['fundingReadiness']) => {
-    switch (readiness) {
-      case "Ready":
-        return "bg-green-100 text-green-800 hover:bg-green-100";
-      case "Partial":
-        return "bg-yellow-100 text-yellow-800 hover:bg-yellow-100";
-      case "Not Ready":
-        return "bg-red-100 text-red-800 hover:bg-red-100";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
+  const getProgressTooltip = (lead: SubprimeLead) => {
+    const daysInConversation = Math.floor(
+      (new Date().getTime() - new Date(lead.firstContact).getTime()) / (1000 * 60 * 60 * 24)
+    );
+    
+    return `In conversation for ${daysInConversation} days
+${lead.messageCount} messages exchanged
+${lead.unansweredCount || 0} unanswered prompts
+${lead.callCount || 0} voice call${lead.callCount !== 1 ? 's' : ''} initiated`;
   };
 
-  const getNextActionBadgeColor = (isAutomated: boolean, isOverdue: boolean) => {
-    if (isOverdue) return "bg-red-100 text-red-800 border-red-200";
-    return isAutomated 
-      ? "bg-green-100 text-green-800 border-green-200" 
-      : "bg-yellow-100 text-yellow-800 border-yellow-200";
-  };
-
-  const formatLastTouchpoint = (dateString: string) => {
-    return formatDistanceToNow(new Date(dateString), { addSuffix: true });
+  const handleRowClick = (lead: SubprimeLead, e: React.MouseEvent) => {
+    // Don't trigger row click if clicking on actions
+    if ((e.target as HTMLElement).closest('.actions')) return;
+    setSelectedLead(lead);
   };
 
   return (
@@ -90,70 +94,87 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
         </Card>
       ) : (
         <>
-          {leads.map(lead => (
-            <Card 
-              key={lead.id} 
-              className="p-3 hover:bg-gray-50 transition-colors"
-            >
-              <div className="grid grid-cols-12 gap-4 items-center">
-                {/* Name and Status Icons - Better aligned with fixed widths */}
-                <div className="col-span-3 flex items-center">
-                  <div className="font-medium w-24 min-w-24 truncate">{lead.customerName}</div>
-                  <div className="flex items-center space-x-2 w-20 min-w-20 justify-center">
-                    {getChaseStatusIcon(lead.chaseStatus)}
-                    <div className="text-xl">
-                      {getSentimentIcon(lead.sentiment)}
-                    </div>
+          {leads.map(lead => {
+            const status = getStatusInfo(lead);
+            return (
+              <Card 
+                key={lead.id} 
+                className={cn(
+                  "p-4 hover:bg-gray-50 transition-colors cursor-pointer",
+                  "border-l-4",
+                  lead.sentiment === "Frustrated" && "border-l-red-400",
+                  lead.fundingReadiness === "Ready" && "border-l-green-400",
+                  lead.nextAction.isOverdue && "border-l-yellow-400"
+                )}
+                onClick={(e) => handleRowClick(lead, e)}
+              >
+                <div className="grid grid-cols-12 gap-4 items-center">
+                  {/* Name */}
+                  <div className="col-span-3">
+                    <div className="font-medium text-base">{lead.customerName}</div>
+                  </div>
+
+                  {/* Status with Tooltip */}
+                  <div className="col-span-2">
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <Badge className={status.color}>
+                          <span className="flex items-center gap-1">
+                            {lead.fundingReadiness}
+                            <HelpCircle className="h-3 w-3" />
+                          </span>
+                        </Badge>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="text-sm">{status.hoverText}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+
+                  {/* Progress Bar with Tooltip */}
+                  <div className="col-span-3">
+                    <Tooltip>
+                      <TooltipTrigger className="w-full">
+                        <div className="w-full">
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div
+                              className="bg-blue-600 h-2 rounded-full"
+                              style={{ width: `${getProgressPercentage(lead)}%` }}
+                            />
+                          </div>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="text-sm whitespace-pre-line">
+                          {getProgressTooltip(lead)}
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+
+                  {/* Last Reply */}
+                  <div className="col-span-2 text-sm text-gray-500 flex items-center">
+                    <Clock className="inline h-3 w-3 mr-1" />
+                    {formatDistanceToNow(new Date(lead.lastTouchpoint), { addSuffix: true })}
+                  </div>
+
+                  {/* Actions */}
+                  <div className="col-span-2 flex justify-end items-center space-x-2 actions">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setSelectedLead(lead)}
+                      className="h-8"
+                    >
+                      <Eye className="h-3.5 w-3.5 mr-1" />
+                      <span>View Details</span>
+                      <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                    </Button>
                   </div>
                 </div>
-
-                {/* Funding Readiness Badge */}
-                <div className="col-span-2">
-                  <Badge className={getReadinessBadgeColor(lead.fundingReadiness)}>
-                    {lead.fundingReadiness}
-                  </Badge>
-                </div>
-
-                {/* Last Touchpoint */}
-                <div className="col-span-3 text-sm text-gray-500 flex items-center">
-                  <Clock className="inline h-3 w-3 mr-1" />
-                  {formatLastTouchpoint(lead.lastTouchpoint)}
-                </div>
-
-                {/* Action Buttons and Next Action Badge */}
-                <div className="col-span-4 flex justify-end items-center space-x-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="h-8 px-2"
-                    onClick={() => setSelectedLead(lead)}
-                  >
-                    <Eye className="h-3.5 w-3.5 mr-1" />
-                    <span>View</span>
-                  </Button>
-                  
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="h-8 px-2"
-                  >
-                    <PhoneCall className="h-3.5 w-3.5 mr-1" />
-                    <span>Call</span>
-                  </Button>
-
-                  <Badge 
-                    variant="outline" 
-                    className={getNextActionBadgeColor(
-                      lead.nextAction.isAutomated, 
-                      lead.nextAction.isOverdue
-                    )}
-                  >
-                    {lead.nextAction.type}
-                  </Badge>
-                </div>
-              </div>
-            </Card>
-          ))}
+              </Card>
+            );
+          })}
 
           <Dialog open={!!selectedLead} onOpenChange={() => setSelectedLead(null)}>
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
