@@ -1,3 +1,4 @@
+
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
@@ -105,6 +106,58 @@ const TableCaption = React.forwardRef<
 ))
 TableCaption.displayName = "TableCaption"
 
+// New component for expandable rows with nested content
+const TableExpandableRow = React.forwardRef<
+  HTMLTableRowElement,
+  React.HTMLAttributes<HTMLTableRowElement> & {
+    expanded: boolean;
+    onToggleExpand: () => void;
+  }
+>(({ className, expanded, onToggleExpand, children, ...props }, ref) => (
+  <tr
+    ref={ref}
+    className={cn(
+      "border-b transition-colors hover:bg-muted/30 cursor-pointer",
+      expanded && "bg-muted/20",
+      className
+    )}
+    onClick={onToggleExpand}
+    {...props}
+  >
+    {children}
+  </tr>
+))
+TableExpandableRow.displayName = "TableExpandableRow"
+
+// New component for expanded content row
+const TableExpandedContent = React.forwardRef<
+  HTMLTableRowElement,
+  React.HTMLAttributes<HTMLTableRowElement> & {
+    colSpan: number;
+    expanded: boolean;
+  }
+>(({ className, colSpan, expanded, children, ...props }, ref) => (
+  <tr
+    ref={ref}
+    className={cn(
+      "border-b bg-muted/10",
+      !expanded && "hidden",
+      className
+    )}
+    {...props}
+  >
+    <td colSpan={colSpan} className="p-0">
+      <div className={cn(
+        "overflow-hidden transition-all duration-300",
+        expanded ? "max-h-[1000px] opacity-100" : "max-h-0 opacity-0"
+      )}>
+        {children}
+      </div>
+    </td>
+  </tr>
+))
+TableExpandedContent.displayName = "TableExpandedContent"
+
 export {
   Table,
   TableHeader,
@@ -114,4 +167,6 @@ export {
   TableRow,
   TableCell,
   TableCaption,
+  TableExpandableRow,
+  TableExpandedContent
 }

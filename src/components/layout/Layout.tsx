@@ -7,7 +7,8 @@ import ChatWithJack from "@/pages/ChatWithJack";
 import CustomerConversations from "@/pages/CustomerConversations";
 import ManualLeadEntry from "@/pages/ManualLeadEntry";
 import MarketInsights from "@/pages/MarketInsights";
-import { Car, Users, MessageSquare, Phone, UserPlus, BarChart3 } from "lucide-react";
+import SubprimeDashboard from "@/pages/SubprimeDashboard";
+import { Car, Users, MessageSquare, Phone, UserPlus, BarChart3, CircleDollarSign } from "lucide-react";
 
 const Layout = () => {
   const [activeTab, setActiveTab] = useState("inventory");
@@ -30,7 +31,7 @@ const Layout = () => {
       {/* Main Content */}
       <main className="container mx-auto py-6 px-4">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid grid-cols-6 mb-8">
+          <TabsList className="grid grid-cols-7 mb-8">
             <TabsTrigger 
               value="inventory" 
               className="flex items-center gap-2 py-3"
@@ -79,6 +80,14 @@ const Layout = () => {
               <Users className="h-4 w-4" />
               <span>Sales Dashboard</span>
             </TabsTrigger>
+            <TabsTrigger 
+              value="subprime" 
+              className="flex items-center gap-2 py-3"
+              data-state={activeTab === "subprime" ? "active" : "inactive"}
+            >
+              <CircleDollarSign className="h-4 w-4" />
+              <span>Subprime Leads</span>
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="inventory" className="mt-0">
@@ -103,6 +112,10 @@ const Layout = () => {
 
           <TabsContent value="sales" className="mt-0">
             <SalesDashboard />
+          </TabsContent>
+
+          <TabsContent value="subprime" className="mt-0">
+            <SubprimeDashboard />
           </TabsContent>
         </Tabs>
       </main>
