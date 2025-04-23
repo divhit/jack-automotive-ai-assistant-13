@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { SubprimeLead } from "@/data/subprime/subprimeLeads";
 import { Card } from "@/components/ui/card";
@@ -23,6 +22,8 @@ import {
 } from "@/components/ui/tooltip";
 import { SubprimeLeadDetail } from "./SubprimeLeadDetail";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Phone, MessageSquare } from "lucide-react";
 
 interface SubprimeLeadsListProps {
   leads: SubprimeLead[];
@@ -117,17 +118,17 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
                 )}
                 onClick={() => setSelectedLead(lead)}
               >
-                <div className="grid grid-cols-12 gap-4 items-center">
+                <div className="grid grid-cols-12 gap-2 items-center">
                   {/* Name */}
                   <div className="col-span-3">
                     <div className="font-medium text-base">{lead.customerName}</div>
                   </div>
 
-                  {/* Status with Tooltip */}
-                  <div className="col-span-2">
+                  {/* Status with Tooltip - Now with flex-nowrap */}
+                  <div className="col-span-2 flex-shrink-0">
                     <Tooltip>
                       <TooltipTrigger>
-                        <Badge className={status.color}>
+                        <Badge className={cn("whitespace-nowrap", status.color)}>
                           <span className="flex items-center gap-1">
                             {status.status}
                             <HelpCircle className="h-3 w-3" />
@@ -141,17 +142,16 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
                   </div>
 
                   {/* Last Reply */}
-                  <div className="col-span-3 text-sm text-gray-500 flex items-center">
+                  <div className="col-span-2 text-sm text-gray-500 flex items-center">
                     <Clock className="inline h-3 w-3 mr-1" />
                     {formatDistanceToNow(new Date(lead.lastTouchpoint), { addSuffix: true })}
                   </div>
 
                   {/* Progress Steps with Tooltip */}
-                  <div className="col-span-4">
+                  <div className="col-span-3">
                     <Tooltip>
                       <TooltipTrigger className="w-full">
                         <div className="flex items-center gap-1">
-                          <div className="text-xs text-gray-500">Progress:</div>
                           <div className="flex items-center gap-0.5">
                             {Array.from({ length: progress.total }).map((_, i) => (
                               <CircleDot 
@@ -172,6 +172,16 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
                       </TooltipContent>
                     </Tooltip>
                   </div>
+
+                  {/* Action Buttons */}
+                  <div className="col-span-2 flex justify-end gap-2">
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                      <Phone className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                      <MessageSquare className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </Card>
             );
@@ -179,12 +189,6 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
 
           <Dialog open={!!selectedLead} onOpenChange={() => setSelectedLead(null)}>
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Lead Details</DialogTitle>
-                <DialogDescription>
-                  View and manage details for this lead
-                </DialogDescription>
-              </DialogHeader>
               {selectedLead && <SubprimeLeadDetail lead={selectedLead} />}
             </DialogContent>
           </Dialog>

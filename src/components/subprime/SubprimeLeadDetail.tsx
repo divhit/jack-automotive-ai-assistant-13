@@ -1,4 +1,3 @@
-
 import { SubprimeLead } from "@/data/subprime/subprimeLeads";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -150,7 +149,6 @@ export const SubprimeLeadDetail = ({ lead }: SubprimeLeadDetailProps) => {
             </div>
             
             <div className="grid grid-cols-5 text-xs">
-              {/* Fix spacing by using flex-col and better spacing */}
               <div className="flex flex-col items-center">
                 <span className={`${currentStepIndex >= 0 ? "text-automotive-primary font-medium" : "text-gray-500"}`}>
                   Contacted
@@ -198,20 +196,12 @@ export const SubprimeLeadDetail = ({ lead }: SubprimeLeadDetailProps) => {
             <h4 className="font-medium">Conversation History</h4>
             
             <div className="bg-white rounded-lg border h-[calc(100vh-380px)] overflow-y-auto p-4 space-y-4">
-              <div className="p-3 rounded-lg bg-gray-100">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-xs font-medium">System Event</span>
-                  <span className="text-xs opacity-75">Apr 23, 10:00 AM</span>
-                </div>
-                <p className="text-sm">Initial contact made via website inquiry - Interested in SUV options with low down payment</p>
-              </div>
-
               <div className="p-3 rounded-lg bg-automotive-primary text-white">
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-xs font-medium">Jack AI</span>
-                  <span className="text-xs opacity-75">Apr 23, 10:05 AM</span>
+                  <span className="text-xs opacity-75">Apr 23, 10:00 AM</span>
                 </div>
-                <p className="text-sm">Hi {lead.customerName.split(' ')[0]}, thanks for your interest! I can help find SUV options that work with your budget. Could you share your preferred monthly payment range?</p>
+                <p className="text-sm">Hi {lead.customerName.split(' ')[0]}! I'm Jack, an AI assistant specialized in helping customers like you secure auto financing, even with less-than-perfect credit. I've helped many customers with similar situations get approved quickly. I can assist via text or call - whatever works best for you. To get started, could you share your preferred monthly payment range? This will help me find the best options for your budget.</p>
               </div>
 
               <div className="p-3 rounded-lg bg-gray-100">
@@ -227,7 +217,7 @@ export const SubprimeLeadDetail = ({ lead }: SubprimeLeadDetailProps) => {
                   <span className="text-xs font-medium">Jack AI</span>
                   <span className="text-xs opacity-75">Apr 23, 10:20 AM</span>
                 </div>
-                <p className="text-sm">Thanks for being upfront! We have several lenders who work with all credit situations. Could you confirm - are you currently employed full-time?</p>
+                <p className="text-sm">Thanks for being upfront about your situation! Don't worry - we have special financing programs designed for various credit situations, and your steady income is a big plus. To help find the best program for you, I just need a few quick details. First, could you confirm if you're currently employed full-time? Also, feel free to call or text me at any time if you prefer talking directly.</p>
               </div>
 
               <div className="p-3 rounded-lg bg-gray-100">
