@@ -17,6 +17,7 @@ import { SubprimeLead } from "@/data/subprime/subprimeLeads";
 import { BarChart3, Users, MessageSquare, Clock, Info, Settings, Sliders } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SubprimeSettingsDialog } from "@/components/subprime/SubprimeSettingsDialog";
+import { Toaster } from "@/components/ui/sonner";
 
 const SubprimeDashboard = () => {
   const [filteredLeads, setFilteredLeads] = useState<SubprimeLead[]>(subprimeLeads);
@@ -250,6 +251,8 @@ const SubprimeDashboard = () => {
       </Dialog>
 
       <SubprimeSettingsDialog open={settingsDialogOpen} onOpenChange={setSettingsDialogOpen} />
+
+      <Toaster />
     </div>
   );
 };

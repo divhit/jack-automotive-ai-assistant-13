@@ -1,4 +1,3 @@
-
 // Define the SubprimeLead type directly in this file
 export interface SubprimeLead {
   id: string;
@@ -32,6 +31,7 @@ export interface SubprimeLead {
     sentBy?: "system" | "lead" | "agent";
   }[];
   assignedAgent?: string;
+  assignedSpecialist?: "Andrea" | "Ian" | "Kayam";
 }
 
 export const subprimeLeads: SubprimeLead[] = [
@@ -74,7 +74,8 @@ export const subprimeLeads: SubprimeLead[] = [
         sentBy: "lead"
       }
     ],
-    assignedAgent: "Alice Johnson"
+    assignedAgent: "Alice Johnson",
+    assignedSpecialist: "Andrea"
   },
   {
     id: "sl2",
@@ -109,7 +110,8 @@ export const subprimeLeads: SubprimeLead[] = [
         sentBy: "system"
       }
     ],
-    assignedAgent: "Bob Williams"
+    assignedAgent: "Bob Williams",
+    assignedSpecialist: "Ian"
   },
   {
     id: "sl3",
@@ -144,7 +146,8 @@ export const subprimeLeads: SubprimeLead[] = [
         sentBy: "system"
       }
     ],
-    assignedAgent: "Alice Johnson"
+    assignedAgent: "Alice Johnson",
+    assignedSpecialist: "Kayam"
   },
   {
     id: "sl4",
@@ -179,7 +182,8 @@ export const subprimeLeads: SubprimeLead[] = [
         sentBy: "system"
       }
     ],
-    assignedAgent: "Bob Williams"
+    assignedAgent: "Bob Williams",
+    assignedSpecialist: "Andrea"
   },
   {
     id: "sl5",
@@ -214,7 +218,8 @@ export const subprimeLeads: SubprimeLead[] = [
         sentBy: "system"
       }
     ],
-    assignedAgent: "Alice Johnson"
+    assignedAgent: "Alice Johnson",
+    assignedSpecialist: "Ian"
   },
   {
     id: "sl6",
@@ -249,7 +254,8 @@ export const subprimeLeads: SubprimeLead[] = [
         sentBy: "system"
       }
     ],
-    assignedAgent: "Bob Williams"
+    assignedAgent: "Bob Williams",
+    assignedSpecialist: "Kayam"
   },
   {
     id: "sl7",
@@ -284,7 +290,8 @@ export const subprimeLeads: SubprimeLead[] = [
         sentBy: "system"
       }
     ],
-    assignedAgent: "Alice Johnson"
+    assignedAgent: "Alice Johnson",
+    assignedSpecialist: "Andrea"
   },
   {
     id: "sl8",
@@ -324,7 +331,8 @@ export const subprimeLeads: SubprimeLead[] = [
         sentBy: "lead"
       }
     ],
-    assignedAgent: "Sarah Wilson"
+    assignedAgent: "Sarah Wilson",
+    assignedSpecialist: "Ian"
   },
   {
     id: "sl9",
@@ -354,7 +362,8 @@ export const subprimeLeads: SubprimeLead[] = [
         sentBy: "system"
       }
     ],
-    assignedAgent: "Mike Thompson"
+    assignedAgent: "Mike Thompson",
+    assignedSpecialist: "Kayam"
   },
   {
     id: "sl10",
@@ -388,7 +397,8 @@ export const subprimeLeads: SubprimeLead[] = [
         sentBy: "lead"
       }
     ],
-    assignedAgent: "Lisa Chen"
+    assignedAgent: "Lisa Chen",
+    assignedSpecialist: "Andrea"
   },
   {
     id: "sl11",
@@ -422,7 +432,8 @@ export const subprimeLeads: SubprimeLead[] = [
         sentBy: "system"
       }
     ],
-    assignedAgent: "Mike Thompson"
+    assignedAgent: "Mike Thompson",
+    assignedSpecialist: "Ian"
   },
   {
     id: "sl12",
@@ -456,7 +467,8 @@ export const subprimeLeads: SubprimeLead[] = [
         sentBy: "lead"
       }
     ],
-    assignedAgent: "Lisa Chen"
+    assignedAgent: "Lisa Chen",
+    assignedSpecialist: "Kayam"
   },
   {
     id: "sl13",
@@ -490,7 +502,8 @@ export const subprimeLeads: SubprimeLead[] = [
         sentBy: "lead"
       }
     ],
-    assignedAgent: "Bob Williams"
+    assignedAgent: "Bob Williams",
+    assignedSpecialist: "Andrea"
   },
   {
     id: "sl14",
@@ -524,8 +537,7 @@ export const subprimeLeads: SubprimeLead[] = [
         sentBy: "agent"
       }
     ],
-    assignedAgent: "Sarah Wilson"
+    assignedAgent: "Sarah Wilson",
+    assignedSpecialist: "Ian"
   }
 ];
-
-// Removing the duplicate export at the end of the file
