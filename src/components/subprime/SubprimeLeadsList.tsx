@@ -137,8 +137,8 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
     <div className="space-y-1">
       <div className="grid grid-cols-12 gap-2 px-3 py-2 text-sm font-medium text-gray-500">
         <div className="col-span-2">Name</div>
-        <div className="col-span-3">Status</div>
-        <div className="col-span-2">Last Contact</div>
+        <div className="col-span-2">Status</div>
+        <div className="col-span-3">Last Contact</div>
         <div className="col-span-2">Progress</div>
         <div className="col-span-2">Projected Score</div>
         <div className="col-span-1 text-right">Actions</div>
@@ -172,7 +172,7 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
                     <div className="font-medium text-base">{lead.customerName}</div>
                   </div>
 
-                  <div className="col-span-3 flex-shrink-0">
+                  <div className="col-span-2 flex-shrink-0">
                     <Tooltip>
                       <TooltipTrigger>
                         <Badge className={cn("whitespace-nowrap", status.color)}>
@@ -188,7 +188,7 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
                     </Tooltip>
                   </div>
 
-                  <div className="col-span-2 text-sm text-gray-500">
+                  <div className="col-span-3 text-sm text-gray-500">
                     <Tooltip>
                       <TooltipTrigger className="flex items-center">
                         <Clock className="inline h-3 w-3 mr-1" />

@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import InventoryDashboard from "@/pages/InventoryDashboard";
@@ -71,24 +72,24 @@ const Layout = () => {
             </TabsTrigger>
           </TabsList>
 
-          <div className="overflow-hidden">
-            <TabsContent value="inventory" className="mt-0">
+          <div className="overflow-hidden h-[calc(100vh-13rem-8rem)]">
+            <TabsContent value="inventory" className="mt-0 h-full">
               <InventoryDashboard />
             </TabsContent>
 
-            <TabsContent value="chat" className="mt-0">
+            <TabsContent value="chat" className="mt-0 h-full overflow-y-auto">
               <ChatWithJack />
             </TabsContent>
 
-            <TabsContent value="conversations" className="mt-0">
+            <TabsContent value="conversations" className="mt-0 h-full">
               <CustomerConversations />
             </TabsContent>
 
-            <TabsContent value="insights" className="mt-0">
+            <TabsContent value="insights" className="mt-0 h-full">
               <MarketInsights />
             </TabsContent>
 
-            <TabsContent value="subprime" className="mt-0">
+            <TabsContent value="subprime" className="mt-0 h-full">
               <SubprimeDashboard />
             </TabsContent>
           </div>

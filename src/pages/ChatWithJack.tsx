@@ -83,10 +83,10 @@ const ChatWithJack = () => {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-13rem)] m-0 p-0">
+    <div className="flex flex-col h-full m-0 p-0">
       <Card className="flex flex-col h-full m-0 p-0">
         <ChatHeader />
-        <CardContent className="flex-grow p-0 border-t">
+        <CardContent className="flex-grow p-0 border-t overflow-hidden">
           <ChatExamples setCurrentMessage={setCurrentMessage} />
           <ChatMessages 
             messages={messages}
