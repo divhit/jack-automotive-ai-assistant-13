@@ -11,7 +11,10 @@ import {
   Clock,
   HelpCircle,
   CircleDot,
-  Eye
+  Eye,
+  Phone, 
+  MessageSquare,
+  Star
 } from "lucide-react";
 import { 
   Tooltip,
@@ -21,7 +24,6 @@ import {
 import { SubprimeLeadDetail } from "./SubprimeLeadDetail";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Phone, MessageSquare } from "lucide-react";
 
 interface SubprimeLeadsListProps {
   leads: SubprimeLead[];
@@ -101,8 +103,40 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
     return "border-l-yellow-400";
   };
 
+  const getProjectedScore = (lead: SubprimeLead) => {
+    let score = 0;
+    
+    if (!lead.creditProfile?.knownIssues?.length) score += 2;
+    if (lead.creditProfile?.score && lead.creditProfile.score > 600) score += 2;
+    
+    if (lead.employmentDetails?.monthsAtJob > 12) score += 1;
+    if (lead.monthlyIncome > 4000) score += 1;
+    
+    if (lead.conversations.length > 3) score += 1;
+    if (lead.sentiment === "Positive") score += 1;
+    
+    if (lead.downPayment > 2000) score += 2;
+
+    return score;
+  };
+
+  const getScoreColor = (score: number) => {
+    if (score >= 8) return "text-green-600";
+    if (score >= 5) return "text-yellow-600";
+    return "text-red-600";
+  };
+
   return (
     <div className="space-y-1">
+      <div className="grid grid-cols-12 gap-2 px-3 py-2 text-sm font-medium text-gray-500">
+        <div className="col-span-3">Name</div>
+        <div className="col-span-2">Status</div>
+        <div className="col-span-2">Last Contact</div>
+        <div className="col-span-2">Progress</div>
+        <div className="col-span-2">Projected Score</div>
+        <div className="col-span-1 text-right">Actions</div>
+      </div>
+
       {leads.length === 0 ? (
         <Card className="p-4 text-center text-gray-500">
           No leads match your current filters
@@ -114,6 +148,8 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
             const progress = getProgressSteps(lead);
             const progressTooltip = getProgressTooltip(lead);
             const borderColor = getBorderColor(lead);
+            const projectedScore = getProjectedScore(lead);
+            const scoreColor = getScoreColor(projectedScore);
             
             return (
               <Card 
@@ -184,7 +220,33 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
                     </Tooltip>
                   </div>
 
-                  <div className="col-span-3 flex justify-end gap-2">
+                  <div className="col-span-2">
+                    <Tooltip>
+                      <TooltipTrigger className="w-full">
+                        <div className="flex items-center gap-0.5">
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <Star
+                              key={i}
+                              className={cn(
+                                "h-3 w-3",
+                                i < Math.ceil(projectedScore / 2) ? scoreColor : "text-gray-200"
+                              )}
+                              fill={i < Math.ceil(projectedScore / 2) ? "currentColor" : "none"}
+                            />
+                          ))}
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="text-sm">
+                          Projected Score: {projectedScore}/10
+                          <br />
+                          Based on credit, income, engagement & down payment
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+
+                  <div className="col-span-1 flex justify-end gap-2">
                     <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
                       <Phone className="h-4 w-4" />
                     </Button>
