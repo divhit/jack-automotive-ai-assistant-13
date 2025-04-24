@@ -267,6 +267,23 @@ export const SubprimeLeadDetail = ({ lead }: SubprimeLeadDetailProps) => {
                 </div>
                 <p className="text-sm">Thanks for sending those! I received your documents and they look good. We do have several CR-Vs and RAV4s that could work with your budget. Would you prefer a newer model with higher mileage or slightly older with lower mileage?</p>
               </div>
+
+              <div className="p-3 rounded-lg bg-gray-100">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-xs font-medium">{lead.customerName}</span>
+                  <span className="text-xs opacity-75">Apr 23, 4:40 PM</span>
+                </div>
+                <p className="text-sm">I'd prefer newer with higher mileage. Also, what other documents do you need from me?</p>
+              </div>
+
+              <div className="p-3 rounded-lg bg-automotive-primary text-white">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-xs font-medium">Jack AI</span>
+                  <span className="text-xs opacity-75">Apr 23, 4:42 PM</span>
+                </div>
+                <p className="text-sm">Great choice! For the next step, we'll need a copy of your ID to verify your identity. I've created a secure upload link for you: <span className="underline cursor-pointer">https://secure.automarket.com/upload/39fk2</span>. The link is valid for 24 hours and uses bank-level encryption. Simply click the link, upload a photo of your ID (both sides), and you're all set. Once that's done, I can show you some specific CR-V options that match your criteria.</p>
+              </div>
+
             </div>
           </div>
           
