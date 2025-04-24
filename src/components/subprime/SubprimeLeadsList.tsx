@@ -8,17 +8,8 @@ import {
 import { Card } from "@/components/ui/card";
 import { SubprimeLeadDetail } from "./SubprimeLeadDetail";
 import { LeadCard } from "./lead/LeadCard";
-import { Button } from "../ui/button";
 import { toast } from "sonner";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { X } from "lucide-react";
+import { AssigneeLeadsDialog } from "./AssigneeLeadsDialog";
 
 interface SubprimeLeadsListProps {
   leads: SubprimeLead[];
@@ -26,20 +17,18 @@ interface SubprimeLeadsListProps {
 
 export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
   const [selectedLead, setSelectedLead] = useState<SubprimeLead | null>(null);
-  const [filteredByAssignee, setFilteredByAssignee] = useState<string | null>(null);
-
-  const filteredLeads = filteredByAssignee 
-    ? leads.filter(lead => lead.assignedAgent === filteredByAssignee)
-    : leads;
+  const [selectedAssignee, setSelectedAssignee] = useState<string | null>(null);
+  const [assigneeDialogOpen, setAssigneeDialogOpen] = useState(false);
 
   const handleAssigneeClick = (assignee: string | undefined) => {
     if (assignee) {
-      setFilteredByAssignee(assignee);
+      setSelectedAssignee(assignee);
+      setAssigneeDialogOpen(true);
     }
   };
 
-  const clearAssigneeFilter = () => {
-    setFilteredByAssignee(null);
+  const getAssigneeLeads = (assignee: string) => {
+    return leads.filter(lead => lead.assignedAgent === assignee);
   };
 
   const sendNudgeToAssignee = (lead: SubprimeLead) => {
@@ -52,27 +41,6 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
 
   return (
     <div className="space-y-4">
-      {filteredByAssignee && (
-        <div className="bg-muted/40 rounded-md p-3 flex items-center justify-between">
-          <div>
-            <h3 className="font-medium">Leads assigned to {filteredByAssignee}</h3>
-            <p className="text-sm text-muted-foreground">
-              {filteredLeads.length} lead(s) currently assigned
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={clearAssigneeFilter}
-              className="gap-1"
-            >
-              <X className="h-4 w-4" /> Clear filter
-            </Button>
-          </div>
-        </div>
-      )}
-      
       <div className="grid grid-cols-12 gap-2 px-3 py-2 text-sm font-medium text-gray-500">
         <div className="col-span-2">Name</div>
         <div className="col-span-1">Status</div>
@@ -83,18 +51,17 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
         <div className="col-span-1 text-right">Actions</div>
       </div>
 
-      {filteredLeads.length === 0 ? (
+      {leads.length === 0 ? (
         <Card className="p-4 text-center text-gray-500">
           No leads match your current filters
         </Card>
       ) : (
-        filteredLeads.map(lead => (
+        leads.map(lead => (
           <LeadCard 
             key={lead.id} 
             lead={lead} 
             onViewDetails={setSelectedLead}
             onAssigneeClick={handleAssigneeClick}
-            showNudgeButton={!!filteredByAssignee}
             onSendNudge={sendNudgeToAssignee}
           />
         ))
@@ -105,6 +72,14 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
           {selectedLead && <SubprimeLeadDetail lead={selectedLead} />}
         </DialogContent>
       </Dialog>
+
+      <AssigneeLeadsDialog
+        open={assigneeDialogOpen}
+        onOpenChange={setAssigneeDialogOpen}
+        assignee={selectedAssignee}
+        leads={selectedAssignee ? getAssigneeLeads(selectedAssignee) : []}
+        onSendNudge={sendNudgeToAssignee}
+      />
     </div>
   );
 };

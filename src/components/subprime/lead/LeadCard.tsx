@@ -1,4 +1,3 @@
-
 import { Clock, Phone, MessageSquare, Eye, Bell } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Card } from "@/components/ui/card";
@@ -24,7 +23,7 @@ interface LeadCardProps {
 
 export const LeadCard = ({ 
   lead, 
-  onViewDetails, 
+  onViewDetails,
   onAssigneeClick,
   showNudgeButton = false,
   onSendNudge
@@ -46,6 +45,11 @@ export const LeadCard = ({
       ? lastMessage.content.substring(0, 50) + "..."
       : lastMessage.content;
     return `${messageType}: ${summary}`;
+  };
+
+  const getFirstName = (fullName: string | undefined) => {
+    if (!fullName) return '';
+    return fullName.split(' ')[0];
   };
 
   return (
@@ -94,7 +98,7 @@ export const LeadCard = ({
               className="h-auto p-0 text-primary font-normal"
               onClick={() => onAssigneeClick && onAssigneeClick(lead.assignedAgent)}
             >
-              {lead.assignedAgent}
+              {getFirstName(lead.assignedAgent)}
             </Button>
           ) : (
             <span className="text-gray-400 text-sm">Unassigned</span>
