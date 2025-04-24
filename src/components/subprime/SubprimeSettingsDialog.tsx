@@ -116,12 +116,6 @@ export const SubprimeSettingsDialog = ({ open, onOpenChange }: SubprimeSettingsD
           </DialogDescription>
         </DialogHeader>
 
-        <div className="bg-blue-50 border border-blue-200 rounded-md p-3 mb-4">
-          <p className="text-sm text-blue-700">
-            💡 Customers can provide quick answers via text or request a phone call anytime to complete their application. Our goal is to make the process as convenient as possible for them.
-          </p>
-        </div>
-        
         <Tabs value={selectedTab} onValueChange={setSelectedTab} className="w-full mt-4">
           <TabsList className="grid grid-cols-3 mb-4">
             <TabsTrigger value="information">Information Gathering</TabsTrigger>
