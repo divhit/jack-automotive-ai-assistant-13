@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from "react";
 import { 
   Card, 
@@ -34,12 +33,10 @@ const ChatWithJack = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Focus on input when component mounts
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
@@ -80,7 +77,6 @@ const ChatWithJack = () => {
   const handleSendMessage = () => {
     if (!currentMessage.trim()) return;
 
-    // Add user message
     const newUserMessage: ChatMessage = {
       type: "user",
       content: currentMessage,
@@ -89,10 +85,8 @@ const ChatWithJack = () => {
     setMessages(prev => [...prev, newUserMessage]);
     setCurrentMessage("");
 
-    // Simulate AI typing
     setIsTyping(true);
     
-    // Generate and add AI response after a delay
     setTimeout(() => {
       const responseContent = generateResponse(newUserMessage.content);
       const newAiMessage: ChatMessage = {
@@ -102,7 +96,7 @@ const ChatWithJack = () => {
       };
       setMessages(prev => [...prev, newAiMessage]);
       setIsTyping(false);
-    }, 1000 + Math.random() * 1000); // Random delay between 1-2 seconds
+    }, 1000 + Math.random() * 1000);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -115,22 +109,19 @@ const ChatWithJack = () => {
   const simulateVoiceInput = () => {
     setIsRecording(true);
     
-    // Simulate voice recording for 2 seconds
     setTimeout(() => {
       setIsRecording(false);
       
-      // Choose a random example query
       const randomExample = chatExamples[Math.floor(Math.random() * chatExamples.length)];
       setCurrentMessage(randomExample.query);
       
-      // Focus on input
       inputRef.current?.focus();
     }, 2000);
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-13rem)]">
-      <Card className="flex flex-col h-full">
+    <div className="flex flex-col h-[calc(100vh-13rem)] m-0 p-0">
+      <Card className="flex flex-col h-full m-0 p-0">
         <CardHeader className="pb-4">
           <CardTitle className="text-xl">
             <div className="flex items-center space-x-2">
