@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { SubprimeLead } from "@/data/subprime/subprimeLeads";
 import {
@@ -65,7 +66,7 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
       <div className="grid grid-cols-12 gap-2 px-3 py-2 text-sm font-medium text-gray-500">
         <div className="col-span-2">Name</div>
         <div className="col-span-1">Status</div>
-        <div className="col-span-2">Score</div>
+        <div className="col-span-3">Score</div>
         <div className="col-span-2">Progress</div>
         <div className="col-span-2">Last Contact</div>
         <div className="col-span-1">Assigned</div>

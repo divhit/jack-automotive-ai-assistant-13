@@ -70,7 +70,7 @@ export const LeadCard = ({
           <LeadStatusBadge lead={lead} />
         </div>
 
-        <div className="col-span-2">
+        <div className="col-span-3">
           <LeadProjectedScore lead={lead} />
         </div>
 
