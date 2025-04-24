@@ -61,12 +61,20 @@ export const LeadCard = ({
       )}
     >
       <div className="grid grid-cols-12 gap-2 items-center">
-        <div className="col-span-2">
+        <div className="col-span-3">
           <div className="font-medium text-base">{lead.customerName}</div>
         </div>
 
         <div className="col-span-1 flex-shrink-0">
           <LeadStatusBadge lead={lead} />
+        </div>
+
+        <div className="col-span-2">
+          <LeadProjectedScore lead={lead} />
+        </div>
+
+        <div className="col-span-2">
+          <LeadProgress lead={lead} />
         </div>
 
         <div className="col-span-2 text-sm text-gray-500">
@@ -83,15 +91,7 @@ export const LeadCard = ({
           </Tooltip>
         </div>
 
-        <div className="col-span-2">
-          <LeadProgress lead={lead} />
-        </div>
-
-        <div className="col-span-2">
-          <LeadProjectedScore lead={lead} />
-        </div>
-
-        <div className="col-span-2">
+        <div className="col-span-1">
           {lead.assignedAgent ? (
             <Button 
               variant="link" 
@@ -106,26 +106,6 @@ export const LeadCard = ({
         </div>
 
         <div className="col-span-1 flex justify-end gap-1">
-          {showNudgeButton && lead.assignedAgent && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="h-8 w-8 p-0"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onSendNudge && onSendNudge(lead);
-                  }}
-                >
-                  <Bell className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p className="text-xs">Notify {lead.assignedAgent}</p>
-              </TooltipContent>
-            </Tooltip>
-          )}
           <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
             <Phone className="h-4 w-4" />
           </Button>

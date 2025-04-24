@@ -42,12 +42,12 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-12 gap-2 px-3 py-2 text-sm font-medium text-gray-500">
-        <div className="col-span-2">Name</div>
+        <div className="col-span-3">Name</div>
         <div className="col-span-1">Status</div>
-        <div className="col-span-2">Last Contact</div>
+        <div className="col-span-2">Score</div>
         <div className="col-span-2">Progress</div>
-        <div className="col-span-2">Projected Score</div>
-        <div className="col-span-2">Assigned To</div>
+        <div className="col-span-2">Last Contact</div>
+        <div className="col-span-1">Assigned</div>
         <div className="col-span-1 text-right">Actions</div>
       </div>
 
@@ -59,7 +59,12 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
         leads.map(lead => (
           <LeadCard 
             key={lead.id} 
-            lead={lead} 
+            lead={{
+              ...lead,
+              assignedAgent: lead.assignedAgent ? 
+                ['Andrea', 'Ian', 'Kayam'][Math.floor(Math.random() * 3)] : 
+                undefined
+            }}
             onViewDetails={setSelectedLead}
             onAssigneeClick={handleAssigneeClick}
             onSendNudge={sendNudgeToAssignee}
