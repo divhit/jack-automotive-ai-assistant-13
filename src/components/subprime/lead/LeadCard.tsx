@@ -62,7 +62,7 @@ export const LeadCard = ({
       )}
     >
       <div className="grid grid-cols-12 gap-2 items-center">
-        <div className="col-span-3">
+        <div className="col-span-2">
           <div className="font-medium text-base">{lead.customerName}</div>
         </div>
 
