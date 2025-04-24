@@ -7,19 +7,23 @@ import {
   Dialog, 
   DialogContent, 
   DialogHeader, 
-  DialogTitle 
+  DialogTitle,
+  DialogDescription
 } from "@/components/ui/dialog";
 import { subprimeLeads } from "@/data";
 import { SubprimeLeadFilters } from "@/components/subprime/SubprimeLeadFilters";
 import { SubprimeAnalytics } from "@/components/subprime/SubprimeAnalytics";
 import { SubprimeLeadsList } from "@/components/subprime/SubprimeLeadsList";
 import { SubprimeLead } from "@/data/subprime/subprimeLeads";
-import { BarChart3, Users, MessageSquare, Clock, Info } from "lucide-react";
+import { BarChart3, Users, MessageSquare, Clock, Info, Settings, Sliders } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { SubprimeSettingsDialog } from "@/components/subprime/SubprimeSettingsDialog";
 
 const SubprimeDashboard = () => {
   const [filteredLeads, setFilteredLeads] = useState<SubprimeLead[]>(subprimeLeads);
   const [searchTerm, setSearchTerm] = useState("");
   const [tileDialogOpen, setTileDialogOpen] = useState(false);
+  const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [activeTileInfo, setActiveTileInfo] = useState<{title: string; content: React.ReactNode}>({ 
     title: "", 
     content: null 
@@ -63,16 +67,27 @@ const SubprimeDashboard = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Subprime Dashboard</h1>
-        <div className="w-64">
-          <Input 
-            placeholder="Search leads..." 
-            value={searchTerm} 
-            onChange={handleSearch}
-            className="w-full"
-          />
+        <div className="flex items-center gap-3">
+          <Button 
+            variant="outline" 
+            size="icon" 
+            className="h-9 w-9"
+            onClick={() => setSettingsDialogOpen(true)}
+          >
+            <Sliders className="h-5 w-5" />
+          </Button>
+          <div className="w-64">
+            <Input 
+              placeholder="Search leads..." 
+              value={searchTerm} 
+              onChange={handleSearch}
+              className="w-full"
+            />
+          </div>
         </div>
       </div>
 
+      {/* Status cards grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* In Progress Card - Moved to first position */}
         <Card className="cursor-pointer hover:bg-gray-50 transition-colors" 
@@ -248,6 +263,9 @@ const SubprimeDashboard = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Settings Dialog */}
+      <SubprimeSettingsDialog open={settingsDialogOpen} onOpenChange={setSettingsDialogOpen} />
     </div>
   );
 };
