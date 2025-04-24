@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { SubprimeLead } from "@/data/subprime/subprimeLeads";
 import { Card } from "@/components/ui/card";
@@ -137,8 +136,8 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
   return (
     <div className="space-y-1">
       <div className="grid grid-cols-12 gap-2 px-3 py-2 text-sm font-medium text-gray-500">
-        <div className="col-span-3">Name</div>
-        <div className="col-span-2">Status</div>
+        <div className="col-span-2">Name</div>
+        <div className="col-span-3">Status</div>
         <div className="col-span-2">Last Contact</div>
         <div className="col-span-2">Progress</div>
         <div className="col-span-2">Projected Score</div>
@@ -169,11 +168,11 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
                 )}
               >
                 <div className="grid grid-cols-12 gap-2 items-center">
-                  <div className="col-span-3">
+                  <div className="col-span-2">
                     <div className="font-medium text-base">{lead.customerName}</div>
                   </div>
 
-                  <div className="col-span-2 flex-shrink-0">
+                  <div className="col-span-3 flex-shrink-0">
                     <Tooltip>
                       <TooltipTrigger>
                         <Badge className={cn("whitespace-nowrap", status.color)}>
@@ -198,7 +197,14 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
                         </span>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p className="text-sm">Last interaction details</p>
+                        {lead.conversations.length > 0 && (
+                          <p className="text-sm">
+                            Last {lead.conversations[lead.conversations.length - 1].type}:{" "}
+                            {lead.conversations[lead.conversations.length - 1].content.length > 50 
+                              ? lead.conversations[lead.conversations.length - 1].content.substring(0, 50) + "..."
+                              : lead.conversations[lead.conversations.length - 1].content}
+                          </p>
+                        )}
                       </TooltipContent>
                     </Tooltip>
                   </div>
