@@ -62,7 +62,7 @@ export const SubprimeLeadDetail = ({ lead }: SubprimeLeadDetailProps) => {
 
             <div className="flex items-center gap-2 mt-3">
               <div className="text-green-600 font-medium">
-                {lead.status === 'Auto Chase' ? 'Auto Chase' : lead.status}
+                {lead.chaseStatus === 'Auto Chase Running' ? 'Auto Chase' : lead.chaseStatus}
               </div>
               <div className="text-green-600 font-medium">
                 Active
@@ -119,7 +119,7 @@ export const SubprimeLeadDetail = ({ lead }: SubprimeLeadDetailProps) => {
               <div className="flex items-start gap-2 mt-2">
                 <CalendarClock className="h-5 w-5 text-gray-500 mt-0.5" />
                 <div>
-                  <div className="font-medium">Schedule test drive</div>
+                  <div className="font-medium">{lead.nextAction.type}</div>
                   <div className="text-sm text-gray-500">
                     {format(new Date(lead.nextAction.dueDate), 'MMM d, h:mm a')}
                   </div>
