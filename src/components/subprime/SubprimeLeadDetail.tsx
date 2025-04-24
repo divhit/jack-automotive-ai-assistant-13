@@ -196,12 +196,8 @@ export const SubprimeLeadDetail = ({ lead }: SubprimeLeadDetailProps) => {
             <h4 className="font-medium">Conversation History</h4>
             
             <div className="bg-white rounded-lg border h-[calc(100vh-380px)] overflow-y-auto p-4 space-y-4">
-              <div className="p-3 rounded-lg bg-automotive-primary text-white">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-xs font-medium">Jack AI</span>
-                  <span className="text-xs opacity-75">Apr 23, 10:00 AM</span>
-                </div>
-                <p className="text-sm">Hi {lead.customerName.split(' ')[0]}! I'm Jack, an AI assistant specialized in helping customers like you secure auto financing, even with less-than-perfect credit. I've helped many customers with similar situations get approved quickly. I can assist via text or call - whatever works best for you. To get started, could you share your preferred monthly payment range? This will help me find the best options for your budget.</p>
+              <div className="p-3 rounded-lg bg-blue-50 text-blue-700 text-sm mb-4">
+                <p>💡 Quick answers via text are perfectly fine - they don't need to be perfect! You can also request a phone call anytime to complete your application over the phone, whatever works best for you.</p>
               </div>
 
               <div className="p-3 rounded-lg bg-gray-100">
