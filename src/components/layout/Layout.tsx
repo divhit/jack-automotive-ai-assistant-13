@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import InventoryDashboard from "@/pages/InventoryDashboard";
@@ -12,7 +11,7 @@ const Layout = () => {
   const [activeTab, setActiveTab] = useState("inventory");
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 overflow-hidden">
       {/* Header */}
       <header className="bg-automotive-primary text-white p-4 shadow-md">
         <div className="container mx-auto flex items-center justify-between">
@@ -27,7 +26,7 @@ const Layout = () => {
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto py-6 px-4">
+      <main className="container mx-auto py-6 px-4 overflow-hidden">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid grid-cols-5 mb-8">
             <TabsTrigger 
@@ -72,25 +71,27 @@ const Layout = () => {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="inventory" className="mt-0">
-            <InventoryDashboard />
-          </TabsContent>
+          <div className="overflow-hidden">
+            <TabsContent value="inventory" className="mt-0">
+              <InventoryDashboard />
+            </TabsContent>
 
-          <TabsContent value="chat" className="mt-0">
-            <ChatWithJack />
-          </TabsContent>
+            <TabsContent value="chat" className="mt-0">
+              <ChatWithJack />
+            </TabsContent>
 
-          <TabsContent value="conversations" className="mt-0">
-            <CustomerConversations />
-          </TabsContent>
+            <TabsContent value="conversations" className="mt-0">
+              <CustomerConversations />
+            </TabsContent>
 
-          <TabsContent value="insights" className="mt-0">
-            <MarketInsights />
-          </TabsContent>
+            <TabsContent value="insights" className="mt-0">
+              <MarketInsights />
+            </TabsContent>
 
-          <TabsContent value="subprime" className="mt-0">
-            <SubprimeDashboard />
-          </TabsContent>
+            <TabsContent value="subprime" className="mt-0">
+              <SubprimeDashboard />
+            </TabsContent>
+          </div>
         </Tabs>
       </main>
 
