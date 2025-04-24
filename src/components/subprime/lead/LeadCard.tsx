@@ -1,5 +1,5 @@
 
-import { Clock, Phone, MessageSquare, Eye } from "lucide-react";
+import { Clock, Phone, MessageSquare, Eye, Bell } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,9 +17,18 @@ import { LeadProjectedScore } from "./LeadProjectedScore";
 interface LeadCardProps {
   lead: SubprimeLead;
   onViewDetails: (lead: SubprimeLead) => void;
+  onAssigneeClick?: (assignee: string | undefined) => void;
+  showNudgeButton?: boolean;
+  onSendNudge?: (lead: SubprimeLead) => void;
 }
 
-export const LeadCard = ({ lead, onViewDetails }: LeadCardProps) => {
+export const LeadCard = ({ 
+  lead, 
+  onViewDetails, 
+  onAssigneeClick,
+  showNudgeButton = false,
+  onSendNudge
+}: LeadCardProps) => {
   const getBorderColor = (lead: SubprimeLead) => {
     if (lead.fundingReadiness === "Ready") return "border-l-green-500";
     if (lead.sentiment === "Ghosted") return "border-l-gray-400";
@@ -52,11 +61,11 @@ export const LeadCard = ({ lead, onViewDetails }: LeadCardProps) => {
           <div className="font-medium text-base">{lead.customerName}</div>
         </div>
 
-        <div className="col-span-2 flex-shrink-0">
+        <div className="col-span-1 flex-shrink-0">
           <LeadStatusBadge lead={lead} />
         </div>
 
-        <div className="col-span-3 text-sm text-gray-500">
+        <div className="col-span-2 text-sm text-gray-500">
           <Tooltip>
             <TooltipTrigger className="flex items-center">
               <Clock className="inline h-3 w-3 mr-1" />
@@ -78,7 +87,41 @@ export const LeadCard = ({ lead, onViewDetails }: LeadCardProps) => {
           <LeadProjectedScore lead={lead} />
         </div>
 
-        <div className="col-span-1 flex justify-end gap-2">
+        <div className="col-span-2">
+          {lead.assignedAgent ? (
+            <Button 
+              variant="link" 
+              className="h-auto p-0 text-primary font-normal"
+              onClick={() => onAssigneeClick && onAssigneeClick(lead.assignedAgent)}
+            >
+              {lead.assignedAgent}
+            </Button>
+          ) : (
+            <span className="text-gray-400 text-sm">Unassigned</span>
+          )}
+        </div>
+
+        <div className="col-span-1 flex justify-end gap-1">
+          {showNudgeButton && lead.assignedAgent && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-8 w-8 p-0"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSendNudge && onSendNudge(lead);
+                  }}
+                >
+                  <Bell className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="text-xs">Notify {lead.assignedAgent}</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
           <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
             <Phone className="h-4 w-4" />
           </Button>

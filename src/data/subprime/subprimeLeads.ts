@@ -31,7 +31,7 @@ export interface SubprimeLead {
     timestamp: string;
     sentBy?: "system" | "lead" | "agent";
   }[];
-  assignedAgent?: string;
+  assignedAgent?: "Andrea" | "Ian" | "Kayam" | string;
 }
 
 export const subprimeLeads: SubprimeLead[] = [

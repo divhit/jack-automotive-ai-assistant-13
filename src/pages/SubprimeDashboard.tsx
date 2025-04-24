@@ -43,7 +43,8 @@ const SubprimeDashboard = () => {
     } else {
       const filtered = subprimeLeads.filter(lead => 
         lead.customerName.toLowerCase().includes(term) || 
-        lead.phoneNumber.includes(term)
+        lead.phoneNumber.includes(term) ||
+        (lead.assignedAgent && lead.assignedAgent.toLowerCase().includes(term))
       );
       setFilteredLeads(filtered);
     }
