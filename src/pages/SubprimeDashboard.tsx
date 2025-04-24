@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -29,14 +28,12 @@ const SubprimeDashboard = () => {
     content: null 
   });
   
-  // Analytics calculations
   const readyLeads = subprimeLeads.filter(lead => lead.fundingReadiness === "Ready").length;
   const partialLeads = subprimeLeads.filter(lead => lead.fundingReadiness === "Partial").length;
   const notReadyLeads = subprimeLeads.filter(lead => lead.fundingReadiness === "Not Ready").length;
   const needsActionLeads = subprimeLeads.filter(lead => lead.nextAction.isOverdue).length;
   const totalLeads = subprimeLeads.length;
 
-  // Handle search
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     const term = e.target.value.toLowerCase();
     setSearchTerm(term);
@@ -52,12 +49,10 @@ const SubprimeDashboard = () => {
     }
   };
 
-  // Handle filter updates from the filter component
   const handleFilterChange = (filteredLeads: SubprimeLead[]) => {
     setFilteredLeads(filteredLeads);
   };
 
-  // Handle tile click
   const handleTileClick = (title: string, content: React.ReactNode) => {
     setActiveTileInfo({ title, content });
     setTileDialogOpen(true);
@@ -68,14 +63,6 @@ const SubprimeDashboard = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Subprime Dashboard</h1>
         <div className="flex items-center gap-3">
-          <Button 
-            variant="outline" 
-            size="icon" 
-            className="h-9 w-9"
-            onClick={() => setSettingsDialogOpen(true)}
-          >
-            <Sliders className="h-5 w-5" />
-          </Button>
           <div className="w-64">
             <Input 
               placeholder="Search leads..." 
@@ -84,12 +71,18 @@ const SubprimeDashboard = () => {
               className="w-full"
             />
           </div>
+          <Button 
+            variant="outline" 
+            size="icon" 
+            className="h-9 w-9"
+            onClick={() => setSettingsDialogOpen(true)}
+          >
+            <Sliders className="h-5 w-5" />
+          </Button>
         </div>
       </div>
 
-      {/* Status cards grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* In Progress Card - Moved to first position */}
         <Card className="cursor-pointer hover:bg-gray-50 transition-colors" 
           onClick={() => handleTileClick("In Progress Leads", 
             <div className="space-y-4">
@@ -122,7 +115,6 @@ const SubprimeDashboard = () => {
           </CardContent>
         </Card>
 
-        {/* Not Ready Card */}
         <Card className="cursor-pointer hover:bg-gray-50 transition-colors"
           onClick={() => handleTileClick("Not Ready Leads", 
             <div className="space-y-4">
@@ -155,7 +147,6 @@ const SubprimeDashboard = () => {
           </CardContent>
         </Card>
 
-        {/* Needs Action Card */}
         <Card className="cursor-pointer hover:bg-gray-50 transition-colors"
           onClick={() => handleTileClick("Needs Action Leads", 
             <div className="space-y-4">
@@ -188,7 +179,6 @@ const SubprimeDashboard = () => {
           </CardContent>
         </Card>
 
-        {/* Ready for Funding Card - Moved to the end */}
         <Card className="cursor-pointer hover:bg-gray-50 transition-colors"
           onClick={() => handleTileClick("Ready for Funding Leads", 
             <div className="space-y-4">
@@ -222,20 +212,16 @@ const SubprimeDashboard = () => {
         </Card>
       </div>
 
-      {/* Filters and Lead List */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Filters */}
         <div className="lg:col-span-1">
           <SubprimeLeadFilters onFilterChange={handleFilterChange} leads={subprimeLeads} />
         </div>
         
-        {/* Lead List */}
         <div className="lg:col-span-3">
           <SubprimeLeadsList leads={filteredLeads} />
         </div>
       </div>
 
-      {/* Analytics */}
       <div className="mt-8">
         <Card>
           <CardHeader>
@@ -252,7 +238,6 @@ const SubprimeDashboard = () => {
         </Card>
       </div>
 
-      {/* Info Dialog for Tiles */}
       <Dialog open={tileDialogOpen} onOpenChange={setTileDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -264,7 +249,6 @@ const SubprimeDashboard = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Settings Dialog */}
       <SubprimeSettingsDialog open={settingsDialogOpen} onOpenChange={setSettingsDialogOpen} />
     </div>
   );

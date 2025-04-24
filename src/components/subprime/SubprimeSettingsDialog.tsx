@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { 
   Dialog, 
@@ -14,13 +13,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardHeader, 
-  CardTitle 
-} from "@/components/ui/card";
 import { 
   CircleDollarSign, 
   HomeIcon, 
@@ -57,7 +49,8 @@ export const SubprimeSettingsDialog = ({ open, onOpenChange }: SubprimeSettingsD
     toneSettings: {
       formality: 60,
       persistence: 45,
-      empathy: 75
+      empathy: 75,
+      pacing: 50
     },
     scriptSettings: {
       autoFollowUp: true,
@@ -116,6 +109,12 @@ export const SubprimeSettingsDialog = ({ open, onOpenChange }: SubprimeSettingsD
             Configure how Jack collects and processes subprime customer information
           </DialogDescription>
         </DialogHeader>
+
+        <div className="bg-blue-50 border border-blue-200 rounded-md p-3 mb-4">
+          <p className="text-sm text-blue-700">
+            💡 Customers can provide quick answers via text or request a phone call anytime to complete their application. Our goal is to make the process as convenient as possible for them.
+          </p>
+        </div>
         
         <Tabs value={selectedTab} onValueChange={setSelectedTab} className="w-full mt-4">
           <TabsList className="grid grid-cols-3 mb-4">
@@ -124,10 +123,8 @@ export const SubprimeSettingsDialog = ({ open, onOpenChange }: SubprimeSettingsD
             <TabsTrigger value="automation">Automation Settings</TabsTrigger>
           </TabsList>
           
-          {/* Information Gathering Tab */}
-          <TabsContent value="information" className="space-y-4">
+          <TabsContent value="information" className="mt-0 border-0">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Identity & Contact */}
               <Card className={!formSettings.enabledSections.identity ? "opacity-60" : ""}>
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
@@ -150,7 +147,6 @@ export const SubprimeSettingsDialog = ({ open, onOpenChange }: SubprimeSettingsD
                 </CardContent>
               </Card>
               
-              {/* Residence & Housing */}
               <Card className={!formSettings.enabledSections.residence ? "opacity-60" : ""}>
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
@@ -173,7 +169,6 @@ export const SubprimeSettingsDialog = ({ open, onOpenChange }: SubprimeSettingsD
                 </CardContent>
               </Card>
               
-              {/* Employment & Income */}
               <Card className={!formSettings.enabledSections.employment ? "opacity-60" : ""}>
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
@@ -196,7 +191,6 @@ export const SubprimeSettingsDialog = ({ open, onOpenChange }: SubprimeSettingsD
                 </CardContent>
               </Card>
               
-              {/* Credit & Financial History */}
               <Card className={!formSettings.enabledSections.credit ? "opacity-60" : ""}>
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
@@ -220,7 +214,6 @@ export const SubprimeSettingsDialog = ({ open, onOpenChange }: SubprimeSettingsD
                 </CardContent>
               </Card>
               
-              {/* Vehicle Preferences & Budget */}
               <Card className={!formSettings.enabledSections.vehicle ? "opacity-60" : ""}>
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
@@ -243,7 +236,6 @@ export const SubprimeSettingsDialog = ({ open, onOpenChange }: SubprimeSettingsD
                 </CardContent>
               </Card>
               
-              {/* Consent & Disclosure */}
               <Card className={!formSettings.enabledSections.consent ? "opacity-60" : ""}>
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
@@ -265,7 +257,6 @@ export const SubprimeSettingsDialog = ({ open, onOpenChange }: SubprimeSettingsD
                 </CardContent>
               </Card>
               
-              {/* Scheduling */}
               <Card className={!formSettings.enabledSections.scheduling ? "opacity-60" : ""}>
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
@@ -288,8 +279,7 @@ export const SubprimeSettingsDialog = ({ open, onOpenChange }: SubprimeSettingsD
             </div>
           </TabsContent>
           
-          {/* Communication Style Tab */}
-          <TabsContent value="communication" className="space-y-6">
+          <TabsContent value="communication" className="mt-0 border-0">
             <div>
               <h3 className="text-lg font-medium mb-4">Conversation Style</h3>
               <ToggleGroup 
@@ -325,7 +315,30 @@ export const SubprimeSettingsDialog = ({ open, onOpenChange }: SubprimeSettingsD
               <h3 className="text-lg font-medium">Tone Adjustments</h3>
               
               <div className="space-y-8">
-                {/* Formality Slider */}
+                <div>
+                  <div className="flex justify-between mb-2">
+                    <Label htmlFor="pacing" className="text-sm font-medium">
+                      Information Gathering Pace
+                    </Label>
+                    <span className="text-sm text-gray-500">
+                      {formSettings.toneSettings.pacing}%
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-12 gap-2 items-center">
+                    <div className="col-span-2 text-xs text-gray-500">Fast (concise)</div>
+                    <div className="col-span-8">
+                      <Slider
+                        id="pacing"
+                        value={[formSettings.toneSettings.pacing]}
+                        max={100}
+                        step={5}
+                        onValueChange={(value) => handleToneChange("pacing", value)}
+                      />
+                    </div>
+                    <div className="col-span-2 text-xs text-gray-500 text-right">Thorough (detailed)</div>
+                  </div>
+                </div>
+                
                 <div>
                   <div className="flex justify-between mb-2">
                     <Label htmlFor="formality" className="text-sm font-medium">
@@ -350,7 +363,6 @@ export const SubprimeSettingsDialog = ({ open, onOpenChange }: SubprimeSettingsD
                   </div>
                 </div>
                 
-                {/* Persistence Slider */}
                 <div>
                   <div className="flex justify-between mb-2">
                     <Label htmlFor="persistence" className="text-sm font-medium">
@@ -375,7 +387,6 @@ export const SubprimeSettingsDialog = ({ open, onOpenChange }: SubprimeSettingsD
                   </div>
                 </div>
                 
-                {/* Empathy Slider */}
                 <div>
                   <div className="flex justify-between mb-2">
                     <Label htmlFor="empathy" className="text-sm font-medium">
@@ -403,8 +414,7 @@ export const SubprimeSettingsDialog = ({ open, onOpenChange }: SubprimeSettingsD
             </div>
           </TabsContent>
           
-          {/* Automation Settings Tab */}
-          <TabsContent value="automation" className="space-y-6">
+          <TabsContent value="automation" className="mt-0 border-0">
             <div>
               <h3 className="text-lg font-medium mb-4">Automated Features</h3>
               <div className="space-y-4">
