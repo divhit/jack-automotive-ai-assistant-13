@@ -1,4 +1,3 @@
-
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatDistanceToNow } from "date-fns";
 import { Bell } from "lucide-react";
@@ -89,7 +88,7 @@ export const AssigneeDetailsDialog = ({
                   onClick={() => handleSendNudge(lead)}
                 >
                   <Bell className="h-4 w-4 mr-2" />
-                  Send Nudge
+                  Send {specialist} Nudge
                 </Button>
               </div>
             ))}

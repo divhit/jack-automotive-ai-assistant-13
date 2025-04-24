@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { SubprimeLead } from "@/data/subprime/subprimeLeads";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -6,8 +7,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
-import { useState } from "react";
+import { subprimeLeads } from "@/data";
 import { Check, Phone, MessageSquare, FileText, Calendar, AlertTriangle } from "lucide-react";
+import { AssigneeDetailsDialog } from "./lead/AssigneeDetailsDialog";
 
 interface SubprimeLeadDetailProps {
   lead: SubprimeLead;
@@ -16,6 +18,7 @@ interface SubprimeLeadDetailProps {
 export const SubprimeLeadDetail = ({ lead }: SubprimeLeadDetailProps) => {
   const [autoChase, setAutoChase] = useState(lead.chaseStatus === "Auto Chase Running");
   const [internalNote, setInternalNote] = useState("");
+  const [isAssigneeDialogOpen, setIsAssigneeDialogOpen] = useState(false);
   
   const progressSteps = ["contacted", "screening", "qualification", "routing", "submitted"];
   const currentStepIndex = progressSteps.indexOf(lead.scriptProgress.currentStep);
@@ -44,6 +47,10 @@ export const SubprimeLeadDetail = ({ lead }: SubprimeLeadDetailProps) => {
     
     if (sentBy === "lead") return "bg-gray-100";
     return "bg-automotive-primary text-white";
+  };
+
+  const getLeadsForSpecialist = (specialist: string) => {
+    return subprimeLeads.filter(l => l.assignedSpecialist === specialist);
   };
 
   return (
@@ -84,7 +91,19 @@ export const SubprimeLeadDetail = ({ lead }: SubprimeLeadDetailProps) => {
           </div>
           
           <Card className="p-4">
-            <h4 className="font-medium mb-2">Lead Details</h4>
+            <div className="flex justify-between items-center mb-2">
+              <h4 className="font-medium">Lead Details</h4>
+              {lead.assignedAgent && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setIsAssigneeDialogOpen(true)}
+                  className="text-xs text-gray-600 hover:bg-gray-100"
+                >
+                  Assigned to: {lead.assignedAgent}
+                </Button>
+              )}
+            </div>
             
             <div className="space-y-2">
               <div className="flex justify-between items-center">
@@ -326,6 +345,15 @@ export const SubprimeLeadDetail = ({ lead }: SubprimeLeadDetailProps) => {
           </div>
         </div>
       </div>
+
+      {lead.assignedAgent && (
+        <AssigneeDetailsDialog
+          specialist={lead.assignedAgent}
+          leads={getLeadsForSpecialist(lead.assignedAgent)}
+          open={isAssigneeDialogOpen}
+          onOpenChange={setIsAssigneeDialogOpen}
+        />
+      )}
     </div>
   );
 };
