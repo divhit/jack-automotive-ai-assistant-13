@@ -9,11 +9,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/components/ui/hover-card";
-import {
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -68,25 +63,25 @@ export const LeadCard = ({ lead, onViewDetails }: LeadCardProps) => {
   return (
     <Card 
       className={cn(
-        "p-3 hover:bg-gray-50 transition-colors",
+        "p-2 hover:bg-gray-50 transition-colors",
         "border-l-4",
         getBorderColor(lead)
       )}
     >
-      <div className="grid grid-cols-13 gap-2 items-center">
+      <div className="grid grid-cols-12 gap-4 items-center">
         <div className="col-span-2">
-          <div className="font-medium text-base">{lead.customerName}</div>
+          <div className="font-medium">{lead.customerName}</div>
         </div>
 
-        <div className="col-span-2 flex-shrink-0">
+        <div className="col-span-2">
           <LeadStatusBadge lead={lead} />
         </div>
 
-        <div className="col-span-3 text-sm text-gray-500">
+        <div className="col-span-2 text-sm text-gray-500">
           <Tooltip>
             <TooltipTrigger className="flex items-center">
               <Clock className="inline h-3 w-3 mr-1" />
-              <span className="whitespace-nowrap">
+              <span>
                 {formatDistanceToNow(new Date(lead.lastTouchpoint), { addSuffix: true })}
               </span>
             </TooltipTrigger>
@@ -109,7 +104,7 @@ export const LeadCard = ({ lead, onViewDetails }: LeadCardProps) => {
             <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
               <PopoverTrigger asChild>
                 <button 
-                  className="px-2 py-0.5 bg-gray-100 text-purple-700 text-xs rounded-full hover:bg-gray-200 transition-colors"
+                  className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full hover:bg-gray-200 transition-colors"
                 >
                   {lead.assignedSpecialist}
                 </button>
