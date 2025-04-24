@@ -1,6 +1,6 @@
 
 import { useState, useRef, useEffect } from "react";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { chatExamples } from "@/data";
 import { ChatHeader } from "@/components/chat/ChatHeader";
 import { ChatExamples } from "@/components/chat/ChatExamples";
