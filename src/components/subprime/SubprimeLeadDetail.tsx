@@ -31,8 +31,12 @@ export const SubprimeLeadDetail = ({ lead }: SubprimeLeadDetailProps) => {
   };
 
   const getLeadsForSpecialist = (specialist: string) => {
+    // This ensures we only show leads assigned to Andrea, Ian, or Kayam
     return subprimeLeads.filter(l => l.assignedSpecialist === specialist);
   };
+
+  // Make sure we're using the correct specialist name
+  const assignedSpecialist = lead.assignedSpecialist;
 
   return (
     <div className="space-y-6">
@@ -70,10 +74,10 @@ export const SubprimeLeadDetail = ({ lead }: SubprimeLeadDetailProps) => {
         </div>
       </div>
 
-      {lead.assignedAgent && (
+      {assignedSpecialist && (
         <AssigneeDetailsDialog
-          specialist={lead.assignedAgent}
-          leads={getLeadsForSpecialist(lead.assignedAgent)}
+          specialist={assignedSpecialist}
+          leads={getLeadsForSpecialist(assignedSpecialist)}
           open={isAssigneeDialogOpen}
           onOpenChange={setIsAssigneeDialogOpen}
         />

@@ -11,6 +11,12 @@ interface LeadDetailsCardProps {
 }
 
 export const LeadDetailsCard = ({ lead, onAssigneeClick }: LeadDetailsCardProps) => {
+  // Ensure we're using one of our valid specialists
+  const displaySpecialist = lead.assignedSpecialist && 
+    ["Andrea", "Ian", "Kayam"].includes(lead.assignedSpecialist) 
+      ? lead.assignedSpecialist 
+      : "Andrea";  // Default to Andrea if not a valid specialist
+
   return (
     <Card className="p-4">
       <h4 className="font-medium mb-2">Lead Details</h4>
@@ -60,17 +66,15 @@ export const LeadDetailsCard = ({ lead, onAssigneeClick }: LeadDetailsCardProps)
           </div>
         )}
         
-        {lead.assignedSpecialist && (
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={onAssigneeClick}
-            className="w-full inline-flex items-center justify-center gap-2 text-xs bg-gray-50 hover:bg-gray-100 mt-2"
-          >
-            <UserRound className="h-3.5 w-3.5" />
-            <span>Assigned to: {lead.assignedSpecialist}</span>
-          </Button>
-        )}
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={onAssigneeClick}
+          className="w-full inline-flex items-center justify-center gap-2 text-xs bg-gray-50 hover:bg-gray-100 mt-2"
+        >
+          <UserRound className="h-3.5 w-3.5" />
+          <span>Assigned to: {displaySpecialist}</span>
+        </Button>
       </div>
     </Card>
   );
