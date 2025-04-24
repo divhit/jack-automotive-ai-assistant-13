@@ -1,19 +1,53 @@
 
-import { CardHeader, CardTitle } from "@/components/ui/card";
-import { Car, Info } from "lucide-react";
+import { CardHeader } from "@/components/ui/card";
+import { Bot, Info } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { ChatStyleSettings } from "./ChatStyleSettings";
+import { CommunicationStyle } from "@/hooks/useMessageGenerator";
 
-export const ChatHeader = () => {
+interface ChatHeaderProps {
+  communicationStyle?: CommunicationStyle;
+  onStyleChange?: (style: CommunicationStyle) => void;
+}
+
+export const ChatHeader = ({ communicationStyle, onStyleChange }: ChatHeaderProps) => {
   return (
-    <CardHeader className="pb-4">
-      <CardTitle className="text-xl">
-        <div className="flex items-center space-x-2">
-          <Car className="h-5 w-5 text-automotive-primary" />
-          <span>Chat with Jack</span>
+    <CardHeader className="flex flex-row items-center justify-between py-3 px-4 bg-automotive-primary text-white relative">
+      <div className="flex items-center space-x-2">
+        <Bot className="h-6 w-6" />
+        <div>
+          <h2 className="text-lg font-semibold leading-none tracking-tight">Jack AI</h2>
+          <p className="text-xs text-white/80">Automotive Sales Assistant</p>
         </div>
-      </CardTitle>
-      <div className="text-sm text-muted-foreground flex items-center mt-1">
-        <Info className="h-3.5 w-3.5 mr-1.5" />
-        <span>Ask Jack any questions about inventory, pricing, or market conditions</span>
+      </div>
+      
+      <div className="flex items-center">
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button className="rounded-full p-1 hover:bg-white/10">
+                <Info className="h-4 w-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p className="w-[200px] text-xs">
+                Jack AI uses market data to assist with inventory management, pricing, and customer interactions.
+              </p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        
+        {communicationStyle && onStyleChange && (
+          <ChatStyleSettings 
+            currentStyle={communicationStyle} 
+            onStyleChange={onStyleChange} 
+          />
+        )}
       </div>
     </CardHeader>
   );

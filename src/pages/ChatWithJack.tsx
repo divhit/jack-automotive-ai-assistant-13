@@ -6,7 +6,7 @@ import { ChatHeader } from "@/components/chat/ChatHeader";
 import { ChatExamples } from "@/components/chat/ChatExamples";
 import { ChatMessages } from "@/components/chat/ChatMessages";
 import { ChatInput } from "@/components/chat/ChatInput";
-import { useMessageGenerator } from "@/hooks/useMessageGenerator";
+import { useMessageGenerator, CommunicationStyle, DEFAULT_COMMUNICATION_STYLE } from "@/hooks/useMessageGenerator";
 
 interface ChatMessage {
   type: "user" | "ai";
@@ -28,6 +28,9 @@ const ChatWithJack = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const { generateResponse } = useMessageGenerator();
+  
+  // Communication style settings
+  const [communicationStyle, setCommunicationStyle] = useState<CommunicationStyle>(DEFAULT_COMMUNICATION_STYLE);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -51,7 +54,7 @@ const ChatWithJack = () => {
     setIsTyping(true);
     
     setTimeout(() => {
-      const responseContent = generateResponse(newUserMessage.content);
+      const responseContent = generateResponse(newUserMessage.content, communicationStyle);
       const newAiMessage: ChatMessage = {
         type: "ai",
         content: responseContent,
@@ -82,10 +85,17 @@ const ChatWithJack = () => {
     }, 2000);
   };
 
+  const handleStyleChange = (newStyle: CommunicationStyle) => {
+    setCommunicationStyle(newStyle);
+  };
+
   return (
     <div className="flex flex-col h-full m-0 p-0">
       <Card className="flex flex-col h-full m-0 p-0">
-        <ChatHeader />
+        <ChatHeader 
+          communicationStyle={communicationStyle}
+          onStyleChange={handleStyleChange}
+        />
         <CardContent className="flex-grow p-0 border-t overflow-hidden">
           <ChatExamples setCurrentMessage={setCurrentMessage} />
           <ChatMessages 
