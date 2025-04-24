@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { SubprimeLead } from "@/data/subprime/subprimeLeads";
 import { Card } from "@/components/ui/card";
@@ -8,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
 import { subprimeLeads } from "@/data";
-import { Check, Phone, MessageSquare, FileText, Calendar, AlertTriangle } from "lucide-react";
+import { Check, Phone, MessageSquare, FileText, Calendar, AlertTriangle, UserRound } from "lucide-react";
 import { AssigneeDetailsDialog } from "./lead/AssigneeDetailsDialog";
 
 interface SubprimeLeadDetailProps {
@@ -95,12 +96,13 @@ export const SubprimeLeadDetail = ({ lead }: SubprimeLeadDetailProps) => {
               <h4 className="font-medium">Lead Details</h4>
               {lead.assignedAgent && (
                 <Button 
-                  variant="ghost" 
+                  variant="outline" 
                   size="sm" 
                   onClick={() => setIsAssigneeDialogOpen(true)}
-                  className="text-xs text-gray-600 hover:bg-gray-100"
+                  className="inline-flex items-center gap-2 text-xs bg-gray-50 hover:bg-gray-100"
                 >
-                  Assigned to: {lead.assignedAgent}
+                  <UserRound className="h-3.5 w-3.5" />
+                  <span>Assigned to: {lead.assignedAgent}</span>
                 </Button>
               )}
             </div>
