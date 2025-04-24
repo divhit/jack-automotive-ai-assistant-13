@@ -1,25 +1,17 @@
-import { Clock, Phone, MessageSquare, Eye, Bell } from "lucide-react";
+import { Clock, Phone, MessageSquare, Eye } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { 
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useState } from "react";
-import { toast } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
 import { SubprimeLead } from "@/data/subprime/subprimeLeads";
 import { LeadStatusBadge } from "./LeadStatusBadge";
 import { LeadProgress } from "./LeadProgress";
 import { LeadProjectedScore } from "./LeadProjectedScore";
 import { subprimeLeads } from "@/data";
+import { AssigneeHoverCard } from "./AssigneeHoverCard";
+import { AssigneeDetailsDialog } from "./AssigneeDetailsDialog";
 
 interface LeadCardProps {
   lead: SubprimeLead;
@@ -27,7 +19,7 @@ interface LeadCardProps {
 }
 
 export const LeadCard = ({ lead, onViewDetails }: LeadCardProps) => {
-  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   
   const getBorderColor = (lead: SubprimeLead) => {
     if (lead.fundingReadiness === "Ready") return "border-l-green-500";
@@ -50,13 +42,6 @@ export const LeadCard = ({ lead, onViewDetails }: LeadCardProps) => {
   
   const getLeadsForSpecialist = (specialist: string) => {
     return subprimeLeads.filter(l => l.assignedSpecialist === specialist);
-  };
-  
-  const handleSendNudge = (specialist: string) => {
-    toast.success(`Nudge sent to ${specialist}!`, {
-      description: `${lead.customerName}'s contact info has been prioritized in ${specialist}'s inbox.`,
-    });
-    setIsPopoverOpen(false);
   };
 
   const handleRowClick = (e: React.MouseEvent) => {
@@ -112,44 +97,11 @@ export const LeadCard = ({ lead, onViewDetails }: LeadCardProps) => {
         
         <div className="col-span-1">
           {lead.assignedSpecialist && (
-            <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
-              <PopoverTrigger asChild>
-                <button 
-                  className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full hover:bg-gray-200 transition-colors"
-                >
-                  {lead.assignedSpecialist}
-                </button>
-              </PopoverTrigger>
-              <PopoverContent className="w-80 p-4" align="start">
-                <div className="space-y-4">
-                  <h3 className="font-semibold text-lg">{lead.assignedSpecialist}'s Leads</h3>
-                  
-                  <div className="max-h-64 overflow-y-auto">
-                    <div className="space-y-2">
-                      {getLeadsForSpecialist(lead.assignedSpecialist).map((assignedLead) => (
-                        <div key={assignedLead.id} className="p-2 bg-gray-50 rounded-md text-sm">
-                          <div className="font-medium">{assignedLead.customerName}</div>
-                          <div className="flex justify-between items-center mt-1 text-xs text-gray-500">
-                            <span>{assignedLead.fundingReadiness}</span>
-                            <span>{formatDistanceToNow(new Date(assignedLead.lastTouchpoint), { addSuffix: true })}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="w-full"
-                    onClick={() => handleSendNudge(lead.assignedSpecialist as string)}
-                  >
-                    <Bell className="mr-1 h-4 w-4" />
-                    Send {lead.assignedSpecialist} Nudge
-                  </Button>
-                </div>
-              </PopoverContent>
-            </Popover>
+            <AssigneeHoverCard
+              specialist={lead.assignedSpecialist}
+              leads={getLeadsForSpecialist(lead.assignedSpecialist)}
+              onClick={() => setIsDetailsDialogOpen(true)}
+            />
           )}
         </div>
 
@@ -170,6 +122,15 @@ export const LeadCard = ({ lead, onViewDetails }: LeadCardProps) => {
           </Button>
         </div>
       </div>
+
+      {lead.assignedSpecialist && (
+        <AssigneeDetailsDialog
+          specialist={lead.assignedSpecialist}
+          leads={getLeadsForSpecialist(lead.assignedSpecialist)}
+          open={isDetailsDialogOpen}
+          onOpenChange={setIsDetailsDialogOpen}
+        />
+      )}
     </Card>
   );
 };
