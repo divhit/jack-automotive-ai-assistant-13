@@ -20,6 +20,28 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
   const [selectedAssignee, setSelectedAssignee] = useState<string | null>(null);
   const [assigneeDialogOpen, setAssigneeDialogOpen] = useState(false);
 
+  // Function to get a stable agent name based on lead id
+  const getStableAgentName = (leadId: string): "Andrea" | "Ian" | "Kayam" => {
+    // Use the last character of the ID to determine the agent
+    const lastChar = leadId.charAt(leadId.length - 1);
+    const charCode = lastChar.charCodeAt(0);
+    
+    if (charCode % 3 === 0) return "Andrea";
+    if (charCode % 3 === 1) return "Ian";
+    return "Kayam";
+  };
+
+  // Apply stable agent names to leads
+  const leadsWithStableAgents = leads.map(lead => {
+    if (lead.assignedAgent) {
+      return {
+        ...lead,
+        assignedAgent: getStableAgentName(lead.id)
+      };
+    }
+    return lead;
+  });
+
   const handleAssigneeClick = (assignee: string | undefined) => {
     if (assignee) {
       setSelectedAssignee(assignee);
@@ -28,7 +50,7 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
   };
 
   const getAssigneeLeads = (assignee: string) => {
-    return leads.filter(lead => lead.assignedAgent === assignee);
+    return leadsWithStableAgents.filter(lead => lead.assignedAgent === assignee);
   };
 
   const sendNudgeToAssignee = (lead: SubprimeLead) => {
@@ -51,20 +73,15 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
         <div className="col-span-1 text-right">Actions</div>
       </div>
 
-      {leads.length === 0 ? (
+      {leadsWithStableAgents.length === 0 ? (
         <Card className="p-4 text-center text-gray-500">
           No leads match your current filters
         </Card>
       ) : (
-        leads.map(lead => (
+        leadsWithStableAgents.map(lead => (
           <LeadCard 
             key={lead.id} 
-            lead={{
-              ...lead,
-              assignedAgent: lead.assignedAgent ? 
-                ['Andrea', 'Ian', 'Kayam'][Math.floor(Math.random() * 3)] : 
-                undefined
-            }}
+            lead={lead}
             onViewDetails={setSelectedLead}
             onAssigneeClick={handleAssigneeClick}
             onSendNudge={sendNudgeToAssignee}
