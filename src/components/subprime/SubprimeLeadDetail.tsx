@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { SubprimeLead } from '@/data/subprime/subprimeLeads';
@@ -15,13 +16,11 @@ interface SubprimeLeadDetailProps {
 }
 
 export const SubprimeLeadDetail = ({ lead }: SubprimeLeadDetailProps) => {
-  // Add logic to copy phone number
   const handleCopyPhone = () => {
     navigator.clipboard.writeText(lead.phoneNumber);
     toast.success("Phone number copied to clipboard");
   };
   
-  // Add logic to send a nudge to the assigned agent
   const sendNudgeToAssignee = () => {
     if (lead.assignedAgent) {
       toast.success(`Notification sent to ${lead.assignedAgent} about ${lead.customerName}'s lead`, {

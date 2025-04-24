@@ -1,4 +1,3 @@
-
 import { Clock, Phone, MessageSquare, Eye, Bell } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Card } from "@/components/ui/card";
@@ -66,11 +65,11 @@ export const LeadCard = ({
           <div className="font-medium text-base">{lead.customerName}</div>
         </div>
 
-        <div className="col-span-1 flex-shrink-0">
+        <div className="col-span-2">
           <LeadStatusBadge lead={lead} />
         </div>
 
-        <div className="col-span-3">
+        <div className="col-span-2">
           <LeadProjectedScore lead={lead} />
         </div>
 
