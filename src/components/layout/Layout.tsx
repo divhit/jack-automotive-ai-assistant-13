@@ -12,7 +12,7 @@ const Layout = () => {
   const [activeTab, setActiveTab] = useState("inventory");
 
   return (
-    <div className="min-h-screen bg-gray-50 overflow-hidden">
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-automotive-primary text-white p-4 shadow-md">
         <div className="container mx-auto flex items-center justify-between">
@@ -27,7 +27,7 @@ const Layout = () => {
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto py-6 px-4 overflow-hidden">
+      <main className="container mx-auto py-6 px-4">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid grid-cols-5 mb-8">
             <TabsTrigger 
@@ -72,24 +72,24 @@ const Layout = () => {
             </TabsTrigger>
           </TabsList>
 
-          <div className="overflow-hidden h-[calc(100vh-13rem-8rem)]">
-            <TabsContent value="inventory" className="mt-0 h-full">
+          <div className="overflow-y-auto">
+            <TabsContent value="inventory" className="mt-0">
               <InventoryDashboard />
             </TabsContent>
 
-            <TabsContent value="chat" className="mt-0 h-full overflow-y-auto">
+            <TabsContent value="chat" className="mt-0">
               <ChatWithJack />
             </TabsContent>
 
-            <TabsContent value="conversations" className="mt-0 h-full">
+            <TabsContent value="conversations" className="mt-0">
               <CustomerConversations />
             </TabsContent>
 
-            <TabsContent value="insights" className="mt-0 h-full">
+            <TabsContent value="insights" className="mt-0">
               <MarketInsights />
             </TabsContent>
 
-            <TabsContent value="subprime" className="mt-0 h-full">
+            <TabsContent value="subprime" className="mt-0">
               <SubprimeDashboard />
             </TabsContent>
           </div>
