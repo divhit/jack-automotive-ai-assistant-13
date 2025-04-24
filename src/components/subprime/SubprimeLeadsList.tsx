@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { SubprimeLead } from "@/data/subprime/subprimeLeads";
 import { Card } from "@/components/ui/card";
@@ -106,17 +107,24 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
   const getProjectedScore = (lead: SubprimeLead) => {
     let score = 0;
     
+    // Credit related score factors
     if (!lead.creditProfile?.knownIssues?.length) score += 2;
-    if (lead.creditProfile?.score && lead.creditProfile.score > 600) score += 2;
+    if (lead.creditProfile?.scoreRange && 
+        parseInt(lead.creditProfile.scoreRange.split('-')[0]) > 600) score += 2;
     
-    if (lead.employmentDetails?.monthsAtJob > 12) score += 1;
-    if (lead.monthlyIncome > 4000) score += 1;
-    
+    // Check for positive engagement and conversation metrics
     if (lead.conversations.length > 3) score += 1;
-    if (lead.sentiment === "Positive") score += 1;
     
-    if (lead.downPayment > 2000) score += 2;
-
+    // Sentiment factor
+    if (lead.sentiment === "Warm") score += 1;
+    
+    // Funding readiness factor
+    if (lead.fundingReadiness === "Ready") score += 2;
+    if (lead.fundingReadiness === "Partial") score += 1;
+    
+    // Progress in the sales script
+    if (lead.scriptProgress.completedSteps.length > 2) score += 2;
+    
     return score;
   };
 
@@ -240,7 +248,7 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
                         <p className="text-sm">
                           Projected Score: {projectedScore}/10
                           <br />
-                          Based on credit, income, engagement & down payment
+                          Based on credit, engagement & sales progress
                         </p>
                       </TooltipContent>
                     </Tooltip>
