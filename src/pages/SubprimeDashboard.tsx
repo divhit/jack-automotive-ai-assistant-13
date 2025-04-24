@@ -1,5 +1,6 @@
+
 import { useState } from "react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { subprimeLeads } from "@/data";
 import { SubprimeLead } from "@/data/subprime/subprimeLeads";
 import { SubprimeSettingsDialog } from "@/components/subprime/SubprimeSettingsDialog";
