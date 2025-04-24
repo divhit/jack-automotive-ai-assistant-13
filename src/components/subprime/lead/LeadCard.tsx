@@ -1,4 +1,3 @@
-
 import { Clock, Phone, MessageSquare, Eye, Bell } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Card } from "@/components/ui/card";
@@ -60,13 +59,25 @@ export const LeadCard = ({ lead, onViewDetails }: LeadCardProps) => {
     setIsPopoverOpen(false);
   };
 
+  const handleRowClick = (e: React.MouseEvent) => {
+    if (
+      (e.target as HTMLElement).closest('button') || 
+      (e.target as HTMLElement).closest('[role="tooltip"]') ||
+      (e.target as HTMLElement).closest('[role="dialog"]')
+    ) {
+      return;
+    }
+    onViewDetails(lead);
+  };
+
   return (
     <Card 
       className={cn(
-        "p-2 hover:bg-gray-50 transition-colors",
+        "p-2 hover:bg-gray-50 transition-colors cursor-pointer",
         "border-l-4",
         getBorderColor(lead)
       )}
+      onClick={handleRowClick}
     >
       <div className="grid grid-cols-12 gap-4 items-center">
         <div className="col-span-2">
