@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { 
   Dialog, 
@@ -13,6 +14,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import { 
+  Card,
+  CardHeader,
+  CardContent,
+  CardTitle
+} from "@/components/ui/card";
 import { 
   CircleDollarSign, 
   HomeIcon, 
