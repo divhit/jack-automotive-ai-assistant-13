@@ -13,20 +13,7 @@ interface LeadDetailsCardProps {
 export const LeadDetailsCard = ({ lead, onAssigneeClick }: LeadDetailsCardProps) => {
   return (
     <Card className="p-4">
-      <div className="flex justify-between items-center mb-2">
-        <h4 className="font-medium">Lead Details</h4>
-        {lead.assignedAgent && (
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={onAssigneeClick}
-            className="inline-flex items-center gap-2 text-xs bg-gray-50 hover:bg-gray-100"
-          >
-            <UserRound className="h-3.5 w-3.5" />
-            <span>Assigned to: {lead.assignedAgent}</span>
-          </Button>
-        )}
-      </div>
+      <h4 className="font-medium mb-2">Lead Details</h4>
       
       <div className="space-y-2">
         <div className="flex justify-between items-center">
@@ -73,10 +60,17 @@ export const LeadDetailsCard = ({ lead, onAssigneeClick }: LeadDetailsCardProps)
           </div>
         )}
         
-        <div className="flex justify-between items-center">
-          <span className="text-sm text-gray-600">Assigned:</span>
-          <span className="font-medium">{lead.assignedAgent || "Unassigned"}</span>
-        </div>
+        {lead.assignedSpecialist && (
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={onAssigneeClick}
+            className="w-full inline-flex items-center justify-center gap-2 text-xs bg-gray-50 hover:bg-gray-100 mt-2"
+          >
+            <UserRound className="h-3.5 w-3.5" />
+            <span>Assigned to: {lead.assignedSpecialist}</span>
+          </Button>
+        )}
       </div>
     </Card>
   );
