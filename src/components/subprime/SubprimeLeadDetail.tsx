@@ -66,11 +66,17 @@ export const SubprimeLeadDetail = ({ lead }: SubprimeLeadDetailProps) => {
             onAddNote={handleAddNote}
           />
           <LeadActions onAddNote={handleAddNote} />
-          <LeadInternalNotes 
+          <LeadInternalNotes
             internalNote={internalNote}
             onInternalNoteChange={setInternalNote}
             onAddNote={handleAddNote}
           />
+          <elevenlabs-convai
+            agent-id="agent_01jwc5v1nafjwv7zw4vtz1050m"
+            transcript
+            text-input
+            className="mt-4"
+          ></elevenlabs-convai>
         </div>
       </div>
 
