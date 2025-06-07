@@ -32,6 +32,7 @@ const ChatWithJack = () => {
   const inputRef = useRef<HTMLInputElement>(null);
   const convaiSessionRef = useRef<any>(null);
   const lastTypedMessageRef = useRef<string>("");
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
 
   // Communication style settings
   const [communicationStyle, setCommunicationStyle] =
@@ -136,6 +137,8 @@ const ChatWithJack = () => {
         <ChatHeader
           communicationStyle={communicationStyle}
           onStyleChange={handleStyleChange}
+          voiceEnabled={voiceEnabled}
+          onToggleVoice={() => setVoiceEnabled((v) => !v)}
         />
         <CardContent className="flex-grow p-0 border-t overflow-hidden">
           <ChatExamples setCurrentMessage={setCurrentMessage} />
@@ -159,6 +162,7 @@ const ChatWithJack = () => {
         agent-id="agent_01jwc5v1nafjwv7zw4vtz1050m"
         transcript
         text-input
+        className={voiceEnabled ? '' : 'hidden'}
       ></elevenlabs-convai>
     </div>
   );
