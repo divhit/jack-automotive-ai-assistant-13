@@ -75,6 +75,12 @@ export const SubprimeLeadDetail = ({ lead }: SubprimeLeadDetailProps) => {
           <div className="mt-4">
             <LeadVoiceChat />
           </div>
+          <elevenlabs-convai
+            agent-id="agent_01jwc5v1nafjwv7zw4vtz1050m"
+            transcript
+            text-input
+            className="mt-4"
+          ></elevenlabs-convai>
         </div>
       </div>
 

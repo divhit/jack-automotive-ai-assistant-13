@@ -31,6 +31,7 @@ const ChatWithJack = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const lastTypedMessageRef = useRef<string>("");
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
 
   // Communication style settings
   const [communicationStyle, setCommunicationStyle] =
@@ -91,6 +92,8 @@ const ChatWithJack = () => {
         <ChatHeader
           communicationStyle={communicationStyle}
           onStyleChange={handleStyleChange}
+          voiceEnabled={voiceEnabled}
+          onToggleVoice={() => setVoiceEnabled((v) => !v)}
         />
         <CardContent className="flex-grow p-0 border-t overflow-hidden">
           <ChatExamples setCurrentMessage={setCurrentMessage} />
