@@ -10,6 +10,7 @@ import { LeadProgressCard } from "./lead/detail/LeadProgressCard";
 import { LeadConversation } from "./lead/detail/LeadConversation";
 import { LeadActions } from "./lead/detail/LeadActions";
 import { LeadInternalNotes } from "./lead/detail/LeadInternalNotes";
+import { LeadVoiceChat } from "./LeadVoiceChat";
 
 interface SubprimeLeadDetailProps {
   lead: SubprimeLead;
@@ -66,11 +67,14 @@ export const SubprimeLeadDetail = ({ lead }: SubprimeLeadDetailProps) => {
             onAddNote={handleAddNote}
           />
           <LeadActions onAddNote={handleAddNote} />
-          <LeadInternalNotes 
+          <LeadInternalNotes
             internalNote={internalNote}
             onInternalNoteChange={setInternalNote}
             onAddNote={handleAddNote}
           />
+          <div className="mt-4">
+            <LeadVoiceChat />
+          </div>
         </div>
       </div>
 

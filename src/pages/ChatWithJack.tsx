@@ -30,7 +30,6 @@ const ChatWithJack = () => {
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const convaiSessionRef = useRef<any>(null);
   const lastTypedMessageRef = useRef<string>("");
 
   // Communication style settings
@@ -45,49 +44,6 @@ const ChatWithJack = () => {
     inputRef.current?.focus();
   }, []);
 
-  // Initialize ElevenLabs voice session and forward transcripts to chat
-  useEffect(() => {
-    const widget = document.querySelector("elevenlabs-convai") as any;
-    if (!widget || typeof widget.startSession !== "function") return;
-
-    let stop: (() => void) | undefined;
-
-    widget
-      .startSession({
-        transcript: true,
-        textInput: true,
-        onMessage: ({ source, message }: { source: string; message: string }) => {
-          if (!message) return;
-          if (source === "user" && message === lastTypedMessageRef.current) {
-            lastTypedMessageRef.current = "";
-            return;
-          }
-          setMessages((prev) => [
-            ...prev,
-            {
-              type: source === "ai" ? "ai" : "user",
-              content: message,
-              timestamp: new Date(),
-            },
-          ]);
-          if (source === "ai") {
-            setIsTyping(false);
-          }
-        },
-      })
-      .then((session: { stop: () => void; sendMessage?: (m: string) => void }) => {
-        convaiSessionRef.current = session;
-        stop = session.stop;
-      })
-      .catch((err: unknown) => {
-        console.error("Failed to start ElevenLabs convai session", err);
-      });
-
-    return () => {
-      if (typeof stop === "function") stop();
-      convaiSessionRef.current = null;
-    };
-  }, []);
 
   const handleSendMessage = () => {
     if (!currentMessage.trim()) return;
@@ -99,7 +55,6 @@ const ChatWithJack = () => {
     };
     setMessages((prev) => [...prev, newUserMessage]);
     lastTypedMessageRef.current = currentMessage;
-    convaiSessionRef.current?.sendMessage?.(currentMessage);
     setCurrentMessage("");
 
     setIsTyping(true);
@@ -155,11 +110,6 @@ const ChatWithJack = () => {
           inputRef={inputRef}
         />
       </Card>
-      <elevenlabs-convai
-        agent-id="agent_01jwc5v1nafjwv7zw4vtz1050m"
-        transcript
-        text-input
-      ></elevenlabs-convai>
     </div>
   );
 };
