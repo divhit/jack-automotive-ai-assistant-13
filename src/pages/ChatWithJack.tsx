@@ -31,6 +31,7 @@ const ChatWithJack = () => {
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const convaiSessionRef = useRef<any>(null);
   const { generateResponse } = useMessageGenerator();
 
   // Communication style settings
@@ -68,7 +69,8 @@ const ChatWithJack = () => {
           ]);
         },
       })
-      .then((session: { stop: () => void }) => {
+      .then((session: { stop: () => void; sendMessage?: (m: string) => void }) => {
+        convaiSessionRef.current = session;
         stop = session.stop;
       })
       .catch((err: unknown) => {
@@ -77,6 +79,7 @@ const ChatWithJack = () => {
 
     return () => {
       if (typeof stop === "function") stop();
+      convaiSessionRef.current = null;
     };
   }, []);
 
@@ -89,6 +92,7 @@ const ChatWithJack = () => {
       timestamp: new Date(),
     };
     setMessages((prev) => [...prev, newUserMessage]);
+    convaiSessionRef.current?.sendMessage?.(currentMessage);
     setCurrentMessage("");
 
     setIsTyping(true);
