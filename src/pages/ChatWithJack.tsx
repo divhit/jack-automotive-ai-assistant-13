@@ -54,8 +54,8 @@ const ChatWithJack = () => {
 
     widget
       .startSession({
-        transcript: false,
-        textInput: false,
+        transcript: true,
+        textInput: true,
         onMessage: ({ source, message }: { source: string; message: string }) => {
           if (!message) return;
           if (source === "user" && message === lastTypedMessageRef.current) {
@@ -155,7 +155,11 @@ const ChatWithJack = () => {
           inputRef={inputRef}
         />
       </Card>
-      <elevenlabs-convai agent-id="agent_01jwc5v1nafjwv7zw4vtz1050m"></elevenlabs-convai>
+      <elevenlabs-convai
+        agent-id="agent_01jwc5v1nafjwv7zw4vtz1050m"
+        transcript
+        text-input
+      ></elevenlabs-convai>
     </div>
   );
 };
