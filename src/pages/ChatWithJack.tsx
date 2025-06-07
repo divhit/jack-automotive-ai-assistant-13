@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { chatExamples } from "@/data";
@@ -6,7 +5,11 @@ import { ChatHeader } from "@/components/chat/ChatHeader";
 import { ChatExamples } from "@/components/chat/ChatExamples";
 import { ChatMessages } from "@/components/chat/ChatMessages";
 import { ChatInput } from "@/components/chat/ChatInput";
-import { useMessageGenerator, CommunicationStyle, DEFAULT_COMMUNICATION_STYLE } from "@/hooks/useMessageGenerator";
+import {
+  useMessageGenerator,
+  CommunicationStyle,
+  DEFAULT_COMMUNICATION_STYLE,
+} from "@/hooks/useMessageGenerator";
 
 interface ChatMessage {
   type: "user" | "ai";
@@ -18,9 +21,10 @@ const ChatWithJack = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       type: "ai",
-      content: "Hello! I'm Jack, your automotive AI assistant. How can I help you today?",
-      timestamp: new Date()
-    }
+      content:
+        "Hello! I'm Jack, your automotive AI assistant. How can I help you today?",
+      timestamp: new Date(),
+    },
   ]);
   const [currentMessage, setCurrentMessage] = useState("");
   const [isRecording, setIsRecording] = useState(false);
@@ -28,9 +32,10 @@ const ChatWithJack = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const { generateResponse } = useMessageGenerator();
-  
+
   // Communication style settings
-  const [communicationStyle, setCommunicationStyle] = useState<CommunicationStyle>(DEFAULT_COMMUNICATION_STYLE);
+  const [communicationStyle, setCommunicationStyle] =
+    useState<CommunicationStyle>(DEFAULT_COMMUNICATION_STYLE);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -40,29 +45,67 @@ const ChatWithJack = () => {
     inputRef.current?.focus();
   }, []);
 
+  // Initialize ElevenLabs voice session and forward transcripts to chat
+  useEffect(() => {
+    const widget = document.querySelector("elevenlabs-convai") as any;
+    if (!widget || typeof widget.startSession !== "function") return;
+
+    widget
+      .startSession({
+        transcript: true,
+        textInput: true,
+        onMessage: ({
+          source,
+          message,
+        }: {
+          source: string;
+          message: string;
+        }) => {
+          if (!message) return;
+          setMessages((prev) => [
+            ...prev,
+            {
+              type: source === "ai" ? "ai" : "user",
+              content: message,
+              timestamp: new Date(),
+            },
+          ]);
+        },
+      })
+      .catch((err: unknown) =>
+        console.error("Failed to start ElevenLabs convai session", err),
+      );
+  }, []);
+
   const handleSendMessage = () => {
     if (!currentMessage.trim()) return;
 
     const newUserMessage: ChatMessage = {
       type: "user",
       content: currentMessage,
-      timestamp: new Date()
+      timestamp: new Date(),
     };
-    setMessages(prev => [...prev, newUserMessage]);
+    setMessages((prev) => [...prev, newUserMessage]);
     setCurrentMessage("");
 
     setIsTyping(true);
-    
-    setTimeout(() => {
-      const responseContent = generateResponse(newUserMessage.content, communicationStyle);
-      const newAiMessage: ChatMessage = {
-        type: "ai",
-        content: responseContent,
-        timestamp: new Date()
-      };
-      setMessages(prev => [...prev, newAiMessage]);
-      setIsTyping(false);
-    }, 1000 + Math.random() * 1000);
+
+    setTimeout(
+      () => {
+        const responseContent = generateResponse(
+          newUserMessage.content,
+          communicationStyle,
+        );
+        const newAiMessage: ChatMessage = {
+          type: "ai",
+          content: responseContent,
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, newAiMessage]);
+        setIsTyping(false);
+      },
+      1000 + Math.random() * 1000,
+    );
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -74,13 +117,14 @@ const ChatWithJack = () => {
 
   const simulateVoiceInput = () => {
     setIsRecording(true);
-    
+
     setTimeout(() => {
       setIsRecording(false);
-      
-      const randomExample = chatExamples[Math.floor(Math.random() * chatExamples.length)];
+
+      const randomExample =
+        chatExamples[Math.floor(Math.random() * chatExamples.length)];
       setCurrentMessage(randomExample.query);
-      
+
       inputRef.current?.focus();
     }, 2000);
   };
@@ -92,13 +136,13 @@ const ChatWithJack = () => {
   return (
     <div className="flex flex-col h-full m-0 p-0">
       <Card className="flex flex-col h-full m-0 p-0">
-        <ChatHeader 
+        <ChatHeader
           communicationStyle={communicationStyle}
           onStyleChange={handleStyleChange}
         />
         <CardContent className="flex-grow p-0 border-t overflow-hidden">
           <ChatExamples setCurrentMessage={setCurrentMessage} />
-          <ChatMessages 
+          <ChatMessages
             messages={messages}
             isTyping={isTyping}
             messagesEndRef={messagesEndRef}
@@ -114,6 +158,11 @@ const ChatWithJack = () => {
           inputRef={inputRef}
         />
       </Card>
+      <elevenlabs-convai
+        agent-id="agent_01jwc5v1nafjwv7zw4vtz1050m"
+        transcript
+        text-input
+      ></elevenlabs-convai>
     </div>
   );
 };
