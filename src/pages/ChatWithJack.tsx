@@ -50,17 +50,13 @@ const ChatWithJack = () => {
     const widget = document.querySelector("elevenlabs-convai") as any;
     if (!widget || typeof widget.startSession !== "function") return;
 
+    let stop: (() => void) | undefined;
+
     widget
       .startSession({
         transcript: true,
         textInput: true,
-        onMessage: ({
-          source,
-          message,
-        }: {
-          source: string;
-          message: string;
-        }) => {
+        onMessage: ({ source, message }: { source: string; message: string }) => {
           if (!message) return;
           setMessages((prev) => [
             ...prev,
@@ -72,9 +68,16 @@ const ChatWithJack = () => {
           ]);
         },
       })
-      .catch((err: unknown) =>
-        console.error("Failed to start ElevenLabs convai session", err),
-      );
+      .then((session: { stop: () => void }) => {
+        stop = session.stop;
+      })
+      .catch((err: unknown) => {
+        console.error("Failed to start ElevenLabs convai session", err);
+      });
+
+    return () => {
+      if (typeof stop === "function") stop();
+    };
   }, []);
 
   const handleSendMessage = () => {
