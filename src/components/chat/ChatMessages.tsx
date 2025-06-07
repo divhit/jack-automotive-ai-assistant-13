@@ -1,6 +1,7 @@
 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Mic } from "lucide-react";
 
 interface ChatMessage {
   type: "user" | "ai";
@@ -12,9 +13,10 @@ interface ChatMessagesProps {
   messages: ChatMessage[];
   isTyping: boolean;
   messagesEndRef: React.RefObject<HTMLDivElement>;
+  isVoiceMode?: boolean;
 }
 
-export const ChatMessages = ({ messages, isTyping, messagesEndRef }: ChatMessagesProps) => {
+export const ChatMessages = ({ messages, isTyping, messagesEndRef, isVoiceMode }: ChatMessagesProps) => {
   return (
     <ScrollArea className="h-[calc(100%-7.5rem)] p-4 pb-0">
       <div className="flex flex-col space-y-4">
@@ -58,6 +60,15 @@ export const ChatMessages = ({ messages, isTyping, messagesEndRef }: ChatMessage
                   <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: "300ms" }}></div>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {isVoiceMode && (
+          <div className="flex justify-center py-4">
+            <div className="flex items-center gap-2 bg-automotive-primary text-white px-4 py-2 rounded-full">
+              <Mic className="h-4 w-4 animate-pulse" />
+              <span className="text-sm">Voice mode active - speak or use the ElevenLabs widget below</span>
             </div>
           </div>
         )}

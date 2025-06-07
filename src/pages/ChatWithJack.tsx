@@ -1,3 +1,4 @@
+
 import { useState, useRef, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { chatExamples } from "@/data";
@@ -33,6 +34,7 @@ const ChatWithJack = () => {
   const convaiSessionRef = useRef<any>(null);
   const lastTypedMessageRef = useRef<string>("");
   const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [isVoiceMode, setIsVoiceMode] = useState(false);
 
   // Communication style settings
   const [communicationStyle, setCommunicationStyle] =
@@ -46,7 +48,7 @@ const ChatWithJack = () => {
     inputRef.current?.focus();
   }, []);
 
-  // Initialize ElevenLabs voice session and forward transcripts to chat
+  // Initialize ElevenLabs voice session and integrate with chat
   useEffect(() => {
     const widget = document.querySelector("elevenlabs-convai") as any;
     if (!widget || typeof widget.startSession !== "function") return;
@@ -59,10 +61,14 @@ const ChatWithJack = () => {
         textInput: true,
         onMessage: ({ source, message }: { source: string; message: string }) => {
           if (!message) return;
+          
+          // Skip if this is the same message we just sent from text input
           if (source === "user" && message === lastTypedMessageRef.current) {
             lastTypedMessageRef.current = "";
             return;
           }
+
+          // Add all messages to the main chat
           setMessages((prev) => [
             ...prev,
             {
@@ -71,12 +77,27 @@ const ChatWithJack = () => {
               timestamp: new Date(),
             },
           ]);
+
           if (source === "ai") {
             setIsTyping(false);
           }
         },
+        onModeChange: ({ mode }: { mode: string }) => {
+          setIsVoiceMode(mode === "voice");
+        },
+        onConnect: () => {
+          console.log("ElevenLabs session connected");
+        },
+        onDisconnect: () => {
+          console.log("ElevenLabs session disconnected");
+          setIsVoiceMode(false);
+        },
       })
-      .then((session: { stop: () => void; sendMessage?: (m: string) => void }) => {
+      .then((session: { 
+        stop: () => void; 
+        sendMessage?: (m: string) => void;
+        setMode?: (mode: string) => void;
+      }) => {
         convaiSessionRef.current = session;
         stop = session.stop;
       })
@@ -90,6 +111,22 @@ const ChatWithJack = () => {
     };
   }, []);
 
+  // Send chat history as context when switching to voice mode
+  const sendChatHistoryAsContext = () => {
+    if (!convaiSessionRef.current?.sendMessage) return;
+
+    // Create a context summary from recent messages
+    const recentMessages = messages.slice(-10); // Last 10 messages for context
+    const contextSummary = recentMessages
+      .map(msg => `${msg.type === "user" ? "User" : "Assistant"}: ${msg.content}`)
+      .join("\n");
+
+    // Send context to ElevenLabs (this will be handled by the agent's system prompt)
+    if (contextSummary) {
+      convaiSessionRef.current.sendMessage(`[CONTEXT] Previous conversation:\n${contextSummary}`);
+    }
+  };
+
   const handleSendMessage = () => {
     if (!currentMessage.trim()) return;
 
@@ -100,9 +137,10 @@ const ChatWithJack = () => {
     };
     setMessages((prev) => [...prev, newUserMessage]);
     lastTypedMessageRef.current = currentMessage;
+    
+    // Send to ElevenLabs widget
     convaiSessionRef.current?.sendMessage?.(currentMessage);
     setCurrentMessage("");
-
     setIsTyping(true);
   };
 
@@ -131,6 +169,31 @@ const ChatWithJack = () => {
     setCommunicationStyle(newStyle);
   };
 
+  const toggleVoiceMode = () => {
+    if (!voiceEnabled) return;
+
+    if (isVoiceMode) {
+      // Switching from voice to text - context is already preserved in messages
+      convaiSessionRef.current?.setMode?.("text");
+    } else {
+      // Switching from text to voice - send chat history as context
+      sendChatHistoryAsContext();
+      convaiSessionRef.current?.setMode?.("voice");
+    }
+  };
+
+  const handleToggleVoice = () => {
+    setVoiceEnabled((v) => {
+      const newVoiceEnabled = !v;
+      if (!newVoiceEnabled) {
+        // If disabling voice, switch to text mode
+        setIsVoiceMode(false);
+        convaiSessionRef.current?.setMode?.("text");
+      }
+      return newVoiceEnabled;
+    });
+  };
+
   return (
     <div className="flex flex-col h-full m-0 p-0">
       <Card className="flex flex-col h-full m-0 p-0">
@@ -138,7 +201,9 @@ const ChatWithJack = () => {
           communicationStyle={communicationStyle}
           onStyleChange={handleStyleChange}
           voiceEnabled={voiceEnabled}
-          onToggleVoice={() => setVoiceEnabled((v) => !v)}
+          onToggleVoice={handleToggleVoice}
+          isVoiceMode={isVoiceMode}
+          onToggleMode={toggleVoiceMode}
         />
         <CardContent className="flex-grow p-0 border-t overflow-hidden">
           <ChatExamples setCurrentMessage={setCurrentMessage} />
@@ -146,23 +211,26 @@ const ChatWithJack = () => {
             messages={messages}
             isTyping={isTyping}
             messagesEndRef={messagesEndRef}
+            isVoiceMode={isVoiceMode}
           />
         </CardContent>
-        <ChatInput
-          currentMessage={currentMessage}
-          setCurrentMessage={setCurrentMessage}
-          handleSendMessage={handleSendMessage}
-          handleKeyDown={handleKeyDown}
-          simulateVoiceInput={simulateVoiceInput}
-          isRecording={isRecording}
-          inputRef={inputRef}
-        />
+        {!isVoiceMode && (
+          <ChatInput
+            currentMessage={currentMessage}
+            setCurrentMessage={setCurrentMessage}
+            handleSendMessage={handleSendMessage}
+            handleKeyDown={handleKeyDown}
+            simulateVoiceInput={simulateVoiceInput}
+            isRecording={isRecording}
+            inputRef={inputRef}
+          />
+        )}
       </Card>
       <elevenlabs-convai
         agent-id="agent_01jwc5v1nafjwv7zw4vtz1050m"
         transcript
         text-input
-        className={voiceEnabled ? '' : 'hidden'}
+        className={voiceEnabled ? (isVoiceMode ? 'block' : 'hidden') : 'hidden'}
       ></elevenlabs-convai>
     </div>
   );
