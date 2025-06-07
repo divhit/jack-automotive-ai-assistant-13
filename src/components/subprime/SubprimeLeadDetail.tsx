@@ -10,6 +10,7 @@ import { LeadProgressCard } from "./lead/detail/LeadProgressCard";
 import { LeadConversation } from "./lead/detail/LeadConversation";
 import { LeadActions } from "./lead/detail/LeadActions";
 import { LeadInternalNotes } from "./lead/detail/LeadInternalNotes";
+import { LeadVoiceChat } from "./LeadVoiceChat";
 
 interface SubprimeLeadDetailProps {
   lead: SubprimeLead;
@@ -71,6 +72,9 @@ export const SubprimeLeadDetail = ({ lead }: SubprimeLeadDetailProps) => {
             onInternalNoteChange={setInternalNote}
             onAddNote={handleAddNote}
           />
+          <div className="mt-4">
+            <LeadVoiceChat />
+          </div>
           <elevenlabs-convai
             agent-id="agent_01jwc5v1nafjwv7zw4vtz1050m"
             transcript
