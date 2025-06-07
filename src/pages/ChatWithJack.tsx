@@ -51,69 +51,92 @@ const ChatWithJack = () => {
   // Initialize ElevenLabs voice session and integrate with chat
   useEffect(() => {
     const widget = document.querySelector("elevenlabs-convai") as any;
-    if (!widget || typeof widget.startSession !== "function") return;
+    if (!widget || typeof widget.startSession !== "function") {
+      console.log("ElevenLabs widget not found, retrying...");
+      const retryTimeout = setTimeout(() => {
+        // Retry after a short delay to ensure widget is loaded
+        const retryWidget = document.querySelector("elevenlabs-convai") as any;
+        if (retryWidget && typeof retryWidget.startSession === "function") {
+          initializeWidget(retryWidget);
+        }
+      }, 1000);
+      return () => clearTimeout(retryTimeout);
+    }
 
-    let stop: (() => void) | undefined;
+    function initializeWidget(widget: any) {
+      let stop: (() => void) | undefined;
 
-    widget
-      .startSession({
-        transcript: true,
-        textInput: true,
-        onMessage: ({ source, message }: { source: string; message: string }) => {
-          if (!message) return;
-          
-          // Skip if this is the same message we just sent from text input
-          if (source === "user" && message === lastTypedMessageRef.current) {
-            lastTypedMessageRef.current = "";
-            return;
-          }
+      widget
+        .startSession({
+          transcript: true,
+          textInput: true,
+          onMessage: ({ source, message }: { source: string; message: string }) => {
+            console.log("ElevenLabs message received:", { source, message });
+            
+            if (!message) return;
+            
+            // Skip if this is the same message we just sent from text input
+            if (source === "user" && message === lastTypedMessageRef.current) {
+              lastTypedMessageRef.current = "";
+              return;
+            }
 
-          // Add all messages to the main chat
-          setMessages((prev) => [
-            ...prev,
-            {
-              type: source === "ai" ? "ai" : "user",
-              content: message,
-              timestamp: new Date(),
-            },
-          ]);
+            // Add all messages to the main chat
+            setMessages((prev) => {
+              const newMessage = {
+                type: source === "ai" ? "ai" : "user",
+                content: message,
+                timestamp: new Date(),
+              } as ChatMessage;
+              
+              console.log("Adding message to main chat:", newMessage);
+              return [...prev, newMessage];
+            });
 
-          if (source === "ai") {
-            setIsTyping(false);
-          }
-        },
-        onModeChange: ({ mode }: { mode: string }) => {
-          setIsVoiceMode(mode === "voice");
-        },
-        onConnect: () => {
-          console.log("ElevenLabs session connected");
-        },
-        onDisconnect: () => {
-          console.log("ElevenLabs session disconnected");
-          setIsVoiceMode(false);
-        },
-      })
-      .then((session: { 
-        stop: () => void; 
-        sendMessage?: (m: string) => void;
-        setMode?: (mode: string) => void;
-      }) => {
-        convaiSessionRef.current = session;
-        stop = session.stop;
-      })
-      .catch((err: unknown) => {
-        console.error("Failed to start ElevenLabs convai session", err);
-      });
+            if (source === "ai") {
+              setIsTyping(false);
+            }
+          },
+          onModeChange: ({ mode }: { mode: string }) => {
+            console.log("ElevenLabs mode changed:", mode);
+            setIsVoiceMode(mode === "voice");
+          },
+          onConnect: () => {
+            console.log("ElevenLabs session connected");
+          },
+          onDisconnect: () => {
+            console.log("ElevenLabs session disconnected");
+            setIsVoiceMode(false);
+          },
+        })
+        .then((session: { 
+          stop: () => void; 
+          sendMessage?: (m: string) => void;
+          setMode?: (mode: string) => void;
+        }) => {
+          console.log("ElevenLabs session started successfully");
+          convaiSessionRef.current = session;
+          stop = session.stop;
+        })
+        .catch((err: unknown) => {
+          console.error("Failed to start ElevenLabs convai session", err);
+        });
 
-    return () => {
-      if (typeof stop === "function") stop();
-      convaiSessionRef.current = null;
-    };
+      return () => {
+        if (typeof stop === "function") stop();
+        convaiSessionRef.current = null;
+      };
+    }
+
+    return initializeWidget(widget);
   }, []);
 
   // Send chat history as context when switching to voice mode
   const sendChatHistoryAsContext = () => {
-    if (!convaiSessionRef.current?.sendMessage) return;
+    if (!convaiSessionRef.current?.sendMessage) {
+      console.log("No ElevenLabs session available for context");
+      return;
+    }
 
     // Create a context summary from recent messages
     const recentMessages = messages.slice(-10); // Last 10 messages for context
@@ -121,6 +144,8 @@ const ChatWithJack = () => {
       .map(msg => `${msg.type === "user" ? "User" : "Assistant"}: ${msg.content}`)
       .join("\n");
 
+    console.log("Sending chat history as context:", contextSummary);
+    
     // Send context to ElevenLabs (this will be handled by the agent's system prompt)
     if (contextSummary) {
       convaiSessionRef.current.sendMessage(`[CONTEXT] Previous conversation:\n${contextSummary}`);
@@ -135,11 +160,19 @@ const ChatWithJack = () => {
       content: currentMessage,
       timestamp: new Date(),
     };
+    
+    console.log("Sending user message:", newUserMessage);
     setMessages((prev) => [...prev, newUserMessage]);
     lastTypedMessageRef.current = currentMessage;
     
     // Send to ElevenLabs widget
-    convaiSessionRef.current?.sendMessage?.(currentMessage);
+    if (convaiSessionRef.current?.sendMessage) {
+      console.log("Forwarding message to ElevenLabs:", currentMessage);
+      convaiSessionRef.current.sendMessage(currentMessage);
+    } else {
+      console.log("No ElevenLabs session available, message not forwarded");
+    }
+    
     setCurrentMessage("");
     setIsTyping(true);
   };
@@ -172,11 +205,15 @@ const ChatWithJack = () => {
   const toggleVoiceMode = () => {
     if (!voiceEnabled) return;
 
+    console.log("Toggling voice mode. Current mode:", isVoiceMode ? "voice" : "text");
+
     if (isVoiceMode) {
       // Switching from voice to text - context is already preserved in messages
+      console.log("Switching to text mode");
       convaiSessionRef.current?.setMode?.("text");
     } else {
       // Switching from text to voice - send chat history as context
+      console.log("Switching to voice mode, sending context");
       sendChatHistoryAsContext();
       convaiSessionRef.current?.setMode?.("voice");
     }
@@ -185,6 +222,7 @@ const ChatWithJack = () => {
   const handleToggleVoice = () => {
     setVoiceEnabled((v) => {
       const newVoiceEnabled = !v;
+      console.log("Voice enabled toggled:", newVoiceEnabled);
       if (!newVoiceEnabled) {
         // If disabling voice, switch to text mode
         setIsVoiceMode(false);
@@ -226,6 +264,8 @@ const ChatWithJack = () => {
           />
         )}
       </Card>
+      
+      {/* ElevenLabs widget - always rendered but hidden when voice disabled */}
       <elevenlabs-convai
         agent-id="agent_01jwc5v1nafjwv7zw4vtz1050m"
         transcript
