@@ -114,6 +114,7 @@ const ChatWithJack = () => {
           inputRef={inputRef}
         />
       </Card>
+      <elevenlabs-convai agent-id="agent_01jwc5v1nafjwv7zw4vtz1050m"></elevenlabs-convai>
     </div>
   );
 };
