@@ -6,7 +6,6 @@ import { ChatExamples } from "@/components/chat/ChatExamples";
 import { ChatMessages } from "@/components/chat/ChatMessages";
 import { ChatInput } from "@/components/chat/ChatInput";
 import {
-  useMessageGenerator,
   CommunicationStyle,
   DEFAULT_COMMUNICATION_STYLE,
 } from "@/hooks/useMessageGenerator";
@@ -32,7 +31,7 @@ const ChatWithJack = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const convaiSessionRef = useRef<any>(null);
-  const { generateResponse } = useMessageGenerator();
+  const lastTypedMessageRef = useRef<string>("");
 
   // Communication style settings
   const [communicationStyle, setCommunicationStyle] =
@@ -59,6 +58,10 @@ const ChatWithJack = () => {
         textInput: true,
         onMessage: ({ source, message }: { source: string; message: string }) => {
           if (!message) return;
+          if (source === "user" && message === lastTypedMessageRef.current) {
+            lastTypedMessageRef.current = "";
+            return;
+          }
           setMessages((prev) => [
             ...prev,
             {
@@ -67,6 +70,9 @@ const ChatWithJack = () => {
               timestamp: new Date(),
             },
           ]);
+          if (source === "ai") {
+            setIsTyping(false);
+          }
         },
       })
       .then((session: { stop: () => void; sendMessage?: (m: string) => void }) => {
@@ -92,27 +98,11 @@ const ChatWithJack = () => {
       timestamp: new Date(),
     };
     setMessages((prev) => [...prev, newUserMessage]);
+    lastTypedMessageRef.current = currentMessage;
     convaiSessionRef.current?.sendMessage?.(currentMessage);
     setCurrentMessage("");
 
     setIsTyping(true);
-
-    setTimeout(
-      () => {
-        const responseContent = generateResponse(
-          newUserMessage.content,
-          communicationStyle,
-        );
-        const newAiMessage: ChatMessage = {
-          type: "ai",
-          content: responseContent,
-          timestamp: new Date(),
-        };
-        setMessages((prev) => [...prev, newAiMessage]);
-        setIsTyping(false);
-      },
-      1000 + Math.random() * 1000,
-    );
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
