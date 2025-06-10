@@ -1,22 +1,25 @@
-
 import { useState } from "react";
 import { SubprimeLead } from "@/data/subprime/subprimeLeads";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Card } from "@/components/ui/card";
-import { SubprimeLeadDetail } from "./SubprimeLeadDetail";
 import { LeadCard } from "./lead/LeadCard";
+import SubprimeLeadDetailModal from "./SubprimeLeadDetailModal";
 
 interface SubprimeLeadsListProps {
   leads: SubprimeLead[];
+  onLeadUpdate?: (leadId: string, updates: Partial<SubprimeLead>) => void;
 }
 
-export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
+export const SubprimeLeadsList = ({ leads, onLeadUpdate }: SubprimeLeadsListProps) => {
   const [selectedLead, setSelectedLead] = useState<SubprimeLead | null>(null);
+
+  const handleLeadUpdate = (leadId: string, updates: Partial<SubprimeLead>) => {
+    onLeadUpdate?.(leadId, updates);
+    
+    // Update local state if this is the currently selected lead
+    if (selectedLead && selectedLead.id === leadId) {
+      setSelectedLead({ ...selectedLead, ...updates });
+    }
+  };
 
   return (
     <div className="space-y-1">
@@ -44,14 +47,12 @@ export const SubprimeLeadsList = ({ leads }: SubprimeLeadsListProps) => {
         ))
       )}
 
-      <Dialog open={!!selectedLead} onOpenChange={() => setSelectedLead(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Lead Details</DialogTitle>
-          </DialogHeader>
-          {selectedLead && <SubprimeLeadDetail lead={selectedLead} />}
-        </DialogContent>
-      </Dialog>
+      <SubprimeLeadDetailModal
+        lead={selectedLead}
+        open={!!selectedLead}
+        onOpenChange={(open) => !open && setSelectedLead(null)}
+        onLeadUpdate={handleLeadUpdate}
+      />
     </div>
   );
 };

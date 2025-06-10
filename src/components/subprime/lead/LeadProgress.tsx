@@ -15,9 +15,10 @@ interface LeadProgressProps {
 export const LeadProgress = ({ lead }: LeadProgressProps) => {
   const getProgressSteps = (lead: SubprimeLead) => {
     const steps = ["contacted", "screening", "qualification", "routing", "submitted"];
-    const currentIndex = steps.indexOf(lead.scriptProgress.currentStep);
+    const currentStep = lead.scriptProgress?.currentStep || "contacted";
+    const currentIndex = steps.indexOf(currentStep);
     return {
-      current: currentIndex + 1,
+      current: Math.max(currentIndex + 1, 1), // Ensure at least step 1
       total: steps.length
     };
   };

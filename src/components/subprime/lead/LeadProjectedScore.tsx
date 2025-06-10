@@ -23,7 +23,7 @@ export const LeadProjectedScore = ({ lead }: LeadProjectedScoreProps) => {
     if (lead.sentiment === "Warm") score += 1;
     if (lead.fundingReadiness === "Ready") score += 2;
     if (lead.fundingReadiness === "Partial") score += 1;
-    if (lead.scriptProgress.completedSteps.length > 2) score += 2;
+    if (lead.scriptProgress?.completedSteps?.length > 2) score += 2;
     
     return score;
   };

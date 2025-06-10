@@ -43,27 +43,27 @@ export const SubprimeAnalytics = ({ leads }: SubprimeAnalyticsProps) => {
   const scriptProgressData = [
     {
       name: "Contacted",
-      value: leads.filter(lead => lead.scriptProgress.currentStep === "contacted").length,
+      value: leads.filter(lead => lead.scriptProgress?.currentStep === "contacted").length,
       color: "#3b82f6"
     },
     {
       name: "Screening",
-      value: leads.filter(lead => lead.scriptProgress.currentStep === "screening").length,
+      value: leads.filter(lead => lead.scriptProgress?.currentStep === "screening").length,
       color: "#8b5cf6"
     },
     {
       name: "Qualification",
-      value: leads.filter(lead => lead.scriptProgress.currentStep === "qualification").length,
+      value: leads.filter(lead => lead.scriptProgress?.currentStep === "qualification").length,
       color: "#ec4899"
     },
     {
       name: "Routing",
-      value: leads.filter(lead => lead.scriptProgress.currentStep === "routing").length,
+      value: leads.filter(lead => lead.scriptProgress?.currentStep === "routing").length,
       color: "#f97316"
     },
     {
       name: "Submitted",
-      value: leads.filter(lead => lead.scriptProgress.currentStep === "submitted").length,
+      value: leads.filter(lead => lead.scriptProgress?.currentStep === "submitted").length,
       color: "#10b981"
     }
   ];
