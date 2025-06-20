@@ -22,6 +22,10 @@ export interface SubprimeConversationMessage {
     sentiment?: string;
     agentSpecialist?: string;
     duration?: number;
+    smsId?: string;
+    callSid?: string;
+    smsReceived?: boolean;
+    smsSent?: boolean;
   };
 }
 
@@ -188,6 +192,19 @@ export interface CallStatusUpdate {
   to: string;
   duration?: number;
   recordingUrl?: string;
+}
+
+export interface TwilioCallData {
+  callSid: string;
+  from: string;
+  to: string;
+  status: string;
+  direction: 'inbound' | 'outbound';
+  startTime?: string;
+  endTime?: string;
+  duration?: number;
+  recordingUrl?: string;
+  conversationId?: string;
 }
 
 // Knowledge base types for lead-specific context

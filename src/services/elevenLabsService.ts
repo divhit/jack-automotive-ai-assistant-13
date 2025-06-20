@@ -10,7 +10,9 @@ import {
   ConversationCallbacks,
   AgentOverrides,
   SignedUrlResponse,
-  OutboundCallRequest
+  OutboundCallRequest,
+  CallStatusUpdate,
+  TwilioCallData
 } from '@/types/elevenlabs';
 
 class SubprimeConversationManager {
@@ -230,7 +232,7 @@ Instructions:
    */
   async startConversation(preferredMode: 'voice' | 'text' | 'multimodal' = 'multimodal'): Promise<void> {
     try {
-      console.log('🚀 Starting ElevenLabs multimodal conversation...');
+      console.log('🚀 Starting ElevenLabs conversation with SMS context...');
       console.log('📋 Preferred mode:', preferredMode);
       console.log('🤖 Agent ID:', this.config.agentId);
       console.log('👤 Lead:', this.leadData.customerName);
@@ -242,166 +244,77 @@ Instructions:
 
       console.log('✅ ElevenLabs Conversation class found');
 
-      // Prepare initial context with conversation history
-      const initialContext = this.prepareLeadContext();
+      // Prepare initial context with SMS history
+      const initialContext = this.prepareLeadContextWithSMS();
       const initialMessage = this.generateInitialMessage();
       const existingHistory = this.getConversationHistory();
       
       console.log('📝 Context preparation:');
       console.log('- Existing messages:', existingHistory.length);
+      console.log('- SMS messages:', existingHistory.filter(m => m.metadata?.smsReceived || m.metadata?.smsSent).length);
       console.log('- Initial message:', initialMessage || '[Empty - resuming conversation]');
       console.log('- Context length:', initialContext.length);
-      
-      // Configure conversation with proper overrides structure from ElevenLabs docs
-      const conversationOptions: any = {
-        // Use agent ID for public agent
-        agentId: this.config.agentId,
-        
-        // Enable multimodal (voice + text) by default unless specifically text-only
-        textOnly: preferredMode === 'text',
-        
-        // Remove overrides completely - they're causing connection rejection
-        // overrides: {
-        //   agent: {
-        //     ...(initialMessage ? { firstMessage: initialMessage } : {}),
-        //     prompt: {
-        //       prompt: initialContext
-        //     }
-        //   }
-        // },
 
-        // Event handlers
-        onConnect: async () => {
-          console.log('🔗 ElevenLabs conversation connected!');
+      // Get signed URL or use agent ID directly
+      const agentUrl = await this.getSignedUrl();
+      console.log('🔗 Using agent URL/ID:', agentUrl.substring(0, 50) + '...');
+
+      // Create conversation instance
+      this.conversation = await Conversation.startSession({
+        agentId: agentUrl,
+        onConnect: () => {
+          console.log('🔗 Connected to ElevenLabs agent');
           this.state.isConnected = true;
-          this.state.currentMode = preferredMode === 'text' ? 'text' : 'multimodal';
+          this.state.error = undefined;
           this.callbacks.onConnect?.();
-          this.startSession();
-
-          // ALTERNATIVE APPROACH: Multi-step context injection without overrides
-          console.log('🔄 Using alternative context preservation approach...');
-          
-          // Step 1: Wait for stable connection
-          setTimeout(async () => {
-            try {
-              console.log('📡 Connection stabilized, checking conversation state...');
-              
-              if (!this.conversation) {
-                console.warn('⚠️ Conversation not available for context injection');
-                return;
-              }
-
-              // Step 2: Send lead information as user message first
-              const leadInfoMessage = `Hi Jack, before we continue, here's my information: I'm ${this.leadData.customerName}, phone ${this.leadData.phoneNumber}, credit score ${this.leadData.creditScore || 'unknown'}, funding readiness: ${this.leadData.fundingReadiness}. My sentiment is ${this.leadData.sentiment} and preferred contact method is ${this.leadData.preferredContactMethod}.`;
-              
-              console.log('📤 Sending lead information as user message...');
-              await this.conversation.sendUserMessage(leadInfoMessage);
-              
-              // Step 3: If resuming, send conversation history
-              if (existingHistory.length > 0) {
-                console.log('📤 Sending conversation history context...');
-                
-                // Wait a bit between messages to avoid rate limiting
-                setTimeout(async () => {
-                  try {
-                    const recentContext = existingHistory.slice(-8).map(msg => 
-                      `${msg.speaker === 'agent' ? 'Jack (you)' : msg.speaker === 'lead' ? this.leadData.customerName : 'System'}: "${msg.content}"`
-                    ).join('\n');
-                    
-                    const historyMessage = `Also, just to remind you, here's our recent conversation history:\n\n${recentContext}\n\nLet's continue from where we left off. What were we discussing?`;
-                    
-                    await this.conversation.sendUserMessage(historyMessage);
-                    console.log('✅ Context history sent successfully');
-                  } catch (error) {
-                    console.error('❌ Failed to send history context:', error);
-                  }
-                }, 1000);
-              } else {
-                // For new conversations, send a natural greeting
-                setTimeout(async () => {
-                  try {
-                    const greetingMessage = `Hello! I'm looking for vehicle financing options and understand you can help me find the best solution for my situation.`;
-                    await this.conversation.sendUserMessage(greetingMessage);
-                    console.log('✅ Initial greeting sent for new conversation');
-                  } catch (error) {
-                    console.error('❌ Failed to send initial greeting:', error);
-                  }
-                }, 500);
-              }
-              
-            } catch (error) {
-              console.error('❌ Failed to send context messages:', error);
-            }
-          }, 1000); // Longer delay for connection stability
         },
-
         onDisconnect: () => {
-          console.log('🔵 ElevenLabs conversation disconnected');
+          console.log('🔌 Disconnected from ElevenLabs agent');
           this.state.isConnected = false;
           this.state.isCallActive = false;
           this.callbacks.onDisconnect?.();
-          this.endSession();
         },
-
         onError: (error: any) => {
           console.error('❌ ElevenLabs conversation error:', error);
           this.state.error = error.message || 'Connection error';
+          this.state.isConnected = false;
           this.callbacks.onError?.(this.state.error);
         },
-
-        onModeChange: (modeData: any) => {
-          console.log('🔄 Mode changed:', modeData);
-          // In multimodal, mode changes are automatic based on user input
-          this.state.currentMode = modeData.mode === 'speaking' ? 'voice' : 'text';
-          this.state.agentSpeaking = modeData.mode === 'speaking';
-          this.callbacks.onModeChange?.(this.state.currentMode);
-        },
-
         onMessage: (message: any) => {
           console.log('💬 Message received:', message);
           this.handleMessage(message);
         },
-
-        onStatusChange: (statusData: { status: string }) => {
-          console.log('📊 Status changed:', statusData);
-          if (statusData.status === 'disconnected') {
-            this.endSession('disconnected');
-          }
-        },
-
-        // Voice-specific event handlers
-        onUserTranscript: (transcript: any) => {
-          console.log('🎤 User transcript:', transcript);
-          this.handleUserMessage(transcript.text || transcript, 'voice');
-          this.callbacks.onUserTranscript?.(transcript.text || transcript);
-        },
-
-        onAgentResponse: (response: any) => {
-          console.log('🎙️ Agent response:', response);
-          this.callbacks.onAgentResponse?.(response.text || response);
+        onModeChange: (mode: any) => {
+          console.log('🔄 Mode changed:', mode);
+          this.state.currentMode = mode;
+          this.callbacks.onModeChange?.(mode);
         }
-      };
-
-      console.log('⚙️ Conversation options prepared:');
-      console.log('- Agent ID:', conversationOptions.agentId);
-      console.log('- Text Only:', conversationOptions.textOnly);
-      console.log('- Using user message context injection approach');
-
-      // Initialize ElevenLabs Conversation
-      console.log('🎯 Calling Conversation.startSession...');
-      this.conversation = await Conversation.startSession(conversationOptions);
-
-      console.log('✅ ElevenLabs conversation started successfully for lead:', this.leadData.leadId);
-      
-    } catch (error) {
-      console.error('💥 Failed to start conversation:', error);
-      console.error('Error details:', {
-        message: error.message,
-        stack: error.stack,
-        name: error.name
       });
 
-      this.state.error = error instanceof Error ? error.message : 'Connection failed';
+      // Set initial mode
+      this.state.currentMode = preferredMode;
+
+      // Inject initial context if we have conversation history (including SMS)
+      if (existingHistory.length > 0) {
+        console.log('📚 Injecting conversation history context...');
+        await this.injectConversationContext(existingHistory);
+      }
+
+      // Send initial message if this is a new conversation
+      if (initialMessage && existingHistory.length === 0) {
+        console.log('💬 Sending initial message...');
+        await this.conversation.sendMessage(initialMessage);
+      }
+
+      // Start session tracking
+      this.startSession();
+
+      console.log('✅ ElevenLabs conversation started successfully');
+      
+    } catch (error) {
+      console.error('❌ Failed to start conversation:', error);
+      this.state.error = error instanceof Error ? error.message : 'Failed to start conversation';
+      this.state.isConnected = false;
       this.callbacks.onError?.(this.state.error);
       throw error;
     }
@@ -544,12 +457,208 @@ Instructions:
   }
 
   /**
-   * DEPRECATED: This was for phone calls, but ElevenLabs is browser-based
-   * Renamed to match actual functionality
+   * Initiate outbound call via ElevenLabs Conversational AI + Twilio Native Integration
    */
   async initiateOutboundCall(): Promise<void> {
-    console.log('⚠️ Note: This starts browser-based voice conversation, not a phone call');
-    await this.startVoiceConversation();
+    try {
+      console.log('🔄 Initiating outbound call for lead:', this.leadData.customerName);
+      
+      // Prepare context for the call
+      const callContext = this.prepareLeadContext();
+      const conversationHistory = this.getConversationHistory();
+      
+      // Create outbound call request using your existing agent
+      const callRequest: OutboundCallRequest = {
+        leadId: this.leadData.leadId,
+        phoneNumber: this.leadData.phoneNumber,
+        agentOverrides: {
+          systemPrompt: callContext,
+          firstMessage: conversationHistory.length > 0 
+            ? this.generateResumeMessage() 
+            : this.generateInitialMessage(),
+          context: this.leadData
+        }
+      };
+
+      // Make API call to initiate outbound call through your agent
+      const response = await axios.post('/api/elevenlabs/outbound-call', {
+        agentId: this.config.agentId, // Uses your agent_01jwc5v1nafjwv7zw4vtz1050m
+        callRequest,
+        conversationHistory: conversationHistory.slice(-6) // Last 6 messages for context
+      });
+
+      console.log('✅ Outbound call initiated:', response.data);
+      
+      // Update state
+      this.state.isCallActive = true;
+      this.state.currentMode = 'voice';
+      
+      // Start new session
+      this.startSession();
+      
+      // Notify callbacks
+      this.callbacks.onModeChange?.('voice');
+      
+    } catch (error) {
+      console.error('❌ Failed to initiate outbound call:', error);
+      this.state.error = 'Failed to initiate call';
+      this.callbacks.onError?.('Failed to initiate outbound call');
+      
+      // Fallback to browser-based voice conversation
+      console.log('⚠️ Falling back to browser-based voice conversation');
+      await this.startVoiceConversation();
+    }
+  }
+
+  /**
+   * Generate message for resuming conversation
+   */
+  private generateResumeMessage(): string {
+    const lastMessage = this.getConversationHistory().slice(-1)[0];
+    if (!lastMessage) return this.generateInitialMessage();
+    
+    // Create a natural resume message based on conversation context
+    return `Hi ${this.leadData.customerName}, it's Sarah from Jack Automotive. I wanted to follow up on our previous conversation about your vehicle financing needs.`;
+  }
+
+  /**
+   * Handle incoming SMS messages and inject into conversation context
+   */
+  async handleIncomingSMS(message: string, fromNumber: string): Promise<void> {
+    try {
+      console.log('📱 Handling incoming SMS from:', fromNumber, 'Message:', message);
+      
+      // Validate phone number matches this lead
+      if (fromNumber !== this.leadData.phoneNumber) {
+        console.warn('SMS from unknown number:', fromNumber);
+        return;
+      }
+      
+      // Create SMS message record
+      const smsMessage: SubprimeConversationMessage = {
+        id: crypto.randomUUID(),
+        leadId: this.leadData.leadId,
+        type: 'text_input',
+        content: message,
+        timestamp: new Date().toISOString(),
+        speaker: 'lead',
+        mode: 'text',
+        metadata: {
+          conversationId: this.currentSession?.conversationId,
+          smsReceived: true
+        }
+      };
+      
+      // Add to conversation history
+      this.addMessageToSession(smsMessage);
+      this.callbacks.onMessage?.(smsMessage);
+      
+      // If we have an active ElevenLabs conversation, inject via client events
+      if (this.conversation && this.state.isConnected) {
+        await this.injectSMSViaClientEvent(message);
+      } else {
+        // Start conversation in text mode to handle SMS
+        await this.startConversation('text');
+        
+        // Wait a moment for connection, then inject
+        setTimeout(async () => {
+          if (this.conversation && this.state.isConnected) {
+            await this.injectSMSViaClientEvent(message);
+          }
+        }, 1000);
+      }
+      
+    } catch (error) {
+      console.error('❌ Failed to handle incoming SMS:', error);
+      this.callbacks.onError?.('Failed to process SMS message');
+    }
+  }
+
+  /**
+   * Inject SMS message into ElevenLabs conversation using client events
+   */
+  private async injectSMSViaClientEvent(message: string): Promise<void> {
+    try {
+      if (!this.conversation) {
+        throw new Error('No active conversation to inject SMS into');
+      }
+
+      console.log('🔄 Injecting SMS via ElevenLabs client event');
+      
+      // Use ElevenLabs client events to inject SMS context
+      const contextUpdate = {
+        type: 'context_injection',
+        data: {
+          event_type: 'sms_received',
+          message: message,
+          timestamp: new Date().toISOString(),
+          context: `The customer just sent an SMS message: "${message}". Please acknowledge this message naturally and respond appropriately. This is part of our ongoing conversation.`
+        }
+      };
+
+      // Inject via client event (this depends on the ElevenLabs client library)
+      if (this.conversation.sendClientEvent) {
+        await this.conversation.sendClientEvent(contextUpdate);
+      } else if (this.conversation.sendContextualUpdate) {
+        // Alternative method if sendClientEvent doesn't exist
+        await this.conversation.sendContextualUpdate(
+          `Customer SMS: "${message}". Please respond naturally to this message.`
+        );
+      } else {
+        // Fallback: send as a regular message
+        console.log('⚠️ Using fallback method to inject SMS context');
+        await this.conversation.sendMessage(`[SMS received: "${message}"]`);
+      }
+      
+      console.log('✅ SMS context injected successfully');
+      
+    } catch (error) {
+      console.error('❌ Failed to inject SMS via client event:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send SMS message via Twilio (not ElevenLabs native)
+   */
+  async sendSMS(message: string): Promise<void> {
+    try {
+      console.log('📱 Sending SMS to:', this.leadData.phoneNumber);
+      
+      // Call our Twilio SMS API endpoint
+      const response = await axios.post('/api/twilio/send-sms', {
+        to: this.leadData.phoneNumber,
+        message,
+        leadId: this.leadData.leadId,
+        agentId: this.config.agentId
+      });
+      
+      // Record the SMS in conversation history
+      const smsMessage: SubprimeConversationMessage = {
+        id: crypto.randomUUID(),
+        leadId: this.leadData.leadId,
+        type: 'text_output',
+        content: message,
+        timestamp: new Date().toISOString(),
+        speaker: 'agent',
+        mode: 'text',
+        metadata: {
+          conversationId: this.currentSession?.conversationId,
+          smsId: response.data.messageSid,
+          smsSent: true
+        }
+      };
+      
+      this.addMessageToSession(smsMessage);
+      this.callbacks.onMessage?.(smsMessage);
+      
+      console.log('✅ SMS sent successfully');
+      
+    } catch (error) {
+      console.error('❌ Failed to send SMS:', error);
+      this.callbacks.onError?.('Failed to send SMS message');
+      throw error;
+    }
   }
 
   /**
@@ -938,6 +1047,179 @@ Instructions:
       }
     } catch (error) {
       console.error('❌ Failed to inject context via client tools:', error);
+    }
+  }
+
+  /**
+   * Prepare lead context including SMS conversation history
+   */
+  private prepareLeadContextWithSMS(): string {
+    const existingHistory = this.getConversationHistory();
+    const isResuming = existingHistory.length > 0;
+    const smsMessages = existingHistory.filter(m => m.metadata?.smsReceived || m.metadata?.smsSent);
+    
+    let context = `
+Lead Information:
+- Name: ${this.leadData.customerName}
+- Phone: ${this.leadData.phoneNumber}
+- Credit Score: ${this.leadData.creditScore || 'Unknown'}
+- Funding Readiness: ${this.leadData.fundingReadiness}
+- Current Step: ${this.leadData.scriptProgress?.currentStep || 'Unknown'}
+- Chase Status: ${this.leadData.chaseStatus}
+- Sentiment: ${this.leadData.sentiment}
+- Preferred Contact: ${this.leadData.preferredContactMethod}
+`;
+
+    if (smsMessages.length > 0) {
+      context += `
+
+SMS Conversation History:
+${smsMessages.map(msg => 
+  `${msg.speaker === 'agent' ? 'You (Agent)' : 'Customer'}: ${msg.content} (${new Date(msg.timestamp).toLocaleTimeString()})`
+).join('\n')}
+`;
+    }
+
+    if (isResuming) {
+      const conversationSummary = this.generateConversationSummary(existingHistory);
+      const recentMessages = existingHistory.slice(-6); // Last 6 messages for immediate context
+      
+      context += `
+
+IMPORTANT: This is a CONTINUATION of an existing conversation across multiple channels (voice, text, SMS).
+
+Conversation Summary:
+${conversationSummary}
+
+Recent Conversation Context (Last ${recentMessages.length} messages across all channels):
+${recentMessages.map(msg => 
+  `${msg.speaker === 'agent' ? 'You (Agent)' : msg.speaker === 'lead' ? 'Customer' : 'System'}: ${msg.content} [${msg.mode}${msg.metadata?.smsReceived ? ' SMS' : ''}]`
+).join('\n')}
+
+CRITICAL Instructions for Resume:
+- CONTINUE the conversation naturally from where it left off
+- This conversation spans voice calls, browser chat, AND SMS messages
+- Acknowledge any recent SMS messages naturally
+- DO NOT re-introduce yourself or restart the conversation  
+- Reference the previous conversation context appropriately
+- Keep the conversation flowing naturally across all communication channels
+- Address any open questions or topics from the previous conversation
+- Maintain the same tone and approach established earlier
+`;
+    } else {
+      context += `
+
+Instructions:
+- This is a NEW conversation with a subprime automotive lead
+- This conversation may span voice calls, browser chat, and SMS
+- Follow your normal introduction and qualification process
+- Focus on building trust and understanding their financial situation
+`;
+    }
+    
+    context += `
+- Be compliant with TCPA and FDCPA regulations
+- Offer appropriate financing solutions based on their profile
+- If the lead becomes frustrated or requests human help, initiate transfer
+- Maintain conversation continuity across voice, text, and SMS modes
+- This is a multimodal conversation - customer can use voice, browser chat, OR SMS at any time
+- Always acknowledge when switching between communication methods
+`;
+    
+    return context;
+  }
+
+  /**
+   * Inject conversation context including SMS history
+   */
+  private async injectConversationContext(history: SubprimeConversationMessage[]): Promise<void> {
+    try {
+      if (!this.conversation) return;
+
+      // Group messages by type for better context injection
+      const voiceMessages = history.filter(m => m.mode === 'voice');
+      const textMessages = history.filter(m => m.mode === 'text' && !m.metadata?.smsReceived && !m.metadata?.smsSent);
+      const smsMessages = history.filter(m => m.metadata?.smsReceived || m.metadata?.smsSent);
+
+      let contextSummary = 'Previous conversation context:\n';
+      
+      if (voiceMessages.length > 0) {
+        contextSummary += `\nVoice conversations: ${voiceMessages.length} messages`;
+      }
+      
+      if (textMessages.length > 0) {
+        contextSummary += `\nBrowser chat messages: ${textMessages.length} messages`;
+      }
+      
+      if (smsMessages.length > 0) {
+        contextSummary += `\nSMS messages: ${smsMessages.length} messages`;
+        contextSummary += '\nRecent SMS exchange:\n';
+        smsMessages.slice(-3).forEach(msg => {
+          contextSummary += `- ${msg.speaker === 'agent' ? 'You' : 'Customer'}: "${msg.content}"\n`;
+        });
+      }
+
+      // Use client events to inject context
+      if (this.conversation.sendClientEvent) {
+        await this.conversation.sendClientEvent({
+          type: 'context_injection',
+          data: {
+            event_type: 'conversation_resume',
+            context: contextSummary,
+            message_count: history.length,
+            sms_count: smsMessages.length,
+            last_interaction: history[history.length - 1]?.timestamp
+          }
+        });
+      } else if (this.conversation.sendContextualUpdate) {
+        await this.conversation.sendContextualUpdate(contextSummary);
+      }
+
+      console.log('✅ Conversation context injected successfully');
+      
+    } catch (error) {
+      console.error('❌ Failed to inject conversation context:', error);
+    }
+  }
+
+  /**
+   * Set up real-time SMS streaming
+   */
+  setupRealtimeStreaming(): void {
+    // Set up WebSocket or SSE connection for real-time SMS updates
+    if (typeof window !== 'undefined') {
+      console.log('🔄 Setting up real-time SMS streaming...');
+      
+      // This would connect to your real-time update service
+      const eventSource = new EventSource(`/api/stream/conversation/${this.leadData.leadId}`);
+      
+      eventSource.onmessage = (event) => {
+        try {
+          const update = JSON.parse(event.data);
+          
+          if (update.type === 'sms_received') {
+            console.log('📱 Real-time SMS received:', update.message);
+            this.handleIncomingSMS(update.message.content, this.leadData.phoneNumber);
+          } else if (update.type === 'sms_sent') {
+            console.log('📱 Real-time SMS sent confirmation:', update.message);
+            // Update UI to show SMS was sent
+            this.callbacks.onMessage?.(update.message);
+          }
+        } catch (error) {
+          console.error('❌ Failed to parse real-time update:', error);
+        }
+      };
+      
+      eventSource.onerror = (error) => {
+        console.error('❌ Real-time streaming error:', error);
+      };
+      
+      // Clean up on disconnect
+      const originalEndConversation = this.endConversation.bind(this);
+      this.endConversation = async () => {
+        eventSource.close();
+        return originalEndConversation();
+      };
     }
   }
 }
