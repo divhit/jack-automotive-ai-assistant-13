@@ -13,9 +13,10 @@ import { LeadInternalNotes } from "./lead/detail/LeadInternalNotes";
 
 interface SubprimeLeadDetailProps {
   lead: SubprimeLead;
+  onLeadUpdate?: (leadId: string, updates: Partial<SubprimeLead>) => void;
 }
 
-export const SubprimeLeadDetail = ({ lead }: SubprimeLeadDetailProps) => {
+export const SubprimeLeadDetail = ({ lead, onLeadUpdate }: SubprimeLeadDetailProps) => {
   const [autoChase, setAutoChase] = useState(lead.chaseStatus === "Auto Chase Running");
   const [internalNote, setInternalNote] = useState("");
   const [isAssigneeDialogOpen, setIsAssigneeDialogOpen] = useState(false);
@@ -31,11 +32,9 @@ export const SubprimeLeadDetail = ({ lead }: SubprimeLeadDetailProps) => {
   };
 
   const getLeadsForSpecialist = (specialist: string) => {
-    // This ensures we only show leads assigned to Andrea, Ian, or Kayam
     return subprimeLeads.filter(l => l.assignedSpecialist === specialist);
   };
 
-  // Make sure we're using the correct specialist name
   const assignedSpecialist = lead.assignedSpecialist;
 
   return (
@@ -64,8 +63,13 @@ export const SubprimeLeadDetail = ({ lead }: SubprimeLeadDetailProps) => {
             internalNote={internalNote}
             onInternalNoteChange={setInternalNote}
             onAddNote={handleAddNote}
+            onLeadUpdate={onLeadUpdate}
           />
-          <LeadActions onAddNote={handleAddNote} />
+          <LeadActions 
+            lead={lead}
+            onAddNote={handleAddNote}
+            onLeadUpdate={onLeadUpdate}
+          />
           <LeadInternalNotes
             internalNote={internalNote}
             onInternalNoteChange={setInternalNote}

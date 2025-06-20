@@ -1,3 +1,4 @@
+
 // ElevenLabs Server Tools - CRM Integration Webhooks
 // These endpoints are called by ElevenLabs when the AI agent uses server tools
 
@@ -44,7 +45,7 @@ interface TransferToHumanRequest {
  * Handle lead status updates from ElevenLabs AI agent
  * Called when agent determines lead qualification status has changed
  */
-export async function handleUpdateLeadStatus(request: WebhookRequest): Promise<WebhookResponse> {
+async function handleUpdateLeadStatus(request: WebhookRequest): Promise<WebhookResponse> {
   try {
     const { leadId, status, notes, agentId, conversationId }: UpdateLeadStatusRequest = request.body;
 
@@ -64,27 +65,42 @@ export async function handleUpdateLeadStatus(request: WebhookRequest): Promise<W
       'ready_for_funding': 'Ready',
       'approved': 'Ready',
       'declined': 'Not Ready'
-    };
+    } as const;
 
     const crmStatus = statusMapping[status] || 'Partial';
 
-    // Update lead in database/CRM
-    const updatedLead = await updateLeadInCRM(leadId, {
+    const scriptStepMapping = {
+      'qualified': 'qualification' as const,
+      'not_qualified': 'qualification' as const,
+      'needs_follow_up': 'screening' as const,
+      'ready_for_funding': 'submitted' as const,
+      'approved': 'submitted' as const,
+      'declined': 'qualification' as const
+    };
+    const crmScriptStep = scriptStepMapping[status];
+
+    // Prepare lead updates
+    const leadUpdates: Partial<SubprimeLead> = {
       fundingReadiness: crmStatus,
-      lastActivity: new Date().toISOString(),
       scriptProgress: {
-        currentStep: status === 'ready_for_funding' ? 'funding_ready' : 'in_progress',
+        currentStep: crmScriptStep,
         completedSteps: [], // Would be updated based on conversation flow
-        nextStep: getNextStepForStatus(status)
-      },
-      notes: notes ? [...(await getLeadNotes(leadId)), {
-        id: crypto.randomUUID(),
+      }
+    };
+
+    // Add conversation entry if notes provided
+    if (notes) {
+      const existingConversations = await getLeadConversations(leadId);
+      leadUpdates.conversations = [...existingConversations, {
+        type: 'message',
         content: notes,
-        createdBy: `AI Agent (${agentId})`,
-        createdAt: new Date().toISOString(),
-        conversationId
-      }] : undefined
-    });
+        timestamp: new Date().toISOString(),
+        sentBy: 'agent'
+      }];
+    }
+
+    // Update lead in database/CRM
+    const updatedLead = await updateLeadInCRM(leadId, leadUpdates);
 
     // Log the update for analytics
     await logAgentAction({
@@ -122,7 +138,7 @@ export async function handleUpdateLeadStatus(request: WebhookRequest): Promise<W
  * Handle follow-up scheduling from ElevenLabs AI agent
  * Called when agent needs to schedule future contact with lead
  */
-export async function handleScheduleFollowUp(request: WebhookRequest): Promise<WebhookResponse> {
+async function handleScheduleFollowUp(request: WebhookRequest): Promise<WebhookResponse> {
   try {
     const { leadId, scheduledTime, method, notes, agentId, conversationId }: ScheduleFollowUpRequest = request.body;
 
@@ -164,12 +180,11 @@ export async function handleScheduleFollowUp(request: WebhookRequest): Promise<W
     // Update lead's next action
     await updateLeadInCRM(leadId, {
       nextAction: {
-        action: `${method.toUpperCase()} follow-up`,
+        type: `${method.toUpperCase()} follow-up`,
         dueDate: scheduleDate.toISOString(),
         isAutomated: method !== 'call', // Voice calls require human intervention
         isOverdue: false
-      },
-      lastActivity: new Date().toISOString()
+      }
     });
 
     // Schedule the actual follow-up based on method
@@ -216,7 +231,7 @@ export async function handleScheduleFollowUp(request: WebhookRequest): Promise<W
  * Handle human agent transfer requests from ElevenLabs AI
  * Called when AI determines human intervention is needed
  */
-export async function handleTransferToHuman(request: WebhookRequest): Promise<WebhookResponse> {
+async function handleTransferToHuman(request: WebhookRequest): Promise<WebhookResponse> {
   try {
     const { leadId, reason, urgency, currentMode, conversationId, currentContext }: TransferToHumanRequest = request.body;
 
@@ -287,19 +302,23 @@ export async function handleTransferToHuman(request: WebhookRequest): Promise<We
       estimatedWaitTime: calculateEstimatedWaitTime(urgency)
     });
 
+    // Prepare lead updates
+    const leadUpdates: Partial<SubprimeLead> = {
+      assignedSpecialist: assignedAgent.name as "Andrea" | "Ian" | "Kayam",
+      chaseStatus: 'Manual Review'
+    };
+
+    // Add conversation entry for transfer
+    const existingConversations = await getLeadConversations(leadId);
+    leadUpdates.conversations = [...existingConversations, {
+      type: 'message',
+      content: `Transferred to human agent: ${reason}`,
+      timestamp: new Date().toISOString(),
+      sentBy: 'system'
+    }];
+
     // Update lead status to indicate human takeover
-    await updateLeadInCRM(leadId, {
-      assignedSpecialist: assignedAgent.name,
-      chaseStatus: 'Human Review',
-      lastActivity: new Date().toISOString(),
-      notes: [...(await getLeadNotes(leadId)), {
-        id: crypto.randomUUID(),
-        content: `Transferred to human agent: ${reason}`,
-        createdBy: 'AI Agent',
-        createdAt: new Date().toISOString(),
-        conversationId
-      }]
-    });
+    await updateLeadInCRM(leadId, leadUpdates);
 
     // Log the transfer
     await logAgentAction({
@@ -347,8 +366,8 @@ async function updateLeadInCRM(leadId: string, updates: Partial<SubprimeLead>): 
   return { leadId, ...updates, previousStatus: 'Partial' }; // Mock response
 }
 
-async function getLeadNotes(leadId: string): Promise<any[]> {
-  // Fetch existing notes for the lead
+async function getLeadConversations(leadId: string): Promise<any[]> {
+  // Fetch existing conversations for the lead
   return []; // Mock response
 }
 
@@ -463,4 +482,4 @@ export {
   handleUpdateLeadStatus,
   handleScheduleFollowUp,
   handleTransferToHuman
-}; 
+};

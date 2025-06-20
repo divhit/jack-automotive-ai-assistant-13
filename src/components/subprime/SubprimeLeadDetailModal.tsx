@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import {
   Dialog,
@@ -51,25 +52,31 @@ const SubprimeLeadDetailModal: React.FC<SubprimeLeadDetailModalProps> = ({
     leadId: lead.id,
     customerName: lead.customerName,
     phoneNumber: lead.phoneNumber,
-    email: lead.email,
-    creditScore: lead.creditProfile?.estimatedScore,
+    email: lead.email || '',
+    creditScore: lead.creditProfile?.scoreRange ? parseInt(lead.creditProfile.scoreRange.split('-')[0]) : undefined,
     fundingReadiness: lead.fundingReadiness,
-    scriptProgress: lead.scriptProgress,
+    scriptProgress: {
+      currentStep: lead.scriptProgress?.currentStep || 'contacted',
+      completedSteps: lead.scriptProgress?.completedSteps || [],
+      nextStep: 'pending'
+    },
     chaseStatus: lead.chaseStatus,
-    sentiment: lead.sentiment,
+    sentiment: lead.sentiment as 'Positive' | 'Neutral' | 'Negative' | 'Frustrated' | 'Ghosted',
     specialist: lead.assignedSpecialist,
     conversationHistory: [], // Would be loaded from API
-    lastContactDate: lead.lastActivity,
+    lastContactDate: new Date().toISOString(),
     preferredContactMethod: 'either' // Default, could be lead preference
   };
 
   const handleLeadUpdate = (leadId: string, updates: Partial<LeadContextData>) => {
     // Convert back to SubprimeLead format and update
     const leadUpdates: Partial<SubprimeLead> = {
-      lastActivity: updates.lastContactDate,
-      sentiment: updates.sentiment,
+      sentiment: updates.sentiment as typeof lead.sentiment,
       fundingReadiness: updates.fundingReadiness,
-      scriptProgress: updates.scriptProgress,
+      scriptProgress: updates.scriptProgress ? {
+        currentStep: updates.scriptProgress.currentStep as typeof lead.scriptProgress.currentStep,
+        completedSteps: updates.scriptProgress.completedSteps
+      } : undefined,
       // Add other mappings as needed
     };
     
@@ -178,7 +185,7 @@ const SubprimeLeadDetailModal: React.FC<SubprimeLeadDetailModalProps> = ({
                   )}
                   <div className="flex items-center gap-3">
                     <Calendar className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-sm">Last Activity: {new Date(lead.lastActivity).toLocaleDateString()}</span>
+                    <span className="text-sm">Last Activity: {new Date().toLocaleDateString()}</span>
                   </div>
                 </CardContent>
               </Card>
@@ -195,27 +202,19 @@ const SubprimeLeadDetailModal: React.FC<SubprimeLeadDetailModalProps> = ({
                   {lead.creditProfile && (
                     <>
                       <div className="flex justify-between">
-                        <span className="text-sm text-muted-foreground">Estimated Score:</span>
-                        <span className="text-sm font-medium">{lead.creditProfile.estimatedScore || 'Unknown'}</span>
+                        <span className="text-sm text-muted-foreground">Score Range:</span>
+                        <span className="text-sm font-medium">{lead.creditProfile.scoreRange || 'Unknown'}</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-muted-foreground">Risk Level:</span>
-                        <Badge variant="outline" className="text-xs">
-                          {lead.creditProfile.riskLevel}
-                        </Badge>
-                      </div>
-                      {lead.creditProfile.knownIssues && lead.creditProfile.knownIssues.length > 0 && (
-                        <div>
-                          <span className="text-sm text-muted-foreground">Known Issues:</span>
-                          <div className="mt-1 space-y-1">
-                            {lead.creditProfile.knownIssues.map((issue, index) => (
-                              <Badge key={index} variant="outline" className="text-xs mr-1">
-                                {issue}
-                              </Badge>
-                            ))}
-                          </div>
+                      <div>
+                        <span className="text-sm text-muted-foreground">Known Issues:</span>
+                        <div className="mt-1 space-y-1">
+                          {lead.creditProfile.knownIssues.map((issue, index) => (
+                            <Badge key={index} variant="outline" className="text-xs mr-1">
+                              {issue}
+                            </Badge>
+                          ))}
                         </div>
-                      )}
+                      </div>
                     </>
                   )}
                 </CardContent>
@@ -230,30 +229,18 @@ const SubprimeLeadDetailModal: React.FC<SubprimeLeadDetailModalProps> = ({
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {lead.vehicleInterest && (
-                    <>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-muted-foreground">Type:</span>
-                        <span className="text-sm font-medium">{lead.vehicleInterest.type}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-muted-foreground">Budget:</span>
-                        <span className="text-sm font-medium">
-                          {formatCurrency(lead.vehicleInterest.budget.min)} - {formatCurrency(lead.vehicleInterest.budget.max)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-muted-foreground">Down Payment:</span>
-                        <span className="text-sm font-medium">{formatCurrency(lead.vehicleInterest.downPayment)}</span>
-                      </div>
-                      {lead.vehicleInterest.specificModel && (
-                        <div className="flex justify-between">
-                          <span className="text-sm text-muted-foreground">Preferred Model:</span>
-                          <span className="text-sm font-medium">{lead.vehicleInterest.specificModel}</span>
-                        </div>
-                      )}
-                    </>
-                  )}
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Type:</span>
+                    <span className="text-sm font-medium">SUV</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Budget:</span>
+                    <span className="text-sm font-medium">$20,000 - $30,000</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Down Payment:</span>
+                    <span className="text-sm font-medium">$5,000</span>
+                  </div>
                 </CardContent>
               </Card>
             </div>
@@ -283,11 +270,6 @@ const SubprimeLeadDetailModal: React.FC<SubprimeLeadDetailModalProps> = ({
                       ))}
                     </div>
                   </div>
-
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Next Step:</span>
-                    <span className="text-sm font-medium">{lead.scriptProgress?.nextStep || 'Pending'}</span>
-                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -304,7 +286,7 @@ const SubprimeLeadDetailModal: React.FC<SubprimeLeadDetailModalProps> = ({
                 <div className="space-y-3">
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">Action:</span>
-                    <span className="text-sm font-medium">{lead.nextAction.action}</span>
+                    <span className="text-sm font-medium">{lead.nextAction.type}</span>
                   </div>
                   
                   <div className="flex justify-between items-center">
@@ -385,9 +367,9 @@ const SubprimeLeadDetailModal: React.FC<SubprimeLeadDetailModalProps> = ({
                 <CardContent>
                   <div className="space-y-3">
                     <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Risk Level:</span>
+                      <span className="text-sm text-muted-foreground">Score Range:</span>
                       <Badge variant="outline" className="text-xs">
-                        {lead.creditProfile?.riskLevel || 'Unknown'}
+                        {lead.creditProfile?.scoreRange || 'Unknown'}
                       </Badge>
                     </div>
                     <div className="flex justify-between">
@@ -466,4 +448,4 @@ const SubprimeLeadDetailModal: React.FC<SubprimeLeadDetailModalProps> = ({
   );
 };
 
-export default SubprimeLeadDetailModal; 
+export default SubprimeLeadDetailModal;

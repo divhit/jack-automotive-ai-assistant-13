@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -96,7 +97,7 @@ const ConversationInterface: React.FC<ConversationInterfaceProps> = ({
             },
             onModeChange: (mode) => {
               console.log('📡 Callback: Mode changed to', mode);
-              setConversationState(prev => ({ ...prev, currentMode: mode }));
+              setConversationState(prev => ({ ...prev, currentMode: mode as 'voice' | 'text' | 'multimodal' }));
             },
             onAgentResponse: (response) => {
               console.log('📡 Callback: Agent response -', response);
@@ -145,8 +146,10 @@ const ConversationInterface: React.FC<ConversationInterfaceProps> = ({
       }
     };
 
-    initializeManager();
-  }, [leadData.leadId]);
+    if (leadData) {
+      initializeManager();
+    }
+  }, [leadData, onLeadUpdate]);
 
   // Auto-scroll to latest message
   useEffect(() => {
@@ -161,12 +164,10 @@ const ConversationInterface: React.FC<ConversationInterfaceProps> = ({
       console.log('🎤 Starting/switching to voice conversation...');
       
       if (conversationState.isConnected) {
-        // Already connected - ElevenLabs multimodal handles voice/text automatically
         console.log('✅ Already connected - voice input available in multimodal conversation');
       } else {
-        // Start new multimodal conversation (which includes voice)
-        await conversationManager.startConversation('multimodal');
-        console.log('✅ Multimodal conversation started (voice + text)');
+        await conversationManager.startConversation('voice');
+        console.log('✅ Voice conversation started');
       }
       
       setConversationState(prev => ({ 
@@ -177,7 +178,7 @@ const ConversationInterface: React.FC<ConversationInterfaceProps> = ({
       }));
     } catch (error) {
       console.error('❌ Failed to start/switch to voice conversation:', error);
-      alert(`Failed to start voice conversation: ${error.message}`);
+      alert(`Failed to start voice conversation: ${(error as Error).message}`);
     }  
   };
 
@@ -188,12 +189,9 @@ const ConversationInterface: React.FC<ConversationInterfaceProps> = ({
       console.log('💬 Starting/switching to text conversation...');
       
       if (conversationState.isConnected) {
-        // End current conversation and start text-only
-        await conversationManager.endConversation();
-        await conversationManager.startConversation('text');
+        await conversationManager.switchMode('text');
         console.log('✅ Switched to text-only conversation');
       } else {
-        // Start new text-only conversation
         await conversationManager.startConversation('text');
         console.log('✅ Text-only conversation started');
       }
@@ -205,7 +203,7 @@ const ConversationInterface: React.FC<ConversationInterfaceProps> = ({
       }));
     } catch (error) {
       console.error('❌ Failed to start/switch to text conversation:', error);
-      alert(`Failed to start conversation: ${error.message}`);
+      alert(`Failed to start conversation: ${(error as Error).message}`);
     }
   };
 
@@ -216,18 +214,8 @@ const ConversationInterface: React.FC<ConversationInterfaceProps> = ({
       console.log('🎬 Starting/switching to multimodal conversation...');
       
       if (conversationState.isConnected) {
-        // Already connected - ElevenLabs is already multimodal
         console.log('✅ Already connected - conversation is already multimodal');
       } else {
-        // Request microphone permission first for voice capability
-        try {
-          await navigator.mediaDevices.getUserMedia({ audio: true });
-          console.log('✅ Microphone permission granted');
-        } catch (permissionError) {
-          console.warn('⚠️ Microphone permission denied, falling back to text-only:', permissionError);
-        }
-        
-        // Start new multimodal conversation
         await conversationManager.startConversation('multimodal');
         console.log('✅ Multimodal conversation started successfully');
       }
@@ -239,7 +227,7 @@ const ConversationInterface: React.FC<ConversationInterfaceProps> = ({
       }));
     } catch (error) {
       console.error('❌ Failed to start/switch to multimodal conversation:', error);
-      alert(`Failed to start conversation: ${error.message}`);
+      alert(`Failed to start conversation: ${(error as Error).message}`);
     }
   };
 
@@ -289,7 +277,7 @@ const ConversationInterface: React.FC<ConversationInterfaceProps> = ({
       alert('Connection test successful');
     } catch (error) {
       console.error('❌ Connection test failed:', error);
-      alert(`Connection test failed: ${error.message}`);
+      alert(`Connection test failed: ${(error as Error).message}`);
     }
   };
 
@@ -302,12 +290,10 @@ const ConversationInterface: React.FC<ConversationInterfaceProps> = ({
 
     if (confirmed) {
       try {
-        // Clear the conversation history
         conversationManager.clearConversationHistory();
         setMessages([]);
         console.log('🗑️ Conversation history cleared');
 
-        // End current conversation if active
         if (conversationState.isConnected) {
           await conversationManager.endConversation();
           setConversationState(prev => ({ 
@@ -320,7 +306,7 @@ const ConversationInterface: React.FC<ConversationInterfaceProps> = ({
         alert('Conversation cleared successfully');
       } catch (error) {
         console.error('❌ Failed to clear conversation:', error);
-        alert(`Failed to clear conversation: ${error.message}`);
+        alert(`Failed to clear conversation: ${(error as Error).message}`);
       }
     }
   };
@@ -354,8 +340,15 @@ const ConversationInterface: React.FC<ConversationInterfaceProps> = ({
 
   const renderMessage = (message: SubprimeConversationMessage) => {
     const isAgent = message.speaker === 'agent';
+    const isHumanAgent = message.speaker === 'human_agent';
     const isSystem = message.speaker === 'system';
+    const isUser = !isAgent && !isSystem && !isHumanAgent;
     const isVoice = message.mode === 'voice' || message.type.includes('voice');
+
+    const speakerName = isAgent ? 'Jack (AI Agent)' 
+                      : isHumanAgent ? message.metadata?.agentSpecialist || 'Human Agent'
+                      : isSystem ? 'System'
+                      : leadData.customerName;
 
     return (
       <div
@@ -363,7 +356,8 @@ const ConversationInterface: React.FC<ConversationInterfaceProps> = ({
         className={cn(
           'flex gap-3 p-3 rounded-lg',
           isAgent && 'bg-blue-50 border border-blue-100',
-          !isAgent && !isSystem && 'bg-gray-50 border border-gray-100',
+          isHumanAgent && 'bg-purple-50 border border-purple-100',
+          isUser && 'bg-gray-50 border border-gray-100',
           isSystem && 'bg-yellow-50 border border-yellow-100'
         )}
       >
@@ -371,18 +365,17 @@ const ConversationInterface: React.FC<ConversationInterfaceProps> = ({
           <AvatarFallback className={cn(
             'text-xs',
             isAgent && 'bg-blue-100 text-blue-700',
-            !isAgent && !isSystem && 'bg-gray-100 text-gray-700',
+            isHumanAgent && 'bg-purple-100 text-purple-700',
+            isUser && 'bg-gray-100 text-gray-700',
             isSystem && 'bg-yellow-100 text-yellow-700'
           )}>
-            {isAgent ? 'AI' : isSystem ? 'SYS' : leadData.customerName.charAt(0)}
+            {isAgent ? 'AI' : isHumanAgent ? 'HA' : isSystem ? 'SYS' : leadData.customerName.charAt(0)}
           </AvatarFallback>
         </Avatar>
         
         <div className="flex-1 space-y-1">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">
-              {isAgent ? 'Jack (AI Agent)' : isSystem ? 'System' : leadData.customerName}
-            </span>
+            <span className="text-sm font-medium">{speakerName}</span>
             <Badge variant="outline" className="text-xs">
               {isVoice ? (
                 <><Mic className="w-3 h-3 mr-1" /> Voice</>
@@ -489,27 +482,30 @@ const ConversationInterface: React.FC<ConversationInterfaceProps> = ({
                 </Button>
               )}
             </>
-              ) : (
+          ) : (
             <>
-                <Button
+              <Button
                 onClick={handleEndConversation}
                 variant="destructive"
-                  size="sm"
-                  className="flex items-center gap-2"
-                >
+                size="sm"
+                className="flex items-center gap-2"
+              >
                 <Square className="w-4 h-4" />
                 End Conversation
-                </Button>
+              </Button>
 
               <Button
                 onClick={handleTransferToHuman}
                 variant="outline"
                 size="sm"
                 className="flex items-center gap-2"
+                disabled={humanTakeoverMode}
               >
                 <Users className="w-4 h-4" />
                 Transfer to Human
               </Button>
+              
+              {/* Add a button to return control to AI when in human takeover mode */}
 
               <Button
                 onClick={handleClearConversation}
@@ -551,7 +547,7 @@ const ConversationInterface: React.FC<ConversationInterfaceProps> = ({
               </div>
             )}
             {conversationState.agentSpeaking && (
-              <div className="flex items-center gap-1 text-xs text-blue-600">
+              <div className="flex items-center gap-1 text-xs text-blue-600 animate-pulse">
                 <Volume2 className="w-3 h-3" />
                 Agent Speaking
               </div>
@@ -565,24 +561,16 @@ const ConversationInterface: React.FC<ConversationInterfaceProps> = ({
           </div>
         </div>
 
-        {/* Mode Explanation */}
         {conversationState.isConnected && (
-          <div className="text-xs text-muted-foreground bg-blue-50 p-2 rounded border">
-            {conversationState.currentMode === 'multimodal' && (
-              <>💡 <strong>Multimodal:</strong> You can speak (using your microphone) or type messages. The AI will respond accordingly. Context is preserved across modes.</>
-            )}
-            {conversationState.currentMode === 'voice' && (
-              <>🎤 <strong>Voice Mode:</strong> Click to speak using your microphone. The AI will respond with voice. Switch back to text anytime - conversation continues seamlessly.</>
-            )}
-            {conversationState.currentMode === 'text' && (
-              <>💬 <strong>Text Mode:</strong> Type messages below. The AI will respond with text. Switch to voice anytime - conversation history is maintained.</>
-            )}
+          <div className="text-xs text-muted-foreground bg-blue-50 p-2 rounded border mt-2">
+            {conversationState.currentMode === 'multimodal' && "💡 Multimodal: Speak or type. The AI will respond accordingly."}
+            {conversationState.currentMode === 'voice' && "🎤 Voice Mode: Speak using your microphone. The AI will respond with voice."}
+            {conversationState.currentMode === 'text' && "💬 Text Mode: Type messages below. The AI will respond with text."}
           </div>
         )}
       </CardHeader>
 
       <CardContent className="flex-1 flex flex-col p-0 min-h-0">
-        {/* Messages Area */}
         <ScrollArea className="flex-1 p-4" style={{ minHeight: 0 }}>
           <div className="space-y-4">
             {messages.length === 0 ? (
@@ -600,7 +588,6 @@ const ConversationInterface: React.FC<ConversationInterfaceProps> = ({
           </div>
         </ScrollArea>
 
-        {/* Text Input Area */}
         {conversationState.isConnected && conversationState.currentMode !== 'voice' && (
           <div className="border-t p-4">
             <div className="flex gap-2">
@@ -609,7 +596,8 @@ const ConversationInterface: React.FC<ConversationInterfaceProps> = ({
                 value={textMessage}
                 onChange={(e) => setTextMessage(e.target.value)}
                 placeholder={
-                  conversationState.currentMode === 'multimodal' 
+                  humanTakeoverMode ? "Human agent mode active. AI is paused."
+                  : conversationState.currentMode === 'multimodal' 
                     ? "Type a message or use your microphone..." 
                     : "Type your message..."
                 }
@@ -637,7 +625,6 @@ const ConversationInterface: React.FC<ConversationInterfaceProps> = ({
           </div>
         )}
 
-        {/* Voice-only mode instructions */}
         {conversationState.isConnected && conversationState.currentMode === 'voice' && (
           <div className="border-t p-4 text-center">
             <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
@@ -651,4 +638,4 @@ const ConversationInterface: React.FC<ConversationInterfaceProps> = ({
   );
 };
 
-export default ConversationInterface; 
+export default ConversationInterface;

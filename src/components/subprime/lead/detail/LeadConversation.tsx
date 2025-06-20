@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Check, FileText, MessageSquare, Phone } from "lucide-react";
@@ -10,13 +9,15 @@ interface LeadConversationProps {
   internalNote: string;
   onInternalNoteChange: (note: string) => void;
   onAddNote: () => void;
+  onLeadUpdate?: (leadId: string, updates: Partial<SubprimeLead>) => void;
 }
 
 export const LeadConversation = ({ 
   lead,
   internalNote,
   onInternalNoteChange,
-  onAddNote
+  onAddNote,
+  onLeadUpdate
 }: LeadConversationProps) => {
   return (
     <div className="space-y-4">
@@ -111,25 +112,6 @@ export const LeadConversation = ({
           </div>
           <p className="text-sm">Great choice! For the next step, we'll need a copy of your ID to verify your identity. I've created a secure upload link for you: <span className="underline cursor-pointer">https://secure.automarket.com/upload/39fk2</span>. The link is valid for 24 hours and uses bank-level encryption. Simply click the link, upload a photo of your ID (both sides), and you're all set. Once that's done, I can show you some specific CR-V options that match your criteria.</p>
         </div>
-      </div>
-      
-      <div className="mt-4 flex flex-wrap gap-2">
-        <Button size="sm" variant="outline" className="flex items-center gap-1">
-          <MessageSquare className="h-4 w-4" />
-          <span>Send SMS</span>
-        </Button>
-        <Button size="sm" variant="outline" className="flex items-center gap-1">
-          <Phone className="h-4 w-4" />
-          <span>Call Lead</span>
-        </Button>
-        <Button size="sm" variant="outline" className="flex items-center gap-1">
-          <FileText className="h-4 w-4" />
-          <span>Request Docs</span>
-        </Button>
-        <Button size="sm" variant="default" className="flex items-center gap-1 ml-auto">
-          <Check className="h-4 w-4" />
-          <span>Mark Ready</span>
-        </Button>
       </div>
       
       <div className="mt-4">
