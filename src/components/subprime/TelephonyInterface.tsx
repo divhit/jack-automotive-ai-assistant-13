@@ -1,5 +1,5 @@
 // Enhanced Telephony Interface for Subprime Dashboard
-// Uses existing ElevenLabs Conversational AI service with agent_01jwc5v1nafjwv7zw4vtz1050m
+// Uses the working API endpoints we just tested
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { 
   Phone, 
   PhoneOff, 
@@ -32,18 +33,17 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SubprimeLead } from '@/data/subprime/subprimeLeads';
-import { 
-  SubprimeConversationMessage, 
-  ConversationAnalytics,
-  ElevenLabsConfig,
-  LeadContextData,
-  SubprimeConversationManagerOptions,
-  ConversationState
-} from '@/types/elevenlabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { toast } from 'sonner';
 
-// Import your existing ElevenLabs service
-const SubprimeConversationManager = (await import('@/services/elevenLabsService')).default;
+interface ConversationMessage {
+  id: string;
+  type: 'sms' | 'call' | 'system' | 'voice';
+  content: string;
+  timestamp: string;
+  sentBy: 'user' | 'agent' | 'system';
+  status?: 'sent' | 'delivered' | 'failed';
+}
 
 interface TelephonyInterfaceProps {
   selectedLead: SubprimeLead | null;
@@ -57,45 +57,43 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
   className
 }) => {
   // State management
-  const [conversationManager, setConversationManager] = useState<any>(null);
-  const [conversationState, setConversationState] = useState<ConversationState>({
-    isConnected: false,
-    isCallActive: false,
-    currentMode: 'text',
-    agentSpeaking: false,
-    userSpeaking: false
-  });
-  const [conversationHistory, setConversationHistory] = useState<SubprimeConversationMessage[]>([]);
+  const [conversationHistory, setConversationHistory] = useState<ConversationMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [textInput, setTextInput] = useState('');
+  const [isCallActive, setIsCallActive] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
+  const [currentMode, setCurrentMode] = useState<'text' | 'voice'>('text');
+  const [conversationId, setConversationId] = useState<string | null>(null);
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const callTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Initialize conversation manager when lead changes
-  useEffect(() => {
-    if (selectedLead) {
-      initializeConversationManager();
-    } else {
-      cleanupConversationManager();
-    }
-
-    return () => {
-      cleanupConversationManager();
-    };
-  }, [selectedLead]);
+  const eventSourceRef = useRef<EventSource | null>(null);
 
   // Auto-scroll to bottom of messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [conversationHistory]);
 
+  // Load conversation history when lead changes
+  useEffect(() => {
+    if (selectedLead) {
+      loadConversationHistory();
+      setupEventSource();
+    } else {
+      setConversationHistory([]);
+      closeEventSource();
+    }
+    
+    return () => {
+      closeEventSource();
+    };
+  }, [selectedLead]);
+
   // Call duration timer
   useEffect(() => {
-    if (conversationState.isCallActive) {
+    if (isCallActive) {
       callTimerRef.current = setInterval(() => {
         setCallDuration(prev => prev + 1);
       }, 1000);
@@ -112,223 +110,252 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
         clearInterval(callTimerRef.current);
       }
     };
-  }, [conversationState.isCallActive]);
+  }, [isCallActive]);
 
-  const initializeConversationManager = async () => {
+  // Setup Server-Sent Events for real-time conversation updates
+  const setupEventSource = () => {
+    if (!selectedLead) return;
+    
+    closeEventSource(); // Close existing connection
+    
+    const eventSource = new EventSource(`/api/stream/conversation/${selectedLead.id}`);
+    eventSourceRef.current = eventSource;
+    
+    eventSource.onopen = () => {
+      console.log('📡 SSE connection established for lead:', selectedLead.id);
+    };
+    
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        handleRealTimeUpdate(data);
+      } catch (error) {
+        console.error('Error parsing SSE message:', error);
+      }
+    };
+    
+    eventSource.onerror = (error) => {
+      console.error('SSE connection error:', error);
+      // Attempt to reconnect after a delay
+      setTimeout(() => {
+        if (selectedLead) {
+          setupEventSource();
+        }
+      }, 5000);
+    };
+  };
+
+  const closeEventSource = () => {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
+  };
+
+  const handleRealTimeUpdate = (data: any) => {
+    console.log('📡 Real-time update received:', data);
+    
+    switch (data.type) {
+      case 'connected':
+        console.log('Connected to real-time stream for lead:', data.leadId);
+        break;
+        
+      case 'sms_received':
+        addConversationMessage({
+          id: `sms-${data.messageSid || Date.now()}`,
+          type: 'sms',
+          content: data.message,
+          timestamp: data.timestamp,
+          sentBy: 'user',
+          status: 'delivered'
+        });
+        break;
+        
+      case 'sms_sent':
+        addConversationMessage({
+          id: `sms-${data.messageSid || Date.now()}`,
+          type: 'sms',
+          content: data.message,
+          timestamp: data.timestamp,
+          sentBy: 'agent',
+          status: data.status === 'queued' ? 'sent' : 'delivered'
+        });
+        break;
+        
+      case 'call_initiated':
+        setConversationId(data.conversationId);
+        setIsCallActive(true);
+        setCurrentMode('voice');
+        addConversationMessage({
+          id: `call-${Date.now()}`,
+          type: 'system',
+          content: `Voice call initiated to ${data.phoneNumber}`,
+          timestamp: data.timestamp,
+          sentBy: 'system'
+        });
+        break;
+        
+      case 'call_ended':
+        setIsCallActive(false);
+        setCurrentMode('text');
+        addConversationMessage({
+          id: `call-end-${Date.now()}`,
+          type: 'system',
+          content: `Call ended. Duration: ${formatDuration(data.duration || 0)}`,
+          timestamp: data.timestamp,
+          sentBy: 'system'
+        });
+        break;
+
+      case 'voice_received':
+        addConversationMessage({
+          id: `voice-${data.conversationId}-${Date.now()}`,
+          type: 'voice',
+          content: data.message,
+          timestamp: data.timestamp,
+          sentBy: 'user',
+          status: 'delivered'
+        });
+        break;
+        
+      case 'voice_sent':
+        addConversationMessage({
+          id: `voice-${data.conversationId}-${Date.now()}`,
+          type: 'voice',
+          content: data.message,
+          timestamp: data.timestamp,
+          sentBy: 'agent',
+          status: 'delivered'
+        });
+        break;
+        
+      default:
+        console.log('Unknown real-time update type:', data.type);
+    }
+  };
+
+  const addConversationMessage = (message: ConversationMessage) => {
+    setConversationHistory(prev => {
+      // Avoid duplicates by checking if message with same ID already exists
+      const exists = prev.some(msg => msg.id === message.id);
+      if (exists) return prev;
+      
+      return [...prev, message];
+    });
+  };
+
+  const loadConversationHistory = () => {
+    if (!selectedLead) return;
+
+    // For ElevenLabs integration, we start with a clean slate
+    // The agent will handle all conversation context via its system prompt
+    // We only show actual telephony interactions (SMS/calls) here
+    setConversationHistory([]);
+  };
+
+  const handleStartVoiceCall = async () => {
     if (!selectedLead) return;
 
     try {
       setIsLoading(true);
       setError(null);
 
-             // Convert SubprimeLead to LeadContextData
-       const leadData: LeadContextData = {
-         leadId: selectedLead.id,
-         customerName: selectedLead.customerName,
-         phoneNumber: selectedLead.phoneNumber,
-         email: selectedLead.email,
-         creditScore: selectedLead.creditProfile?.scoreRange ? 
-           parseInt(selectedLead.creditProfile.scoreRange.split('-')[0]) : undefined,
-         fundingReadiness: selectedLead.fundingReadiness,
-         scriptProgress: {
-           ...selectedLead.scriptProgress,
-           nextStep: selectedLead.nextAction.type
-         },
-         chaseStatus: selectedLead.chaseStatus,
-         sentiment: selectedLead.sentiment,
-         specialist: selectedLead.assignedSpecialist,
-         conversationHistory: [],
-         lastContactDate: selectedLead.lastTouchpoint,
-         preferredContactMethod: 'either' // Default since not in SubprimeLead
-       };
+      const response = await fetch('/api/elevenlabs/outbound-call', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          phoneNumber: selectedLead.phoneNumber,
+          leadId: selectedLead.id
+        })
+      });
 
-      // ElevenLabs configuration with your existing agent
-      const config: ElevenLabsConfig = {
-        apiKey: process.env.REACT_APP_ELEVENLABS_API_KEY || '',
-        agentId: 'agent_01jwc5v1nafjwv7zw4vtz1050m' // Your existing agent
-      };
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to initiate call');
+      }
 
-      // Conversation manager options
-      const options: SubprimeConversationManagerOptions = {
-        config,
-        leadData,
-        callbacks: {
-          onConnect: () => {
-            setConversationState(prev => ({ ...prev, isConnected: true }));
-            setError(null);
-          },
-          onDisconnect: () => {
-            setConversationState(prev => ({ 
-              ...prev, 
-              isConnected: false, 
-              isCallActive: false,
-              currentMode: 'text'
-            }));
-          },
-          onError: (errorMessage: string) => {
-            setError(errorMessage);
-            setConversationState(prev => ({ 
-              ...prev, 
-              isConnected: false, 
-              isCallActive: false 
-            }));
-          },
-          onModeChange: (mode: 'voice' | 'text') => {
-            setConversationState(prev => ({ ...prev, currentMode: mode }));
-          },
-          onMessage: (message: SubprimeConversationMessage) => {
-            setConversationHistory(prev => [...prev, message]);
-          },
-          onAgentResponse: (response: string) => {
-            console.log('Agent response:', response);
-          },
-          onUserTranscript: (transcript: string) => {
-            console.log('User transcript:', transcript);
-          }
-        }
-      };
-
-      // Create conversation manager instance
-      const manager = new SubprimeConversationManager(options);
-      setConversationManager(manager);
-
-      // Load existing conversation history
-      const history = manager.getConversationHistory();
-      setConversationHistory(history);
-
-      // Set up real-time SMS streaming
-      manager.setupRealtimeStreaming();
-
-      console.log('✅ Conversation manager initialized for lead:', selectedLead.customerName);
+      const result = await response.json();
       
+      // Store conversation ID for context switching
+      setConversationId(result.conversationId || result.callSid);
+      
+      toast.success(`Call initiated to ${selectedLead.phoneNumber}`);
+      console.log('Call initiated:', { 
+        callSid: result.callSid, 
+        conversationId: result.conversationId 
+      });
+
     } catch (error) {
-      console.error('❌ Failed to initialize conversation manager:', error);
-      setError('Failed to initialize conversation. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const cleanupConversationManager = () => {
-    if (conversationManager) {
-      conversationManager.endConversation().catch(console.error);
-      setConversationManager(null);
-    }
-    setConversationState({
-      isConnected: false,
-      isCallActive: false,
-      currentMode: 'text',
-      agentSpeaking: false,
-      userSpeaking: false
-    });
-    setConversationHistory([]);
-    setError(null);
-  };
-
-  const handleStartVoiceCall = async () => {
-    if (!conversationManager) return;
-
-    try {
-      setIsLoading(true);
-      setError(null);
-      
-      // Use your existing agent to initiate outbound call
-      await conversationManager.initiateOutboundCall();
-      
-      setConversationState(prev => ({ 
-        ...prev, 
-        isCallActive: true, 
-        currentMode: 'voice' 
-      }));
-      
-    } catch (error) {
-      console.error('❌ Failed to start voice call:', error);
-      setError('Failed to start voice call. Please try again.');
+      console.error('Error starting call:', error);
+      setError(error.message || 'Failed to start call. Please try again.');
+      toast.error(error.message || 'Failed to start call');
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleEndCall = async () => {
-    if (!conversationManager) return;
-
-    try {
-      await conversationManager.endConversation();
-      setConversationState(prev => ({ 
-        ...prev, 
-        isCallActive: false, 
-        currentMode: 'text' 
-      }));
-    } catch (error) {
-      console.error('❌ Failed to end call:', error);
-      setError('Failed to end call properly.');
-    }
+    setIsCallActive(false);
+    setCurrentMode('text');
+    
+    toast.info(`Call ended. Duration: ${formatDuration(callDuration)}`);
   };
 
   const handleSendTextMessage = async () => {
-    if (!conversationManager || !textInput.trim()) return;
-
-    try {
-      setError(null);
-      
-      // Switch to text mode if needed
-      if (conversationState.currentMode !== 'text') {
-        await conversationManager.switchMode('text');
-      }
-      
-      // Start conversation if not already started
-      if (!conversationState.isConnected) {
-        await conversationManager.startConversation('text');
-      }
-      
-      // Send the message
-      await conversationManager.sendTextMessage(textInput);
-      setTextInput('');
-      
-    } catch (error) {
-      console.error('❌ Failed to send text message:', error);
-      setError('Failed to send message. Please try again.');
-    }
-  };
-
-  const handleStartVoiceConversation = async () => {
-    if (!conversationManager) return;
+    if (!selectedLead || !textInput.trim()) return;
 
     try {
       setIsLoading(true);
       setError(null);
-      
-      await conversationManager.startVoiceConversation();
-      
-      setConversationState(prev => ({ 
-        ...prev, 
-        isConnected: true, 
-        currentMode: 'voice' 
-      }));
-      
+
+      const messageToSend = textInput;
+      setTextInput('');
+
+      const response = await fetch('/api/twilio/send-sms', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          to: selectedLead.phoneNumber,
+          message: messageToSend,
+          leadId: selectedLead.id
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to send SMS');
+      }
+
+      const result = await response.json();
+      toast.success(`SMS sent to ${selectedLead.phoneNumber}`);
+      console.log('SMS sent with ID:', result.messageSid);
+
+      // Update lead's last touchpoint
+      if (onLeadUpdate) {
+        onLeadUpdate(selectedLead.id, {
+          lastTouchpoint: new Date().toISOString(),
+          conversations: [
+            ...selectedLead.conversations,
+            {
+              type: 'message',
+              content: messageToSend,
+              timestamp: new Date().toISOString(),
+              sentBy: 'agent'
+            }
+          ]
+        });
+      }
+
     } catch (error) {
-      console.error('❌ Failed to start voice conversation:', error);
-      setError('Failed to start voice conversation. Please check microphone permissions.');
+      console.error('Error sending SMS:', error);
+      setError(error.message || 'Failed to send SMS. Please try again.');
+      toast.error(error.message || 'Failed to send SMS');
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleTransferToHuman = async () => {
-    if (!conversationManager) return;
-
-    try {
-      await conversationManager.transferToHuman('User requested human assistance');
-      
-             // Update lead status
-       onLeadUpdate?.(selectedLead!.id, {
-         chaseStatus: 'Manual Review',
-         assignedSpecialist: 'Andrea'
-       });
-      
-    } catch (error) {
-      console.error('❌ Failed to transfer to human:', error);
-      setError('Failed to transfer to human agent.');
     }
   };
 
@@ -340,10 +367,10 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'connected': return 'bg-green-500';
-      case 'connecting': return 'bg-yellow-500';
-      case 'disconnected': return 'bg-red-500';
-      default: return 'bg-gray-500';
+      case 'delivered': return 'text-green-600';
+      case 'sent': return 'text-blue-600';
+      case 'failed': return 'text-red-600';
+      default: return 'text-gray-600';
     }
   };
 
@@ -357,216 +384,184 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
   if (!selectedLead) {
     return (
       <Card className={cn("h-full", className)}>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <PhoneCall className="h-5 w-5" />
-            Telephony Interface
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="flex items-center justify-center h-64">
-          <p className="text-muted-foreground">Select a lead to start a conversation</p>
+        <CardContent className="flex items-center justify-center h-full">
+          <div className="text-center text-muted-foreground">
+            <Phone className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p>Select a lead to start telephony interaction</p>
+          </div>
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <div className={cn("flex flex-col h-full", className)}>
-      {/* Header */}
-      <Card className="mb-4">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <PhoneCall className="h-5 w-5" />
-                Telephony Interface
-              </CardTitle>
-              <p className="text-sm text-muted-foreground mt-1">
-                {selectedLead.customerName} • {selectedLead.phoneNumber}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge 
-                variant={conversationState.isConnected ? "default" : "secondary"}
-                className={cn(
-                  "flex items-center gap-1",
-                  conversationState.isConnected && "bg-green-500"
-                )}
-              >
-                <div className={cn(
-                  "w-2 h-2 rounded-full",
-                  conversationState.isConnected ? "bg-white" : "bg-gray-400"
-                )} />
-                {conversationState.isConnected ? 'Connected' : 'Disconnected'}
-              </Badge>
-              {conversationState.isCallActive && (
-                <Badge variant="outline" className="flex items-center gap-1">
-                  <Clock className="h-3 w-3" />
-                  {formatDuration(callDuration)}
-                </Badge>
-              )}
-            </div>
-          </div>
-        </CardHeader>
-      </Card>
-
-      {/* Error Alert */}
-      {error && (
-        <Alert className="mb-4" variant="destructive">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      {/* Controls */}
-      <Card className="mb-4">
-        <CardContent className="pt-6">
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Voice Call Controls */}
-            <Button
-              onClick={conversationState.isCallActive ? handleEndCall : handleStartVoiceCall}
-              disabled={isLoading}
-              variant={conversationState.isCallActive ? "destructive" : "default"}
-              className="flex items-center gap-2"
-            >
-              {conversationState.isCallActive ? (
-                <>
-                  <PhoneOff className="h-4 w-4" />
-                  End Call
-                </>
-              ) : (
-                <>
-                  <Phone className="h-4 w-4" />
-                  Start Call
-                </>
-              )}
-            </Button>
-
-            {/* Voice Conversation (Browser) */}
-            <Button
-              onClick={handleStartVoiceConversation}
-              disabled={isLoading || conversationState.isConnected}
-              variant="outline"
-              className="flex items-center gap-2"
-            >
-              <Mic className="h-4 w-4" />
-              Voice Chat
-            </Button>
-
-            {/* Transfer to Human */}
-            <Button
-              onClick={handleTransferToHuman}
-              disabled={isLoading || !conversationState.isConnected}
-              variant="outline"
-              className="flex items-center gap-2"
-            >
-              <User className="h-4 w-4" />
-              Transfer to Human
-            </Button>
-
-            {/* Mode Indicator */}
-            <Badge variant="outline" className="ml-auto">
-              Mode: {conversationState.currentMode}
-            </Badge>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Conversation History */}
-      <Card className="flex-1 flex flex-col">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2">
-            <MessageSquare className="h-5 w-5" />
-            Conversation History
-            <Badge variant="secondary" className="ml-auto">
-              {conversationHistory.length} messages
-            </Badge>
+    <Card className={cn("h-full flex flex-col", className)}>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Phone className="h-5 w-5" />
+            Telephony - {selectedLead.customerName}
           </CardTitle>
-        </CardHeader>
-        <CardContent className="flex-1 flex flex-col p-0">
-          <ScrollArea className="flex-1 px-6">
-            <div className="space-y-4 py-4">
-              {conversationHistory.length === 0 ? (
-                <div className="text-center text-muted-foreground py-8">
-                  <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>No conversation history yet</p>
-                  <p className="text-sm">Start a conversation to see messages here</p>
-                </div>
-              ) : (
-                conversationHistory.map((message) => (
+          <Badge variant={currentMode === 'voice' ? 'default' : 'secondary'}>
+            {currentMode === 'voice' ? 'Voice Active' : 'Text Mode'}
+          </Badge>
+        </div>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span>{selectedLead.phoneNumber}</span>
+          <Separator orientation="vertical" className="h-4" />
+          <span>Sentiment: {selectedLead.sentiment}</span>
+          {isCallActive && (
+            <>
+              <Separator orientation="vertical" className="h-4" />
+              <div className="flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                <span>{formatDuration(callDuration)}</span>
+              </div>
+            </>
+          )}
+        </div>
+      </CardHeader>
+
+      <CardContent className="flex-1 flex flex-col gap-4">
+        {error && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* Voice Controls */}
+        <div className="flex gap-2">
+          {!isCallActive ? (
+            <Button 
+              onClick={handleStartVoiceCall}
+              disabled={isLoading}
+              className="flex items-center gap-2"
+            >
+              <PhoneCall className="h-4 w-4" />
+              Start Voice Call
+            </Button>
+          ) : (
+            <Button 
+              onClick={handleEndCall}
+              variant="destructive"
+              className="flex items-center gap-2"
+            >
+              <PhoneOff className="h-4 w-4" />
+              End Call
+            </Button>
+          )}
+          
+          <Button 
+            variant="outline"
+            onClick={() => setCurrentMode(currentMode === 'voice' ? 'text' : 'voice')}
+            disabled={isCallActive}
+          >
+            {currentMode === 'voice' ? (
+              <>
+                <MessageSquare className="h-4 w-4 mr-2" />
+                Switch to Text
+              </>
+            ) : (
+              <>
+                <Mic className="h-4 w-4 mr-2" />
+                Switch to Voice
+              </>
+            )}
+          </Button>
+        </div>
+
+        {/* Conversation History */}
+        <div className="flex-1 border rounded-lg">
+          <ScrollArea className="h-[400px] p-4">
+            <div className="space-y-4">
+              {conversationHistory.map((message) => (
+                <div
+                  key={message.id}
+                  className={cn(
+                    "flex gap-3",
+                    message.sentBy === 'agent' ? "justify-end" : "justify-start"
+                  )}
+                >
                   <div
-                    key={message.id}
                     className={cn(
-                      "flex items-start gap-3 p-3 rounded-lg",
-                      message.speaker === 'agent' 
-                        ? "bg-blue-50 dark:bg-blue-950/30" 
-                        : "bg-gray-50 dark:bg-gray-800/50"
+                      "flex gap-2 max-w-[80%]",
+                      message.sentBy === 'agent' ? "flex-row-reverse" : "flex-row"
                     )}
                   >
-                    <Avatar className="h-8 w-8 mt-1">
-                      <AvatarFallback>
-                        {message.speaker === 'agent' ? (
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback className="text-xs">
+                        {message.sentBy === 'user' ? (
+                          <User className="h-4 w-4" />
+                        ) : message.sentBy === 'agent' ? (
                           <Bot className="h-4 w-4" />
                         ) : (
-                          <User className="h-4 w-4" />
+                          <Settings className="h-4 w-4" />
                         )}
                       </AvatarFallback>
                     </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-medium text-sm">
-                          {message.speaker === 'agent' ? 'Sarah (Agent)' : selectedLead.customerName}
-                        </span>
-                        <Badge variant="outline" className="text-xs">
-                          {message.mode}
-                        </Badge>
-                        <span className="text-xs text-muted-foreground">
-                          {formatMessageTime(message.timestamp)}
-                        </span>
+                    <div
+                      className={cn(
+                        "rounded-lg px-3 py-2 text-sm",
+                        message.sentBy === 'agent'
+                          ? "bg-blue-500 text-white"
+                          : message.sentBy === 'user'
+                          ? "bg-gray-100 text-gray-900"
+                          : "bg-yellow-50 text-yellow-800 border border-yellow-200"
+                      )}
+                    >
+                      <p>{message.content}</p>
+                      <div className="flex items-center justify-between mt-1 text-xs opacity-70">
+                        <span>{formatMessageTime(message.timestamp)}</span>
+                        {message.status && (
+                          <span className={getStatusColor(message.status)}>
+                            {message.status}
+                          </span>
+                        )}
                       </div>
-                      <p className="text-sm">{message.content}</p>
                     </div>
                   </div>
-                ))
-              )}
-              <div ref={messagesEndRef} />
+                </div>
+              ))}
             </div>
+            <div ref={messagesEndRef} />
           </ScrollArea>
+        </div>
 
-          {/* Text Input */}
-          <Separator />
-          <div className="p-4">
-            <div className="flex items-center gap-2">
-              <Input
-                value={textInput}
-                onChange={(e) => setTextInput(e.target.value)}
-                placeholder="Type a message..."
-                onKeyPress={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSendTextMessage();
-                  }
-                }}
-                disabled={isLoading}
-                className="flex-1"
-              />
-              <Button
-                onClick={handleSendTextMessage}
-                disabled={isLoading || !textInput.trim()}
-                size="sm"
-                className="flex items-center gap-2"
-              >
-                <Send className="h-4 w-4" />
-                Send
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              Press Enter to send • Using ElevenLabs Agent: agent_01jwc5v1nafjwv7zw4vtz1050m
-            </p>
+        {/* Text Input */}
+        <div className="flex gap-2">
+          <Textarea
+            value={textInput}
+            onChange={(e) => setTextInput(e.target.value)}
+            placeholder="Type your message..."
+            className="flex-1 min-h-[60px] resize-none"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSendTextMessage();
+              }
+            }}
+          />
+          <Button 
+            onClick={handleSendTextMessage}
+            disabled={isLoading || !textInput.trim()}
+            className="self-end"
+          >
+            <Send className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {/* Lead Info */}
+        <div className="text-xs text-muted-foreground bg-gray-50 p-3 rounded-lg">
+          <div className="grid grid-cols-2 gap-2">
+            <div>Status: {selectedLead.chaseStatus}</div>
+            <div>Funding: {selectedLead.fundingReadiness}</div>
+            <div>Step: {selectedLead.scriptProgress.currentStep}</div>
+            <div>Specialist: {selectedLead.assignedSpecialist || 'Unassigned'}</div>
           </div>
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 };
 

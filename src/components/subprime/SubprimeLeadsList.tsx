@@ -7,9 +7,11 @@ import SubprimeLeadDetailModal from "./SubprimeLeadDetailModal";
 interface SubprimeLeadsListProps {
   leads: SubprimeLead[];
   onLeadUpdate?: (leadId: string, updates: Partial<SubprimeLead>) => void;
+  onLeadSelect?: (lead: SubprimeLead) => void;
+  selectedLeadId?: string;
 }
 
-export const SubprimeLeadsList = ({ leads, onLeadUpdate }: SubprimeLeadsListProps) => {
+export const SubprimeLeadsList = ({ leads, onLeadUpdate, onLeadSelect, selectedLeadId }: SubprimeLeadsListProps) => {
   const [selectedLead, setSelectedLead] = useState<SubprimeLead | null>(null);
 
   const handleLeadUpdate = (leadId: string, updates: Partial<SubprimeLead>) => {
@@ -43,6 +45,8 @@ export const SubprimeLeadsList = ({ leads, onLeadUpdate }: SubprimeLeadsListProp
             key={lead.id} 
             lead={lead} 
             onViewDetails={setSelectedLead}
+            onSelect={onLeadSelect}
+            isSelected={selectedLeadId === lead.id}
           />
         ))
       )}

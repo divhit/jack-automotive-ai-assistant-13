@@ -4,7 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 // Your existing agent configuration
-const AGENT_ID = 'agent_01jwc5v1nafjwv7zw4vtz1050m'; // Your existing agent
+const AGENT_ID = process.env.ELEVENLABS_AGENT_ID || 'agent_01jwc5v1nafjwv7zw4vtz1050m'; // Your existing agent
 
 interface PostCallWebhookData {
   type: 'post_call_transcription';

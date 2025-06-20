@@ -13,12 +13,14 @@ import { subprimeLeads } from "@/data";
 import { SubprimeLeadFilters } from "@/components/subprime/SubprimeLeadFilters";
 import { SubprimeAnalytics } from "@/components/subprime/SubprimeAnalytics";
 import { SubprimeLeadsList } from "@/components/subprime/SubprimeLeadsList";
+import { TelephonyInterface } from "@/components/subprime/TelephonyInterface";
 import { SubprimeLead } from "@/data/subprime/subprimeLeads";
-import { BarChart3, Users, MessageSquare, Clock, Info, Settings, Sliders } from "lucide-react";
+import { BarChart3, Users, MessageSquare, Clock, Info, Settings, Sliders, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SubprimeSettingsDialog } from "@/components/subprime/SubprimeSettingsDialog";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 const SubprimeDashboard = () => {
   const [allLeads, setAllLeads] = useState<SubprimeLead[]>(subprimeLeads);
@@ -26,6 +28,8 @@ const SubprimeDashboard = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [tileDialogOpen, setTileDialogOpen] = useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
+  const [selectedLead, setSelectedLead] = useState<SubprimeLead | null>(null);
+  const [showTelephony, setShowTelephony] = useState(false);
   const [activeTileInfo, setActiveTileInfo] = useState<{title: string; content: React.ReactNode}>({ 
     title: "", 
     content: null 
@@ -76,11 +80,21 @@ const SubprimeDashboard = () => {
       )
     );
 
+    // Update selected lead if it's the one being updated
+    if (selectedLead && selectedLead.id === leadId) {
+      setSelectedLead(prev => prev ? { ...prev, ...updates } : null);
+    }
+
     // Show toast notification
     toast.success(`Lead ${leadId} updated successfully`);
     
     // Here you would typically make an API call to persist the changes
     // await updateLeadInDatabase(leadId, updates);
+  };
+
+  const handleLeadSelect = (lead: SubprimeLead) => {
+    setSelectedLead(lead);
+    setShowTelephony(true);
   };
 
   const handleTileClick = (title: string, content: React.ReactNode) => {
@@ -163,6 +177,15 @@ const SubprimeDashboard = () => {
               className="w-full"
             />
           </div>
+          <Button 
+            variant={showTelephony ? "default" : "outline"}
+            size="sm"
+            onClick={() => setShowTelephony(!showTelephony)}
+            className="flex items-center gap-2"
+          >
+            <Phone className="h-4 w-4" />
+            Telephony
+          </Button>
           <Button 
             variant="outline" 
             size="icon" 
@@ -264,17 +287,37 @@ const SubprimeDashboard = () => {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <div className="lg:col-span-1">
-          <SubprimeLeadFilters onFilterChange={handleFilterChange} leads={allLeads} />
-        </div>
+      <div className={cn(
+        "grid gap-6",
+        showTelephony ? "grid-cols-1 lg:grid-cols-2" : "grid-cols-1 lg:grid-cols-4"
+      )}>
+        {!showTelephony && (
+          <div className="lg:col-span-1">
+            <SubprimeLeadFilters onFilterChange={handleFilterChange} leads={allLeads} />
+          </div>
+        )}
         
-        <div className="lg:col-span-3">
+        <div className={cn(
+          showTelephony ? "lg:col-span-1" : "lg:col-span-3"
+        )}>
           <SubprimeLeadsList 
             leads={filteredLeads} 
             onLeadUpdate={handleLeadUpdate}
+            onLeadSelect={handleLeadSelect}
+            selectedLeadId={selectedLead?.id}
           />
         </div>
+
+        {showTelephony && (
+          <div className="lg:col-span-1 space-y-6">
+            <TelephonyInterface 
+              selectedLead={selectedLead}
+              onLeadUpdate={handleLeadUpdate}
+              className="h-[600px]"
+            />
+            <SubprimeLeadFilters onFilterChange={handleFilterChange} leads={allLeads} />
+          </div>
+        )}
       </div>
 
       <div className="mt-8">
@@ -312,3 +355,4 @@ const SubprimeDashboard = () => {
 };
 
 export default SubprimeDashboard;
+

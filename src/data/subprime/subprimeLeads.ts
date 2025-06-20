@@ -36,6 +36,42 @@ export interface SubprimeLead {
 
 export const subprimeLeads: SubprimeLead[] = [
   {
+    id: "test1",
+    customerName: "Test User",
+    phoneNumber: "(604) 908-5474",
+    email: "test@example.com",
+    chaseStatus: "Auto Chase Running",
+    fundingReadiness: "Ready",
+    fundingReadinessReason: "Test lead for telephony integration",
+    sentiment: "Warm",
+    lastTouchpoint: "2025-01-21T11:00:00Z",
+    nextAction: {
+      type: "Test telephony integration",
+      dueDate: "2025-01-21T15:00:00Z",
+      isAutomated: true,
+      isOverdue: false
+    },
+    scriptProgress: {
+      currentStep: "contacted",
+      completedSteps: ["contacted"]
+    },
+    creditProfile: {
+      scoreRange: "700-750",
+      knownIssues: []
+    },
+    vehiclePreference: "SUV",
+    conversations: [
+      {
+        type: "message",
+        content: "Welcome! This is a test lead for telephony integration.",
+        timestamp: "2025-01-21T11:00:00Z",
+        sentBy: "system"
+      }
+    ],
+    assignedAgent: "Test Agent",
+    assignedSpecialist: "Andrea"
+  },
+  {
     id: "sl1",
     customerName: "John Smith",
     phoneNumber: "(555) 123-4567",

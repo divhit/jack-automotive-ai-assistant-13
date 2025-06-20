@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 
-const AGENT_ID = 'agent_01jwc5v1nafjwv7zw4vtz1050m';
+const AGENT_ID = process.env.ELEVENLABS_AGENT_ID || 'agent_01jwc5v1nafjwv7zw4vtz1050m';
 
 interface ConversationEventData {
   type: 'conversation_started' | 'conversation_ended' | 'user_message' | 'agent_message' | 'interruption' | 'silence_detected';
@@ -57,16 +57,22 @@ function verifyWebhookSignature(payload: string, signature: string, secret: stri
 
 async function broadcastConversationEvent(leadId: string, eventData: any) {
   try {
-    const streams = global.conversationStreams as Map<string, any> | undefined;
-    const connection = streams?.get(leadId);
+    // Use the same broadcasting system as SMS for consistency
+    const response = await fetch('http://localhost:3001/api/internal/broadcast', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        leadId,
+        ...eventData
+      })
+    });
     
-    if (connection) {
-      connection.sendEvent({
-        type: 'conversation_event',
-        event: eventData,
-        timestamp: new Date().toISOString()
-      });
-      console.log('📡 Broadcasted conversation event:', leadId, eventData.type);
+    if (response.ok) {
+      console.log('📡 Broadcasted voice conversation event:', leadId, eventData.type);
+    } else {
+      console.error('❌ Failed to broadcast conversation event:', response.status);
     }
   } catch (error) {
     console.error('❌ Failed to broadcast conversation event:', error);
@@ -112,18 +118,24 @@ async function handleConversationEnded(eventData: ConversationEventData) {
 }
 
 async function handleMessage(eventData: ConversationEventData) {
-  console.log('💬 Message received:', eventData.data.speaker, eventData.data.message?.substring(0, 50));
+  console.log('💬 Voice message received:', eventData.data.speaker, eventData.data.message?.substring(0, 50));
   
   const leadId = eventData.data.conversation_initiation_client_data?.lead_id;
+  const phoneNumber = eventData.data.metadata?.phone_number;
   
   if (leadId && eventData.data.message) {
-    await broadcastConversationEvent(leadId, {
-      type: 'message',
-      conversationId: eventData.data.conversation_id,
-      speaker: eventData.data.speaker,
+    // Format the message data to match SMS format for UI consistency
+    const messageData = {
+      type: eventData.data.speaker === 'user' ? 'voice_received' : 'voice_sent',
+      phoneNumber: phoneNumber,
       message: eventData.data.message,
-      timestamp: new Date(eventData.event_timestamp * 1000).toISOString()
-    });
+      timestamp: new Date(eventData.event_timestamp * 1000).toISOString(),
+      conversationId: eventData.data.conversation_id,
+      sentBy: eventData.data.speaker === 'user' ? 'user' : 'agent',
+      leadId: leadId
+    };
+    
+    await broadcastConversationEvent(leadId, messageData);
   }
 }
 

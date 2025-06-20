@@ -16,9 +16,11 @@ import { AssigneeDetailsDialog } from "./AssigneeDetailsDialog";
 interface LeadCardProps {
   lead: SubprimeLead;
   onViewDetails: (lead: SubprimeLead) => void;
+  onSelect?: (lead: SubprimeLead) => void;
+  isSelected?: boolean;
 }
 
-export const LeadCard = ({ lead, onViewDetails }: LeadCardProps) => {
+export const LeadCard = ({ lead, onViewDetails, onSelect, isSelected }: LeadCardProps) => {
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   
   const getBorderColor = (lead: SubprimeLead) => {
@@ -60,7 +62,8 @@ export const LeadCard = ({ lead, onViewDetails }: LeadCardProps) => {
       className={cn(
         "p-2 hover:bg-gray-50 transition-colors cursor-pointer",
         "border-l-4",
-        getBorderColor(lead)
+        getBorderColor(lead),
+        isSelected && "bg-blue-50 border-blue-200"
       )}
       onClick={handleRowClick}
     >
@@ -106,7 +109,16 @@ export const LeadCard = ({ lead, onViewDetails }: LeadCardProps) => {
         </div>
 
         <div className="col-span-1 flex justify-end gap-2">
-          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+          <Button 
+            variant={isSelected ? "default" : "ghost"} 
+            size="sm" 
+            className="h-8 w-8 p-0"
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelect?.(lead);
+            }}
+            title="Start telephony session"
+          >
             <Phone className="h-4 w-4" />
           </Button>
           <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
