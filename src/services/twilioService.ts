@@ -1,4 +1,3 @@
-
 import ElevenLabsAPIService from './api/elevenLabsApi';
 import { LeadContextData } from '@/types/elevenlabs';
 import { SubprimeLead } from '@/data/subprime/subprimeLeads';
@@ -110,12 +109,21 @@ class TwilioService {
    * Convert SubprimeLead to LeadContextData format
    */
   convertLeadToContext(lead: SubprimeLead): LeadContextData {
+    // Extract numeric credit score or default to 0
+    const scoreRange = lead.creditProfile?.scoreRange || 'Unknown';
+    let creditScore = 0;
+    if (scoreRange !== 'Unknown') {
+      // Try to extract first number from score range like "580-620"
+      const match = scoreRange.match(/\d+/);
+      creditScore = match ? parseInt(match[0]) : 0;
+    }
+
     return {
       leadId: lead.id,
       customerName: lead.customerName,
       phoneNumber: lead.phoneNumber,
       fundingReadiness: lead.fundingReadiness,
-      creditScore: lead.creditProfile?.scoreRange || 'Unknown',
+      creditScore: creditScore,
       scriptProgress: {
         currentStep: lead.scriptProgress.currentStep,
         completedSteps: lead.scriptProgress.completedSteps,
@@ -123,11 +131,15 @@ class TwilioService {
       },
       chaseStatus: lead.chaseStatus,
       sentiment: lead.sentiment,
-      preferredContactMethod: 'phone', // Default value since it doesn't exist on SubprimeLead
+      preferredContactMethod: 'voice', // Default to 'voice' as it's a valid enum value
       conversationHistory: (lead.conversations || []).map(conv => ({
-        speaker: conv.sentBy === 'agent' ? 'agent' : 'user',
+        id: `conv-${Date.now()}-${Math.random()}`,
+        leadId: lead.id,
+        type: 'text',
         content: conv.content,
-        timestamp: conv.timestamp
+        timestamp: conv.timestamp,
+        speaker: conv.sentBy === 'agent' ? 'agent' : conv.sentBy === 'system' ? 'system' : 'lead',
+        mode: 'text'
       })),
       specialist: lead.assignedSpecialist
     };

@@ -40,13 +40,10 @@ export const LeadActions = ({ lead, onAddNote, onLeadUpdate }: LeadActionsProps)
         conversations: [
           ...(lead.conversations || []),
           {
-            id: `call-${Date.now()}`,
-            leadId: lead.id,
             type: 'call',
             content: `Outbound AI call initiated to ${lead.phoneNumber}`,
             timestamp: new Date().toISOString(),
-            sentBy: 'system',
-            mode: 'auto'
+            sentBy: 'system'
           }
         ]
       });
@@ -82,13 +79,10 @@ export const LeadActions = ({ lead, onAddNote, onLeadUpdate }: LeadActionsProps)
         conversations: [
           ...(lead.conversations || []),
           {
-            id: `call-end-${Date.now()}`,
-            leadId: lead.id,
             type: 'call',
             content: `Call ended`,
             timestamp: new Date().toISOString(),
-            sentBy: 'system',
-            mode: 'auto'
+            sentBy: 'system'
           }
         ]
       });
@@ -113,13 +107,10 @@ export const LeadActions = ({ lead, onAddNote, onLeadUpdate }: LeadActionsProps)
             conversations: [
               ...(lead.conversations || []),
               {
-                id: `call-complete-${Date.now()}`,
-                leadId: lead.id,
                 type: 'call',
                 content: `Call ${status.status} - Duration: ${status.duration || 0}s`,
                 timestamp: new Date().toISOString(),
-                sentBy: 'system',
-                mode: 'auto'
+                sentBy: 'system'
               }
             ]
           });
