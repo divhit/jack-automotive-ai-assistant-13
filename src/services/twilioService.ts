@@ -1,3 +1,4 @@
+
 import ElevenLabsAPIService from './api/elevenLabsApi';
 import { LeadContextData } from '@/types/elevenlabs';
 import { SubprimeLead } from '@/data/subprime/subprimeLeads';
@@ -135,7 +136,7 @@ class TwilioService {
       conversationHistory: (lead.conversations || []).map(conv => ({
         id: `conv-${Date.now()}-${Math.random()}`,
         leadId: lead.id,
-        type: 'text',
+        type: conv.sentBy === 'system' ? 'system' : 'text_input',
         content: conv.content,
         timestamp: conv.timestamp,
         speaker: conv.sentBy === 'agent' ? 'agent' : conv.sentBy === 'system' ? 'system' : 'lead',
