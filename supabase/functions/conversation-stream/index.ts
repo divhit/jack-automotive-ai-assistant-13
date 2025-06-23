@@ -4,139 +4,164 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
   'Cache-Control': 'no-cache',
   'Connection': 'keep-alive',
 }
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
-  }
-
-  // Extract lead ID from URL
   const url = new URL(req.url)
   const leadId = url.pathname.split('/').pop()
 
   if (!leadId) {
-    return new Response('Lead ID required', { status: 400 })
+    return new Response('Lead ID is required', { 
+      status: 400,
+      headers: corsHeaders 
+    })
   }
 
   console.log('🔄 Setting up SSE stream for lead:', leadId)
 
-  // Create Server-Sent Events stream
+  // Initialize Supabase client
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+  )
+
+  // Check if leadId is a valid UUID format
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+  let actualLeadId = leadId
+
+  if (!uuidRegex.test(leadId)) {
+    // For demo leads, try to find the actual lead ID by the original_lead_id metadata
+    console.log('🔍 Demo lead detected, searching for actual lead ID')
+    
+    const { data: lead, error } = await supabase
+      .from('leads')
+      .select('id')
+      .eq('metadata->>original_lead_id', leadId)
+      .single()
+
+    if (lead) {
+      actualLeadId = lead.id
+      console.log('✅ Found actual lead ID:', actualLeadId, 'for demo lead:', leadId)
+    } else {
+      console.log('⚠️ No lead found for demo ID:', leadId, 'will use original ID')
+    }
+  }
+
+  // Create SSE stream
   const stream = new ReadableStream({
     start(controller) {
-      const encoder = new TextEncoder()
+      console.log('✅ SSE stream established for lead:', leadId)
       
-      const sendEvent = (data: any) => {
-        const eventData = `data: ${JSON.stringify(data)}\n\n`
-        try {
-          controller.enqueue(encoder.encode(eventData))
-        } catch (error) {
-          console.error('❌ Error sending SSE event:', error)
-        }
-      }
-
       // Send initial connection message
-      sendEvent({
+      const data = JSON.stringify({
         type: 'connected',
-        leadId,
+        leadId: leadId,
         timestamp: new Date().toISOString(),
         message: 'Real-time stream connected'
       })
-
+      
+      controller.enqueue(`data: ${data}\n\n`)
+      
       // Set up heartbeat to keep connection alive
-      const heartbeatInterval = setInterval(() => {
-        sendEvent({
-          type: 'heartbeat',
-          timestamp: new Date().toISOString()
-        })
-      }, 30000) // Every 30 seconds
+      const heartbeat = setInterval(() => {
+        try {
+          const heartbeatData = JSON.stringify({
+            type: 'heartbeat',
+            timestamp: new Date().toISOString()
+          })
+          controller.enqueue(`data: ${heartbeatData}\n\n`)
+        } catch (error) {
+          console.error('Heartbeat error:', error)
+          clearInterval(heartbeat)
+        }
+      }, 30000) // Send heartbeat every 30 seconds
+      
+      // Set up database change listener for conversations related to this lead
+      const conversationSubscription = supabase
+        .channel(`conversations-${actualLeadId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'conversations',
+            filter: `lead_id=eq.${actualLeadId}`
+          },
+          (payload) => {
+            console.log('📡 Conversation change:', payload)
+            try {
+              const eventData = JSON.stringify({
+                type: 'conversation_update',
+                leadId: leadId,
+                timestamp: new Date().toISOString(),
+                data: payload
+              })
+              controller.enqueue(`data: ${eventData}\n\n`)
+            } catch (error) {
+              console.error('Error sending conversation update:', error)
+            }
+          }
+        )
+        .subscribe()
 
-      // Initialize Supabase client for real-time subscriptions
-      const supabase = createClient(
-        Deno.env.get('SUPABASE_URL') ?? '',
-        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-      )
-
-      // Subscribe to new messages for this lead's conversations
-      const messagesSubscription = supabase
-        .channel(`messages_${leadId}`)
+      // Set up database change listener for messages
+      const messageSubscription = supabase
+        .channel(`messages-${actualLeadId}`)
         .on(
           'postgres_changes',
           {
             event: 'INSERT',
             schema: 'public',
-            table: 'messages',
-            filter: `conversation_id=in.(select id from conversations where lead_id=eq.${leadId})`
+            table: 'messages'
           },
-          (payload) => {
-            console.log('📨 New message for lead:', leadId, payload.new)
-            const message = payload.new
+          async (payload) => {
+            console.log('📡 Message change:', payload)
             
-            let eventType = 'message_received'
-            if (message.speaker === 'agent') {
-              eventType = message.message_type === 'voice' ? 'voice_sent' : 'sms_sent'
-            } else if (message.speaker === 'user') {
-              eventType = message.message_type === 'voice' ? 'voice_received' : 'sms_received'
-            }
+            // Check if this message belongs to a conversation for our lead
+            const { data: conversation } = await supabase
+              .from('conversations')
+              .select('lead_id')
+              .eq('id', payload.new.conversation_id)
+              .single()
 
-            sendEvent({
-              type: eventType,
-              message: message.content,
-              speaker: message.speaker,
-              messageType: message.message_type,
-              timestamp: message.timestamp,
-              conversationId: message.conversation_id,
-              messageSid: message.twilio_message_sid
-            })
-          }
-        )
-        .subscribe()
-
-      // Subscribe to conversation status changes
-      const conversationsSubscription = supabase
-        .channel(`conversations_${leadId}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'conversations',
-            filter: `lead_id=eq.${leadId}`
-          },
-          (payload) => {
-            console.log('📞 Conversation updated for lead:', leadId, payload.new)
-            const conversation = payload.new
-            
-            if (conversation.status === 'completed' && conversation.type === 'voice') {
-              sendEvent({
-                type: 'call_ended',
-                conversationId: conversation.id,
-                duration: conversation.duration_seconds,
-                timestamp: new Date().toISOString()
-              })
+            if (conversation && conversation.lead_id === actualLeadId) {
+              try {
+                const eventData = JSON.stringify({
+                  type: payload.new.speaker === 'agent' ? 'voice_sent' : 'voice_received',
+                  leadId: leadId,
+                  timestamp: payload.new.timestamp || new Date().toISOString(),
+                  message: payload.new.content,
+                  conversationId: payload.new.conversation_id
+                })
+                controller.enqueue(`data: ${eventData}\n\n`)
+              } catch (error) {
+                console.error('Error sending message update:', error)
+              }
             }
           }
         )
         .subscribe()
-
-      // Cleanup on connection close
-      req.signal.addEventListener('abort', () => {
-        console.log('🔌 SSE connection closed for lead:', leadId)
-        clearInterval(heartbeatInterval)
-        supabase.removeChannel(messagesSubscription)
-        supabase.removeChannel(conversationsSubscription)
+      
+      // Cleanup function
+      const cleanup = () => {
+        clearInterval(heartbeat)
+        conversationSubscription.unsubscribe()
+        messageSubscription.unsubscribe()
         try {
           controller.close()
         } catch (error) {
-          console.error('❌ Error closing controller:', error)
+          console.error('Error closing controller:', error)
         }
-      })
-
-      console.log('✅ SSE stream established for lead:', leadId)
-    },
+      }
+      
+      // Handle client disconnect
+      req.signal?.addEventListener('abort', cleanup)
+      
+      // Auto-cleanup after 1 hour
+      setTimeout(cleanup, 3600000)
+    }
   })
 
   return new Response(stream, {

@@ -25,34 +25,80 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Get or create lead
-    let { data: lead, error: leadError } = await supabase
-      .from('leads')
-      .select('*')
-      .eq('id', leadId)
-      .single()
-
-    if (leadError && leadError.code !== 'PGRST116') {
-      throw new Error(`Failed to fetch lead: ${leadError.message}`)
-    }
-
-    if (!lead) {
-      throw new Error('Lead not found')
-    }
-
     console.log('🔄 Initiating outbound call for lead:', leadId, 'to:', phoneNumber)
+
+    // Check if leadId is a valid UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    let lead = null
+
+    if (uuidRegex.test(leadId)) {
+      // Try to get existing lead by UUID
+      const { data: existingLead, error: leadError } = await supabase
+        .from('leads')
+        .select('*')
+        .eq('id', leadId)
+        .single()
+
+      if (leadError && leadError.code !== 'PGRST116') {
+        throw new Error(`Failed to fetch lead: ${leadError.message}`)
+      }
+      lead = existingLead
+    } else {
+      // For demo leads (like "test1"), try to find by phone number or create a new one
+      console.log('🔍 Demo lead detected, searching by phone number:', phoneNumber)
+      
+      const { data: existingLead, error: phoneError } = await supabase
+        .from('leads')
+        .select('*')
+        .eq('phone_number', phoneNumber)
+        .single()
+
+      if (phoneError && phoneError.code !== 'PGRST116') {
+        console.log('Error searching by phone:', phoneError.message)
+      }
+      
+      lead = existingLead
+    }
+
+    // If no lead found, create a new one
+    if (!lead) {
+      console.log('📝 Creating new lead for:', phoneNumber)
+      const { data: newLead, error: createError } = await supabase
+        .from('leads')
+        .insert({
+          phone_number: phoneNumber,
+          name: `Lead ${leadId}`,
+          email: `${leadId}@example.com`,
+          status: 'new',
+          score: 50,
+          metadata: {
+            original_lead_id: leadId,
+            created_from: 'demo_call'
+          }
+        })
+        .select()
+        .single()
+
+      if (createError) {
+        throw new Error(`Failed to create lead: ${createError.message}`)
+      }
+      lead = newLead
+    }
+
+    console.log('✅ Using lead:', lead.id, 'for phone:', phoneNumber)
 
     // Create conversation record
     const { data: conversation, error: convError } = await supabase
       .from('conversations')
       .insert({
-        lead_id: leadId,
+        lead_id: lead.id,
         type: 'voice',
         status: 'active',
         metadata: {
           phone_number: phoneNumber,
           lead_name: lead.name,
-          initiated_by: 'agent'
+          initiated_by: 'agent',
+          original_lead_id: leadId
         }
       })
       .select()
@@ -68,10 +114,11 @@ serve(async (req) => {
       agent_phone_number_id: Deno.env.get('ELEVENLABS_PHONE_NUMBER_ID'),
       to_number: phoneNumber,
       conversation_initiation_client_data: {
-        lead_id: leadId,
+        lead_id: lead.id,
         conversation_id: conversation.id,
         customer_phone: phoneNumber,
-        customer_name: lead.name || 'Customer'
+        customer_name: lead.name || 'Customer',
+        original_lead_id: leadId
       }
     }
 
@@ -128,6 +175,7 @@ serve(async (req) => {
         success: true,
         conversationId: callResult.conversation_id,
         callSid: callResult.call_sid,
+        leadId: lead.id,
         message: 'Call initiated successfully'
       }),
       {
