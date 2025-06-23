@@ -128,26 +128,24 @@ serve(async (req) => {
       throw new Error(`Failed to create conversation: ${convError.message}`)
     }
 
-    // Prepare ElevenLabs call payload - using the correct API format
+    // Use the ORIGINAL working payload format
     const callPayload = {
       agent_id: agentId,
+      agent_phone_number_id: phoneNumberId,
       customer_phone_number: phoneNumber,
-      // Remove agent_phone_number_id as it might not be needed or might be causing the 404
-      conversation_config: {
-        client_data: {
-          lead_id: lead.id,
-          conversation_id: conversation.id,
-          customer_phone: phoneNumber,
-          customer_name: lead.name || 'Customer',
-          original_lead_id: leadId
-        }
+      conversation_initiation_client_data: {
+        lead_id: lead.id,
+        conversation_id: conversation.id,
+        customer_phone: phoneNumber,
+        customer_name: lead.name || 'Customer',
+        original_lead_id: leadId
       }
     }
 
     console.log('📞 Calling ElevenLabs API with payload:', JSON.stringify(callPayload, null, 2))
 
-    // Make the outbound call via ElevenLabs - try the correct endpoint
-    const response = await fetch('https://api.elevenlabs.io/v1/convai/conversations/outbound_call', {
+    // Use the ORIGINAL working endpoint
+    const response = await fetch('https://api.elevenlabs.io/v1/convai/conversations', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -161,82 +159,6 @@ serve(async (req) => {
 
     if (!response.ok) {
       console.error('❌ ElevenLabs API error:', response.status, responseText)
-      
-      // Try alternative payload format if the first one fails
-      if (response.status === 404) {
-        console.log('🔄 Trying alternative API format...')
-        
-        const alternativePayload = {
-          agent_id: agentId,
-          phone_number_id: phoneNumberId,
-          customer_phone_number: phoneNumber,
-          metadata: {
-            lead_id: lead.id,
-            conversation_id: conversation.id,
-            customer_name: lead.name || 'Customer',
-            original_lead_id: leadId
-          }
-        }
-
-        const retryResponse = await fetch('https://api.elevenlabs.io/v1/convai/conversations/phone_call', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'xi-api-key': apiKey
-          },
-          body: JSON.stringify(alternativePayload)
-        })
-
-        const retryText = await retryResponse.text()
-        console.log('Retry response:', retryResponse.status, retryText)
-
-        if (!retryResponse.ok) {
-          throw new Error(`ElevenLabs API error (retry): ${retryResponse.status} - ${retryText}`)
-        }
-
-        const callResult = JSON.parse(retryText)
-        
-        // Update conversation with ElevenLabs conversation ID
-        await supabase
-          .from('conversations')
-          .update({
-            elevenlabs_conversation_id: callResult.conversation_id,
-            twilio_call_sid: callResult.call_sid,
-            metadata: {
-              ...conversation.metadata,
-              elevenlabs_response: callResult
-            }
-          })
-          .eq('id', conversation.id)
-
-        // Log the call initiation
-        await supabase
-          .from('messages')
-          .insert({
-            conversation_id: conversation.id,
-            speaker: 'system',
-            content: `Outbound call initiated to ${phoneNumber}`,
-            message_type: 'system',
-            metadata: {
-              call_sid: callResult.call_sid,
-              conversation_id: callResult.conversation_id
-            }
-          })
-
-        return new Response(
-          JSON.stringify({
-            success: true,
-            conversationId: callResult.conversation_id,
-            callSid: callResult.call_sid,
-            leadId: lead.id,
-            message: 'Call initiated successfully (retry)'
-          }),
-          {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          }
-        )
-      }
-      
       throw new Error(`ElevenLabs API error: ${response.status} - ${responseText}`)
     }
 
