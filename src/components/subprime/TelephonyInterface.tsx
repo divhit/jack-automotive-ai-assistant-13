@@ -1,6 +1,3 @@
-// Enhanced Telephony Interface for Subprime Dashboard
-// Uses the working API endpoints we just tested
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,7 +5,6 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
-import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { 
@@ -35,6 +31,7 @@ import { cn } from '@/lib/utils';
 import { SubprimeLead } from '@/data/subprime/subprimeLeads';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ConversationMessage {
   id: string;
@@ -118,7 +115,10 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
     
     closeEventSource(); // Close existing connection
     
-    const eventSource = new EventSource(`/api/stream/conversation/${selectedLead.id}`);
+    // Use Supabase edge function for streaming
+    const eventSource = new EventSource(
+      `https://krpzyvpwtbdxjaemqjab.supabase.co/functions/v1/conversation-stream/${selectedLead.id}`
+    );
     eventSourceRef.current = eventSource;
     
     eventSource.onopen = () => {
@@ -178,7 +178,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
           content: data.message,
           timestamp: data.timestamp,
           sentBy: 'agent',
-          status: data.status === 'queued' ? 'sent' : 'delivered'
+          status: 'sent'
         });
         break;
         
@@ -189,7 +189,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
         addConversationMessage({
           id: `call-${Date.now()}`,
           type: 'system',
-          content: `Voice call initiated to ${data.phoneNumber}`,
+          content: `Voice call initiated`,
           timestamp: data.timestamp,
           sentBy: 'system'
         });
@@ -244,13 +244,56 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
     });
   };
 
-  const loadConversationHistory = () => {
+  const loadConversationHistory = async () => {
     if (!selectedLead) return;
 
-    // For ElevenLabs integration, we start with a clean slate
-    // The agent will handle all conversation context via its system prompt
-    // We only show actual telephony interactions (SMS/calls) here
-    setConversationHistory([]);
+    try {
+      // Load recent messages for this lead from Supabase
+      const { data: conversations, error: convError } = await supabase
+        .from('conversations')
+        .select(`
+          id,
+          type,
+          messages (
+            id,
+            speaker,
+            content,
+            message_type,
+            timestamp,
+            twilio_message_sid
+          )
+        `)
+        .eq('lead_id', selectedLead.id)
+        .order('started_at', { ascending: false })
+        .limit(5);
+
+      if (convError) {
+        console.error('Failed to load conversation history:', convError);
+        return;
+      }
+
+      // Convert database messages to ConversationMessage format
+      const messages: ConversationMessage[] = [];
+      conversations?.forEach(conv => {
+        conv.messages?.forEach((msg: any) => {
+          messages.push({
+            id: msg.id,
+            type: msg.message_type === 'voice' ? 'voice' : (conv.type === 'sms' ? 'sms' : 'system'),
+            content: msg.content,
+            timestamp: msg.timestamp,
+            sentBy: msg.speaker,
+            status: 'delivered'
+          });
+        });
+      });
+
+      // Sort by timestamp
+      messages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+      setConversationHistory(messages);
+
+    } catch (error) {
+      console.error('Error loading conversation history:', error);
+    }
   };
 
   const handleStartVoiceCall = async () => {
@@ -260,34 +303,27 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
       setIsLoading(true);
       setError(null);
 
-      const response = await fetch('/api/elevenlabs/outbound-call', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      // Call Supabase edge function for outbound call
+      const { data, error } = await supabase.functions.invoke('elevenlabs-outbound-call', {
+        body: {
           phoneNumber: selectedLead.phoneNumber,
           leadId: selectedLead.id
-        })
+        }
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to initiate call');
+      if (error) throw error;
+
+      if (data?.error) {
+        throw new Error(data.error);
       }
 
-      const result = await response.json();
-      
       // Store conversation ID for context switching
-      setConversationId(result.conversationId || result.callSid);
+      setConversationId(data.conversationId);
       
       toast.success(`Call initiated to ${selectedLead.phoneNumber}`);
-      console.log('Call initiated:', { 
-        callSid: result.callSid, 
-        conversationId: result.conversationId 
-      });
+      console.log('Call initiated:', data);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error starting call:', error);
       setError(error.message || 'Failed to start call. Please try again.');
       toast.error(error.message || 'Failed to start call');
@@ -313,26 +349,23 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
       const messageToSend = textInput;
       setTextInput('');
 
-      const response = await fetch('/api/twilio/send-sms', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      // Call Supabase edge function for SMS
+      const { data, error } = await supabase.functions.invoke('twilio-send-sms', {
+        body: {
           to: selectedLead.phoneNumber,
           message: messageToSend,
           leadId: selectedLead.id
-        })
+        }
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to send SMS');
+      if (error) throw error;
+
+      if (data?.error) {
+        throw new Error(data.error);
       }
 
-      const result = await response.json();
       toast.success(`SMS sent to ${selectedLead.phoneNumber}`);
-      console.log('SMS sent with ID:', result.messageSid);
+      console.log('SMS sent:', data);
 
       // Update lead's last touchpoint
       if (onLeadUpdate) {
@@ -350,7 +383,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
         });
       }
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending SMS:', error);
       setError(error.message || 'Failed to send SMS. Please try again.');
       toast.error(error.message || 'Failed to send SMS');
@@ -565,4 +598,4 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
   );
 };
 
-export default TelephonyInterface; 
+export default TelephonyInterface;
