@@ -37,14 +37,16 @@ export const LeadActions = ({ lead, onAddNote, onLeadUpdate }: LeadActionsProps)
       // Update lead status to indicate call in progress
       onLeadUpdate?.(lead.id, {
         chaseStatus: 'Auto Chase Running',
-        lastActivity: new Date().toISOString(),
         conversations: [
           ...(lead.conversations || []),
           {
+            id: `call-${Date.now()}`,
+            leadId: lead.id,
             type: 'call',
             content: `Outbound AI call initiated to ${lead.phoneNumber}`,
             timestamp: new Date().toISOString(),
-            sentBy: 'system'
+            sentBy: 'system',
+            mode: 'auto'
           }
         ]
       });
@@ -77,14 +79,16 @@ export const LeadActions = ({ lead, onAddNote, onLeadUpdate }: LeadActionsProps)
       
       // Update lead status
       onLeadUpdate?.(lead.id, {
-        lastActivity: new Date().toISOString(),
         conversations: [
           ...(lead.conversations || []),
           {
+            id: `call-end-${Date.now()}`,
+            leadId: lead.id,
             type: 'call',
             content: `Call ended`,
             timestamp: new Date().toISOString(),
-            sentBy: 'system'
+            sentBy: 'system',
+            mode: 'auto'
           }
         ]
       });
@@ -106,14 +110,16 @@ export const LeadActions = ({ lead, onAddNote, onLeadUpdate }: LeadActionsProps)
           
           // Update lead with call completion
           onLeadUpdate?.(lead.id, {
-            lastActivity: new Date().toISOString(),
             conversations: [
               ...(lead.conversations || []),
               {
+                id: `call-complete-${Date.now()}`,
+                leadId: lead.id,
                 type: 'call',
                 content: `Call ${status.status} - Duration: ${status.duration || 0}s`,
                 timestamp: new Date().toISOString(),
-                sentBy: 'system'
+                sentBy: 'system',
+                mode: 'auto'
               }
             ]
           });
@@ -144,8 +150,7 @@ export const LeadActions = ({ lead, onAddNote, onLeadUpdate }: LeadActionsProps)
 
   const handleMarkReady = () => {
     onLeadUpdate?.(lead.id, {
-      fundingReadiness: 'Ready',
-      lastActivity: new Date().toISOString()
+      fundingReadiness: 'Ready'
     });
     toast.success("Lead marked as ready for funding");
   };

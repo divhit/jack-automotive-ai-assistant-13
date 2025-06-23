@@ -115,18 +115,33 @@ class TwilioService {
       customerName: lead.customerName,
       phoneNumber: lead.phoneNumber,
       fundingReadiness: lead.fundingReadiness,
-      creditScore: lead.creditProfile?.score,
-      scriptProgress: lead.scriptProgress,
+      creditScore: lead.creditProfile?.scoreRange || 'Unknown',
+      scriptProgress: {
+        currentStep: lead.scriptProgress.currentStep,
+        completedSteps: lead.scriptProgress.completedSteps,
+        nextStep: this.determineNextStep(lead.scriptProgress.currentStep)
+      },
       chaseStatus: lead.chaseStatus,
       sentiment: lead.sentiment,
-      preferredContactMethod: lead.preferredContactMethod || 'phone',
-      conversationHistory: lead.conversations?.map(conv => ({
+      preferredContactMethod: 'phone', // Default value since it doesn't exist on SubprimeLead
+      conversationHistory: (lead.conversations || []).map(conv => ({
         speaker: conv.sentBy === 'agent' ? 'agent' : 'user',
         content: conv.content,
         timestamp: conv.timestamp
-      })) || [],
+      })),
       specialist: lead.assignedSpecialist
     };
+  }
+
+  private determineNextStep(currentStep: string): string {
+    const stepMap: Record<string, string> = {
+      'contacted': 'screening',
+      'screening': 'qualification',
+      'qualification': 'routing',
+      'routing': 'submitted',
+      'submitted': 'completed'
+    };
+    return stepMap[currentStep] || 'contacted';
   }
 
   private generatePersonalizedGreeting(leadData: LeadContextData): string {
@@ -151,10 +166,6 @@ class TwilioService {
       contextPrompt += 'The customer has shown frustration in previous interactions - be extra empathetic and patient. ';
     } else if (leadData.sentiment === 'Ghosted') {
       contextPrompt += 'The customer has been unresponsive - re-engage gently and offer value. ';
-    }
-
-    if (leadData.creditScore && leadData.creditScore < 600) {
-      contextPrompt += 'Focus on subprime financing options and credit improvement advice. ';
     }
 
     return contextPrompt;
