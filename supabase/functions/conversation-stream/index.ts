@@ -54,28 +54,37 @@ serve(async (req) => {
     start(controller) {
       console.log('✅ SSE stream established for lead:', leadId)
       
+      let isClosed = false
+      
+      // Helper function to safely enqueue data
+      const safeEnqueue = (data: string) => {
+        try {
+          if (!isClosed) {
+            controller.enqueue(`data: ${data}\n\n`)
+          }
+        } catch (error) {
+          console.error('Error enqueuing data:', error)
+          cleanup()
+        }
+      }
+      
       // Send initial connection message
-      const data = JSON.stringify({
+      const initialData = JSON.stringify({
         type: 'connected',
         leadId: leadId,
         timestamp: new Date().toISOString(),
         message: 'Real-time stream connected'
       })
       
-      controller.enqueue(`data: ${data}\n\n`)
+      safeEnqueue(initialData)
       
       // Set up heartbeat to keep connection alive
       const heartbeat = setInterval(() => {
-        try {
-          const heartbeatData = JSON.stringify({
-            type: 'heartbeat',
-            timestamp: new Date().toISOString()
-          })
-          controller.enqueue(`data: ${heartbeatData}\n\n`)
-        } catch (error) {
-          console.error('Heartbeat error:', error)
-          clearInterval(heartbeat)
-        }
+        const heartbeatData = JSON.stringify({
+          type: 'heartbeat',
+          timestamp: new Date().toISOString()
+        })
+        safeEnqueue(heartbeatData)
       }, 30000) // Send heartbeat every 30 seconds
       
       // Set up database change listener for conversations related to this lead
@@ -91,17 +100,13 @@ serve(async (req) => {
           },
           (payload) => {
             console.log('📡 Conversation change:', payload)
-            try {
-              const eventData = JSON.stringify({
-                type: 'conversation_update',
-                leadId: leadId,
-                timestamp: new Date().toISOString(),
-                data: payload
-              })
-              controller.enqueue(`data: ${eventData}\n\n`)
-            } catch (error) {
-              console.error('Error sending conversation update:', error)
-            }
+            const eventData = JSON.stringify({
+              type: 'conversation_update',
+              leadId: leadId,
+              timestamp: new Date().toISOString(),
+              data: payload
+            })
+            safeEnqueue(eventData)
           }
         )
         .subscribe()
@@ -127,18 +132,14 @@ serve(async (req) => {
               .single()
 
             if (conversation && conversation.lead_id === actualLeadId) {
-              try {
-                const eventData = JSON.stringify({
-                  type: payload.new.speaker === 'agent' ? 'voice_sent' : 'voice_received',
-                  leadId: leadId,
-                  timestamp: payload.new.timestamp || new Date().toISOString(),
-                  message: payload.new.content,
-                  conversationId: payload.new.conversation_id
-                })
-                controller.enqueue(`data: ${eventData}\n\n`)
-              } catch (error) {
-                console.error('Error sending message update:', error)
-              }
+              const eventData = JSON.stringify({
+                type: payload.new.speaker === 'agent' ? 'voice_sent' : 'voice_received',
+                leadId: leadId,
+                timestamp: payload.new.timestamp || new Date().toISOString(),
+                message: payload.new.content,
+                conversationId: payload.new.conversation_id
+              })
+              safeEnqueue(eventData)
             }
           }
         )
@@ -146,9 +147,13 @@ serve(async (req) => {
       
       // Cleanup function
       const cleanup = () => {
+        if (isClosed) return
+        isClosed = true
+        
         clearInterval(heartbeat)
         conversationSubscription.unsubscribe()
         messageSubscription.unsubscribe()
+        
         try {
           controller.close()
         } catch (error) {
