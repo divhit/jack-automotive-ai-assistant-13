@@ -15,13 +15,12 @@ import { SubprimeAnalytics } from "@/components/subprime/SubprimeAnalytics";
 import { SubprimeLeadsList } from "@/components/subprime/SubprimeLeadsList";
 import { TelephonyInterface } from "@/components/subprime/TelephonyInterface";
 import { SubprimeLead } from "@/data/subprime/subprimeLeads";
-import { BarChart3, Users, MessageSquare, Clock, Info, Settings, Sliders, Phone, X, Minimize, Maximize } from "lucide-react";
+import { BarChart3, Users, MessageSquare, Clock, Info, Settings, Sliders, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SubprimeSettingsDialog } from "@/components/subprime/SubprimeSettingsDialog";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const SubprimeDashboard = () => {
   const [allLeads, setAllLeads] = useState<SubprimeLead[]>(subprimeLeads);
@@ -31,7 +30,6 @@ const SubprimeDashboard = () => {
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState<SubprimeLead | null>(null);
   const [showTelephony, setShowTelephony] = useState(false);
-  const [telephonyMode, setTelephonyMode] = useState<'sidebar' | 'fullscreen' | 'minimized'>('sidebar');
   const [activeTileInfo, setActiveTileInfo] = useState<{title: string; content: React.ReactNode}>({ 
     title: "", 
     content: null 
@@ -64,6 +62,7 @@ const SubprimeDashboard = () => {
   };
 
   const handleLeadUpdate = (leadId: string, updates: Partial<SubprimeLead>) => {
+    // Update the lead in the main leads array
     setAllLeads(prevLeads => 
       prevLeads.map(lead => 
         lead.id === leadId 
@@ -72,6 +71,7 @@ const SubprimeDashboard = () => {
       )
     );
 
+    // Update filtered leads as well
     setFilteredLeads(prevLeads => 
       prevLeads.map(lead => 
         lead.id === leadId 
@@ -80,17 +80,21 @@ const SubprimeDashboard = () => {
       )
     );
 
+    // Update selected lead if it's the one being updated
     if (selectedLead && selectedLead.id === leadId) {
       setSelectedLead(prev => prev ? { ...prev, ...updates } : null);
     }
 
+    // Show toast notification
     toast.success(`Lead ${leadId} updated successfully`);
+    
+    // Here you would typically make an API call to persist the changes
+    // await updateLeadInDatabase(leadId, updates);
   };
 
   const handleLeadSelect = (lead: SubprimeLead) => {
     setSelectedLead(lead);
     setShowTelephony(true);
-    setTelephonyMode('sidebar');
   };
 
   const handleTileClick = (title: string, content: React.ReactNode) => {
@@ -98,12 +102,7 @@ const SubprimeDashboard = () => {
     setTileDialogOpen(true);
   };
 
-  const closeTelephony = () => {
-    setShowTelephony(false);
-    setSelectedLead(null);
-    setTelephonyMode('sidebar');
-  };
-
+  // Use allLeads for tile calculations to ensure real-time updates
   const getTileContent = () => {
     return {
       inProgress: {
@@ -166,217 +165,189 @@ const SubprimeDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Modern Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-40">
-        <div className="px-6 py-4">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Subprime Dashboard</h1>
-              <p className="text-sm text-gray-500 mt-1">
-                {totalLeads} total leads • {needsActionLeads} need attention • {readyLeads} ready for funding
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="w-80">
-                <Input 
-                  placeholder="Search leads by name or phone..." 
-                  value={searchTerm} 
-                  onChange={handleSearch}
-                  className="w-full"
-                />
-              </div>
-              <Button 
-                variant="outline" 
-                size="icon"
-                onClick={() => setSettingsDialogOpen(true)}
-              >
-                <Settings className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content Area */}
-      <div className="flex h-[calc(100vh-120px)]">
-        {/* Left Sidebar - Always visible */}
-        <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
-          {/* Quick Stats */}
-          <div className="p-4 border-b border-gray-100">
-            <div className="grid grid-cols-2 gap-2">
-              <Card 
-                className="p-3 cursor-pointer hover:bg-green-50 transition-colors"
-                onClick={() => handleTileClick("Ready for Funding", getTileContent().readyForFunding.content)}
-              >
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-green-600">{readyLeads}</div>
-                  <div className="text-xs text-gray-500">Ready</div>
-                </div>
-              </Card>
-              <Card 
-                className="p-3 cursor-pointer hover:bg-yellow-50 transition-colors"
-                onClick={() => handleTileClick("In Progress", getTileContent().inProgress.content)}
-              >
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-yellow-600">{partialLeads}</div>
-                  <div className="text-xs text-gray-500">In Progress</div>
-                </div>
-              </Card>
-              <Card 
-                className="p-3 cursor-pointer hover:bg-purple-50 transition-colors"
-                onClick={() => handleTileClick("Needs Action", getTileContent().needsAction.content)}
-              >
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-purple-600">{needsActionLeads}</div>
-                  <div className="text-xs text-gray-500">Action Needed</div>
-                </div>
-              </Card>
-              <Card 
-                className="p-3 cursor-pointer hover:bg-red-50 transition-colors"
-                onClick={() => handleTileClick("Not Ready", getTileContent().notReady.content)}
-              >
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-red-600">{notReadyLeads}</div>
-                  <div className="text-xs text-gray-500">Not Ready</div>
-                </div>
-              </Card>
-            </div>
-          </div>
-
-          {/* Filters */}
-          <div className="p-4 border-b border-gray-100">
-            <SubprimeLeadFilters 
-              leads={allLeads}
-              onFilterChange={handleFilterChange}
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold">Subprime Dashboard</h1>
+        <div className="flex items-center gap-3">
+          <div className="w-64">
+            <Input 
+              placeholder="Search leads..." 
+              value={searchTerm} 
+              onChange={handleSearch}
+              className="w-full"
             />
           </div>
-
-          {/* Analytics Preview */}
-          <div className="flex-1 p-4">
-            <h3 className="text-sm font-medium text-gray-700 mb-3">Quick Analytics</h3>
-            <SubprimeAnalytics leads={allLeads} compact />
-          </div>
-        </div>
-
-        {/* Main Content Area */}
-        <div className="flex-1 flex">
-          {/* Leads List */}
-          <div className={cn(
-            "bg-white transition-all duration-300",
-            showTelephony && telephonyMode === 'sidebar' ? "flex-1" : "w-full"
-          )}>
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900">
-                  Leads ({filteredLeads.length})
-                </h2>
-                {selectedLead && (
-                  <Badge variant="secondary" className="flex items-center gap-2">
-                    <Phone className="h-3 w-3" />
-                    Active: {selectedLead.customerName}
-                  </Badge>
-                )}
-              </div>
-              
-              <SubprimeLeadsList 
-                leads={filteredLeads}
-                onLeadUpdate={handleLeadUpdate}
-                onLeadSelect={handleLeadSelect}
-                selectedLeadId={selectedLead?.id}
-              />
-            </div>
-          </div>
-
-          {/* Telephony Sidebar */}
-          {showTelephony && telephonyMode === 'sidebar' && (
-            <div className="w-96 bg-white border-l border-gray-200 flex flex-col">
-              <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Phone className="h-4 w-4 text-blue-600" />
-                  <span className="font-medium">Telephony</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-8 w-8"
-                    onClick={() => setTelephonyMode('fullscreen')}
-                  >
-                    <Maximize className="h-4 w-4" />
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-8 w-8"
-                    onClick={closeTelephony}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-              <div className="flex-1 overflow-hidden">
-                <TelephonyInterface 
-                  selectedLead={selectedLead}
-                  onLeadUpdate={handleLeadUpdate}
-                  className="h-full"
-                />
-              </div>
-            </div>
-          )}
+          <Button 
+            variant={showTelephony ? "default" : "outline"}
+            size="sm"
+            onClick={() => setShowTelephony(!showTelephony)}
+            className="flex items-center gap-2"
+          >
+            <Phone className="h-4 w-4" />
+            Telephony
+          </Button>
+          <Button 
+            variant="outline" 
+            size="icon" 
+            className="h-9 w-9"
+            onClick={() => setSettingsDialogOpen(true)}
+          >
+            <Sliders className="h-5 w-5" />
+          </Button>
         </div>
       </div>
 
-      {/* Fullscreen Telephony Modal */}
-      {showTelephony && telephonyMode === 'fullscreen' && (
-        <Dialog open={true} onOpenChange={() => setTelephonyMode('sidebar')}>
-          <DialogContent className="max-w-6xl h-[90vh]">
-            <DialogHeader>
-              <div className="flex items-center justify-between">
-                <DialogTitle className="flex items-center gap-2">
-                  <Phone className="h-5 w-5 text-blue-600" />
-                  Telephony - {selectedLead?.customerName}
-                </DialogTitle>
-                <Button 
-                  variant="ghost" 
-                  size="icon"
-                  onClick={() => setTelephonyMode('sidebar')}
-                >
-                  <Minimize className="h-4 w-4" />
-                </Button>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="cursor-pointer hover:bg-gray-50 transition-colors" 
+          onClick={() => handleTileClick("In Progress Leads", getTileContent().inProgress.content)}
+        >
+          <CardHeader className="pb-2 pt-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center">
+              <span>In Progress</span>
+              <Info className="h-3.5 w-3.5 ml-1 text-gray-400" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div className="text-xl font-bold">{partialLeads}</div>
+              <div className="bg-yellow-100 p-1.5 rounded-full">
+                <MessageSquare className="h-3.5 w-3.5 text-yellow-600" />
               </div>
-            </DialogHeader>
-            <div className="flex-1 overflow-hidden">
-              <TelephonyInterface 
-                selectedLead={selectedLead}
-                onLeadUpdate={handleLeadUpdate}
-                className="h-full"
-              />
             </div>
-          </DialogContent>
-        </Dialog>
-      )}
+            <div className="flex items-center mt-3 text-xs">
+              <span className="text-muted-foreground">{Math.round((partialLeads / totalLeads) * 100)}% of all leads</span>
+            </div>
+          </CardContent>
+        </Card>
 
-      {/* Tile Detail Dialog */}
+        <Card className="cursor-pointer hover:bg-gray-50 transition-colors"
+          onClick={() => handleTileClick("Not Ready Leads", getTileContent().notReady.content)}
+        >
+          <CardHeader className="pb-2 pt-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center">
+              <span>Not Ready</span>
+              <Info className="h-3.5 w-3.5 ml-1 text-gray-400" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div className="text-xl font-bold">{notReadyLeads}</div>
+              <div className="bg-red-100 p-1.5 rounded-full">
+                <Users className="h-3.5 w-3.5 text-red-600" />
+              </div>
+            </div>
+            <div className="flex items-center mt-3 text-xs">
+              <span className="text-muted-foreground">{Math.round((notReadyLeads / totalLeads) * 100)}% of all leads</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="cursor-pointer hover:bg-gray-50 transition-colors"
+          onClick={() => handleTileClick("Needs Action Leads", getTileContent().needsAction.content)}
+        >
+          <CardHeader className="pb-2 pt-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center">
+              <span>Needs Action</span>
+              <Info className="h-3.5 w-3.5 ml-1 text-gray-400" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div className="text-xl font-bold">{needsActionLeads}</div>
+              <div className="bg-purple-100 p-1.5 rounded-full">
+                <Clock className="h-3.5 w-3.5 text-purple-600" />
+              </div>
+            </div>
+            <Badge variant="outline" className="mt-3 text-xs bg-red-50 text-red-700 border-red-200">
+              {needsActionLeads} overdue actions
+            </Badge>
+          </CardContent>
+        </Card>
+
+        <Card className="cursor-pointer hover:bg-gray-50 transition-colors"
+          onClick={() => handleTileClick("Ready for Funding Leads", getTileContent().readyForFunding.content)}
+        >
+          <CardHeader className="pb-2 pt-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center">
+              <span>Ready for Funding</span>
+              <Info className="h-3.5 w-3.5 ml-1 text-gray-400" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div className="text-xl font-bold">{readyLeads}</div>
+              <div className="bg-green-100 p-1.5 rounded-full">
+                <Users className="h-3.5 w-3.5 text-green-600" />
+              </div>
+            </div>
+            <div className="flex items-center mt-3 text-xs">
+              <span className="text-muted-foreground">{Math.round((readyLeads / totalLeads) * 100)}% of all leads</span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className={cn(
+        "grid gap-6",
+        showTelephony ? "grid-cols-1 lg:grid-cols-2" : "grid-cols-1 lg:grid-cols-4"
+      )}>
+        {!showTelephony && (
+          <div className="lg:col-span-1">
+            <SubprimeLeadFilters onFilterChange={handleFilterChange} leads={allLeads} />
+          </div>
+        )}
+        
+        <div className={cn(
+          showTelephony ? "lg:col-span-1" : "lg:col-span-3"
+        )}>
+          <SubprimeLeadsList 
+            leads={filteredLeads} 
+            onLeadUpdate={handleLeadUpdate}
+            onLeadSelect={handleLeadSelect}
+            selectedLeadId={selectedLead?.id}
+          />
+        </div>
+
+        {showTelephony && (
+          <div className="lg:col-span-1 space-y-6">
+            <TelephonyInterface 
+              selectedLead={selectedLead}
+              onLeadUpdate={handleLeadUpdate}
+              className="h-[600px]"
+            />
+            <SubprimeLeadFilters onFilterChange={handleFilterChange} leads={allLeads} />
+          </div>
+        )}
+      </div>
+
+      <div className="mt-8">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-xl">
+              <div className="flex items-center space-x-2">
+                <BarChart3 className="h-5 w-5 text-automotive-primary" />
+                <span>Performance Analytics</span>
+              </div>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <SubprimeAnalytics leads={allLeads} />
+          </CardContent>
+        </Card>
+      </div>
+
       <Dialog open={tileDialogOpen} onOpenChange={setTileDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Info className="h-5 w-5 text-blue-500" />
-              {activeTileInfo.title}
-            </DialogTitle>
+            <DialogTitle>{activeTileInfo.title}</DialogTitle>
           </DialogHeader>
-          <div className="mt-4">
+          <div className="py-4">
             {activeTileInfo.content}
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Settings Dialog */}
-      <SubprimeSettingsDialog 
-        open={settingsDialogOpen}
-        onOpenChange={setSettingsDialogOpen}
-      />
+      <SubprimeSettingsDialog open={settingsDialogOpen} onOpenChange={setSettingsDialogOpen} />
 
       <Toaster />
     </div>
