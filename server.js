@@ -6,6 +6,7 @@ import { WebSocket } from 'ws';
 import twilio from 'twilio';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import fs from 'fs';
 
 dotenv.config();
 
@@ -1501,7 +1502,7 @@ if (process.env.NODE_ENV === 'production') {
     try {
       const indexPath = path.join(__dirname, 'dist', 'index.html');
       // Check if file exists before trying to send it
-      if (require('fs').existsSync(indexPath)) {
+      if (fs.existsSync(indexPath)) {
         res.sendFile(indexPath);
       } else {
         // Fallback: send a simple API-only response
