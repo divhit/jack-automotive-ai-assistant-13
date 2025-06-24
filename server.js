@@ -23,7 +23,13 @@ app.use(express.raw({ type: 'application/json' }));
 
 // Serve static files from React build in production
 if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, 'dist')));
+  // Check if dist folder exists, if not create a simple fallback
+  try {
+    app.use(express.static(path.join(__dirname, 'dist')));
+    console.log('✅ Serving static files from dist folder');
+  } catch (error) {
+    console.log('⚠️ Dist folder not found, serving API-only mode');
+  }
 }
 
 // In-memory store for active conversations (phoneNumber -> WebSocket connection)
@@ -1492,7 +1498,31 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', (req, res) => {
 // Catch-all handler: send back React's index.html file in production
 if (process.env.NODE_ENV === 'production') {
   app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+    try {
+      const indexPath = path.join(__dirname, 'dist', 'index.html');
+      // Check if file exists before trying to send it
+      if (require('fs').existsSync(indexPath)) {
+        res.sendFile(indexPath);
+      } else {
+        // Fallback: send a simple API-only response
+        res.status(200).json({
+          message: 'Jack Automotive AI Assistant API',
+          status: 'running',
+          mode: 'api-only',
+          endpoints: {
+            health: '/api/health',
+            webhooks: {
+              sms: '/api/webhooks/twilio/sms/incoming',
+              voice: '/api/webhooks/twilio/voice/status',
+              postCall: '/api/webhooks/elevenlabs/post-call'
+            }
+          }
+        });
+      }
+    } catch (error) {
+      console.error('❌ Error serving static files:', error);
+      res.status(500).json({ error: 'Server error' });
+    }
   });
 }
 
