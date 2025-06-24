@@ -145,6 +145,35 @@ function getConversationSummary(phoneNumber) {
   return conversationSummaries.get(normalized);
 }
 
+// Get lead data for dynamic variables
+function getLeadData(leadId) {
+  // In a real application, this would query your database
+  // For now, we'll use the static data from subprimeLeads
+  const subprimeLeads = [
+    {
+      id: "test1",
+      customerName: "Test User",
+      phoneNumber: "(604) 908-5474",
+      chaseStatus: "Auto Chase Running",
+      fundingReadiness: "Ready",
+      sentiment: "Warm",
+      vehiclePreference: "SUV"
+    },
+    {
+      id: "sl1", 
+      customerName: "John Smith",
+      phoneNumber: "(555) 123-4567",
+      chaseStatus: "Auto Chase Running",
+      fundingReadiness: "Ready",
+      sentiment: "Warm",
+      vehiclePreference: "SUV"
+    }
+    // Add more leads as needed
+  ];
+  
+  return subprimeLeads.find(lead => lead.id === leadId);
+}
+
 function buildConversationContext(phoneNumber) {
   const history = getConversationHistory(phoneNumber);
   const summaryData = getConversationSummary(phoneNumber);
@@ -620,15 +649,29 @@ app.post('/api/elevenlabs/outbound-call', async (req, res) => {
     // Generate a unique conversation ID for tracking
     const tempConversationId = `temp_${Date.now()}_${phoneNumber}`;
     
+    const summary = getConversationSummary(normalizedPhoneNumber);
+    const messages = getConversationHistory(normalizedPhoneNumber);
+    
+    // Get actual lead data instead of placeholders
+    const leadData = getLeadData(leadId);
+    const customerName = leadData?.customerName || `Customer ${phoneNumber}`;
+    const leadStatus = summary?.summary ? "Returning Customer" : (messages.length > 0 ? "Active Lead" : "New Inquiry");
+    const previousSummary = summary?.summary || (messages.length > 0 ? "Continuing from SMS conversation" : "First conversation");
+
     const callPayload = {
       agent_id: agentId,
       agent_phone_number_id: phoneNumberId,
       to_number: phoneNumber,
+      // Dynamic variables must go inside conversation_initiation_client_data for outbound calls!
       conversation_initiation_client_data: {
         lead_id: leadId,
         customer_phone: phoneNumber,
-        conversation_context: conversationContext,
-        temp_conversation_id: tempConversationId // Add this for tracking
+        dynamic_variables: {
+          conversation_context: conversationContext.length > 500 ? conversationContext.substring(0, 500) + "..." : conversationContext,
+          customer_name: customerName,
+          lead_status: leadStatus,
+          previous_summary: previousSummary
+        }
       }
     };
 
@@ -1390,6 +1433,60 @@ app.get('/api/health', (req, res) => {
     activeWsConversations: activeConversations.size,
     storedConversations: conversationMetadata.size
   });
+});
+
+// ElevenLabs Conversation Initiation Webhook
+app.post('/api/webhooks/elevenlabs/conversation-initiation', (req, res) => {
+  console.log('🔄 ElevenLabs Conversation Initiation Webhook received:', {
+    timestamp: new Date().toISOString(),
+    body: req.body,
+    headers: Object.keys(req.headers)
+  });
+
+  try {
+    const { caller_id, agent_id, called_number, call_sid } = req.body;
+    
+    if (!caller_id) {
+      console.error('❌ Missing caller_id in webhook request');
+      return res.status(400).json({ error: 'Missing caller_id' });
+    }
+
+    const normalizedPhone = normalizePhoneNumber(caller_id);
+    console.log(`📞 Building conversation initiation data for ${caller_id} (normalized: ${normalizedPhone})`);
+
+    // Build conversation context
+    const conversationContext = buildConversationContext(caller_id);
+    const summary = getConversationSummary(normalizedPhone);
+    const messages = getConversationHistory(caller_id);
+    
+    // Get actual lead data instead of placeholders
+    const leadData = getLeadData(leadId);
+    const customerName = leadData?.customerName || `Customer ${phoneNumber}`;
+    const leadStatus = summary?.summary ? "Returning Customer" : (messages.length > 0 ? "Active Lead" : "New Inquiry");
+    const previousSummary = summary?.summary || (messages.length > 0 ? "Continuing from SMS conversation" : "First conversation");
+
+    // Build the response in the format ElevenLabs expects
+    const response = {
+      dynamic_variables: {
+        conversation_context: conversationContext.length > 500 ? conversationContext.substring(0, 500) + "..." : conversationContext,
+        customer_name: customerName,
+        lead_status: leadStatus,
+        previous_summary: previousSummary
+      }
+    };
+
+    console.log('✅ Returning conversation initiation data:', {
+      caller_id,
+      contextLength: conversationContext.length,
+      summaryLength: summary?.summary?.length || 0,
+      messageCount: messages.length
+    });
+
+    res.status(200).json(response);
+  } catch (error) {
+    console.error('❌ Error processing conversation initiation webhook:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Catch-all handler: send back React's index.html file in production
