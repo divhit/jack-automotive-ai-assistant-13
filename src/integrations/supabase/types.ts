@@ -9,7 +9,301 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      call_recordings: {
+        Row: {
+          analysis: Json | null
+          conversation_id: string | null
+          created_at: string | null
+          duration_seconds: number | null
+          expires_at: string | null
+          file_size_bytes: number | null
+          id: string
+          signed_url: string | null
+          storage_path: string
+          transcription: string | null
+          twilio_call_sid: string
+          twilio_recording_sid: string
+        }
+        Insert: {
+          analysis?: Json | null
+          conversation_id?: string | null
+          created_at?: string | null
+          duration_seconds?: number | null
+          expires_at?: string | null
+          file_size_bytes?: number | null
+          id?: string
+          signed_url?: string | null
+          storage_path: string
+          transcription?: string | null
+          twilio_call_sid: string
+          twilio_recording_sid: string
+        }
+        Update: {
+          analysis?: Json | null
+          conversation_id?: string | null
+          created_at?: string | null
+          duration_seconds?: number | null
+          expires_at?: string | null
+          file_size_bytes?: number | null
+          id?: string
+          signed_url?: string | null
+          storage_path?: string
+          transcription?: string | null
+          twilio_call_sid?: string
+          twilio_recording_sid?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_recordings_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      call_status: {
+        Row: {
+          conversation_id: string | null
+          direction: string | null
+          duration_seconds: number | null
+          error_code: string | null
+          error_message: string | null
+          id: string
+          price: number | null
+          status: string
+          twilio_call_sid: string
+          updated_at: string | null
+        }
+        Insert: {
+          conversation_id?: string | null
+          direction?: string | null
+          duration_seconds?: number | null
+          error_code?: string | null
+          error_message?: string | null
+          id?: string
+          price?: number | null
+          status: string
+          twilio_call_sid: string
+          updated_at?: string | null
+        }
+        Update: {
+          conversation_id?: string | null
+          direction?: string | null
+          duration_seconds?: number | null
+          error_code?: string | null
+          error_message?: string | null
+          id?: string
+          price?: number | null
+          status?: string
+          twilio_call_sid?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_status_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversations: {
+        Row: {
+          duration_seconds: number | null
+          elevenlabs_conversation_id: string | null
+          ended_at: string | null
+          id: string
+          lead_id: string | null
+          metadata: Json | null
+          started_at: string | null
+          status: string | null
+          twilio_call_sid: string | null
+          type: string
+        }
+        Insert: {
+          duration_seconds?: number | null
+          elevenlabs_conversation_id?: string | null
+          ended_at?: string | null
+          id?: string
+          lead_id?: string | null
+          metadata?: Json | null
+          started_at?: string | null
+          status?: string | null
+          twilio_call_sid?: string | null
+          type: string
+        }
+        Update: {
+          duration_seconds?: number | null
+          elevenlabs_conversation_id?: string | null
+          ended_at?: string | null
+          id?: string
+          lead_id?: string | null
+          metadata?: Json | null
+          started_at?: string | null
+          status?: string | null
+          twilio_call_sid?: string | null
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversations_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leads: {
+        Row: {
+          created_at: string | null
+          email: string | null
+          id: string
+          metadata: Json | null
+          name: string | null
+          phone_number: string
+          score: number | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          metadata?: Json | null
+          name?: string | null
+          phone_number: string
+          score?: number | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          metadata?: Json | null
+          name?: string | null
+          phone_number?: string
+          score?: number | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      messages: {
+        Row: {
+          content: string
+          conversation_id: string | null
+          id: string
+          message_type: string | null
+          metadata: Json | null
+          speaker: string
+          timestamp: string | null
+          twilio_message_sid: string | null
+        }
+        Insert: {
+          content: string
+          conversation_id?: string | null
+          id?: string
+          message_type?: string | null
+          metadata?: Json | null
+          speaker: string
+          timestamp?: string | null
+          twilio_message_sid?: string | null
+        }
+        Update: {
+          content?: string
+          conversation_id?: string | null
+          id?: string
+          message_type?: string | null
+          metadata?: Json | null
+          speaker?: string
+          timestamp?: string | null
+          twilio_message_sid?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sms_status: {
+        Row: {
+          error_code: string | null
+          error_message: string | null
+          id: string
+          message_id: string | null
+          status: string
+          twilio_message_sid: string
+          updated_at: string | null
+        }
+        Insert: {
+          error_code?: string | null
+          error_message?: string | null
+          id?: string
+          message_id?: string | null
+          status: string
+          twilio_message_sid: string
+          updated_at?: string | null
+        }
+        Update: {
+          error_code?: string | null
+          error_message?: string | null
+          id?: string
+          message_id?: string | null
+          status?: string
+          twilio_message_sid?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_status_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      webhook_logs: {
+        Row: {
+          created_at: string | null
+          error_message: string | null
+          event_type: string
+          id: string
+          payload: Json
+          processed_successfully: boolean | null
+          signature_verified: boolean | null
+          webhook_type: string
+        }
+        Insert: {
+          created_at?: string | null
+          error_message?: string | null
+          event_type: string
+          id?: string
+          payload: Json
+          processed_successfully?: boolean | null
+          signature_verified?: boolean | null
+          webhook_type: string
+        }
+        Update: {
+          created_at?: string | null
+          error_message?: string | null
+          event_type?: string
+          id?: string
+          payload?: Json
+          processed_successfully?: boolean | null
+          signature_verified?: boolean | null
+          webhook_type?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

@@ -110,23 +110,51 @@ class TwilioService {
    * Convert SubprimeLead to LeadContextData format
    */
   convertLeadToContext(lead: SubprimeLead): LeadContextData {
+    // Extract numeric credit score or default to 0
+    const scoreRange = lead.creditProfile?.scoreRange || 'Unknown';
+    let creditScore = 0;
+    if (scoreRange !== 'Unknown') {
+      // Try to extract first number from score range like "580-620"
+      const match = scoreRange.match(/\d+/);
+      creditScore = match ? parseInt(match[0]) : 0;
+    }
+
     return {
       leadId: lead.id,
       customerName: lead.customerName,
       phoneNumber: lead.phoneNumber,
       fundingReadiness: lead.fundingReadiness,
-      creditScore: lead.creditProfile?.score,
-      scriptProgress: lead.scriptProgress,
+      creditScore: creditScore,
+      scriptProgress: {
+        currentStep: lead.scriptProgress.currentStep,
+        completedSteps: lead.scriptProgress.completedSteps,
+        nextStep: this.determineNextStep(lead.scriptProgress.currentStep)
+      },
       chaseStatus: lead.chaseStatus,
       sentiment: lead.sentiment,
-      preferredContactMethod: lead.preferredContactMethod || 'phone',
-      conversationHistory: lead.conversations?.map(conv => ({
-        speaker: conv.sentBy === 'agent' ? 'agent' : 'user',
+      preferredContactMethod: 'voice', // Default to 'voice' as it's a valid enum value
+      conversationHistory: (lead.conversations || []).map(conv => ({
+        id: `conv-${Date.now()}-${Math.random()}`,
+        leadId: lead.id,
+        type: conv.sentBy === 'system' ? 'system' : 'text_input',
         content: conv.content,
-        timestamp: conv.timestamp
-      })) || [],
+        timestamp: conv.timestamp,
+        speaker: conv.sentBy === 'agent' ? 'agent' : conv.sentBy === 'system' ? 'system' : 'lead',
+        mode: 'text'
+      })),
       specialist: lead.assignedSpecialist
     };
+  }
+
+  private determineNextStep(currentStep: string): string {
+    const stepMap: Record<string, string> = {
+      'contacted': 'screening',
+      'screening': 'qualification',
+      'qualification': 'routing',
+      'routing': 'submitted',
+      'submitted': 'completed'
+    };
+    return stepMap[currentStep] || 'contacted';
   }
 
   private generatePersonalizedGreeting(leadData: LeadContextData): string {
@@ -151,10 +179,6 @@ class TwilioService {
       contextPrompt += 'The customer has shown frustration in previous interactions - be extra empathetic and patient. ';
     } else if (leadData.sentiment === 'Ghosted') {
       contextPrompt += 'The customer has been unresponsive - re-engage gently and offer value. ';
-    }
-
-    if (leadData.creditScore && leadData.creditScore < 600) {
-      contextPrompt += 'Focus on subprime financing options and credit improvement advice. ';
     }
 
     return contextPrompt;
