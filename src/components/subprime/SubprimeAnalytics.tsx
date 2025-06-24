@@ -1,4 +1,3 @@
-
 import { SubprimeLead } from "@/data/subprime/subprimeLeads";
 import { Card } from "@/components/ui/card";
 import { 
@@ -17,9 +16,10 @@ import {
 
 interface SubprimeAnalyticsProps {
   leads: SubprimeLead[];
+  compact?: boolean;
 }
 
-export const SubprimeAnalytics = ({ leads }: SubprimeAnalyticsProps) => {
+export const SubprimeAnalytics = ({ leads, compact = false }: SubprimeAnalyticsProps) => {
   // Prepare data for Funding Readiness Distribution chart
   const readinessData = [
     {
@@ -133,6 +133,60 @@ export const SubprimeAnalytics = ({ leads }: SubprimeAnalyticsProps) => {
     return null;
   };
 
+  // Compact version - show only key metrics
+  if (compact) {
+    return (
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <h4 className="text-xs font-medium text-gray-600">Funding Readiness</h4>
+          <div className="h-32">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={readinessData}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={40}
+                  innerRadius={20}
+                >
+                  {readinessData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip content={<CustomTooltip />} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="grid grid-cols-3 gap-1 text-xs">
+            {readinessData.map((item, index) => (
+              <div key={index} className="flex items-center gap-1">
+                <div 
+                  className="w-2 h-2 rounded-full" 
+                  style={{ backgroundColor: item.color }}
+                />
+                <span className="text-xs">{item.name}: {item.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        
+        <div className="space-y-2">
+          <h4 className="text-xs font-medium text-gray-600">Response Time</h4>
+          <div className="space-y-1">
+            {replyLatencyData.slice(0, 2).map((item, index) => (
+              <div key={index} className="flex items-center justify-between text-xs">
+                <span>{item.name}</span>
+                <span className="font-medium">{item.value}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -198,12 +252,12 @@ export const SubprimeAnalytics = ({ leads }: SubprimeAnalyticsProps) => {
         {/* Funnel Performance */}
         <Card className="p-4">
           <h3 className="text-sm font-medium mb-4">Funnel Drop-off Analysis</h3>
-          <div className="h-64">
+          <div className="h-48">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={funnelDropoffData} layout="vertical">
-                <XAxis type="number" domain={[0, 100]} />
-                <YAxis dataKey="name" type="category" />
-                <Tooltip content={<CustomTooltip />} />
+              <BarChart data={funnelDropoffData} layout="horizontal">
+                <XAxis type="number" />
+                <YAxis dataKey="name" type="category" width={80} />
+                <Tooltip />
                 <Bar dataKey="value">
                   {funnelDropoffData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
@@ -214,10 +268,10 @@ export const SubprimeAnalytics = ({ leads }: SubprimeAnalyticsProps) => {
           </div>
         </Card>
 
-        {/* Reply Latency Distribution */}
+        {/* Reply Latency */}
         <Card className="p-4">
-          <h3 className="text-sm font-medium mb-4">Response Time Distribution</h3>
-          <div className="h-64">
+          <h3 className="text-sm font-medium mb-4">Customer Reply Latency</h3>
+          <div className="h-48">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -226,60 +280,64 @@ export const SubprimeAnalytics = ({ leads }: SubprimeAnalyticsProps) => {
                   nameKey="name"
                   cx="50%"
                   cy="50%"
-                  outerRadius={80}
-                  labelLine={false}
+                  outerRadius={60}
+                  innerRadius={30}
+                  label={({ name, value }) => `${name}: ${value}%`}
                 >
                   {replyLatencyData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip content={<CustomTooltip />} />
-                <Legend verticalAlign="bottom" height={36} />
+                <Tooltip />
               </PieChart>
             </ResponsiveContainer>
           </div>
         </Card>
       </div>
 
-      {/* Script Variant Performance */}
-      <Card className="p-4">
-        <h3 className="text-sm font-medium mb-4">Script Variant Performance</h3>
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={scriptVariantData} barSize={20}>
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Bar name="Reply Rate (%)" dataKey="replies" fill="#3b82f6" />
-              <Bar name="Escalation Rate (%)" dataKey="escalations" fill="#ef4444" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </Card>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        {/* Script Variant Performance */}
         <Card className="p-4">
-          <h3 className="text-lg font-semibold mb-2">Average Time to Ready</h3>
-          <p className="text-3xl font-bold text-green-600">3.2 days</p>
-          <p className="text-sm text-gray-500">From first contact to funding ready</p>
+          <h3 className="text-sm font-medium mb-4">Script Variant Performance</h3>
+          <div className="h-48">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={scriptVariantData}>
+                <XAxis dataKey="name" />
+                <YAxis />
+                <Tooltip />
+                <Bar dataKey="replies" fill="#3b82f6" name="Reply Rate %" />
+                <Bar dataKey="escalations" fill="#ef4444" name="Escalation Rate %" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </Card>
 
+        {/* Performance Summary */}
         <Card className="p-4">
-          <h3 className="text-lg font-semibold mb-2">Manual Intervention Rate</h3>
-          <p className="text-3xl font-bold text-purple-600">24%</p>
-          <p className="text-sm text-gray-500">Of leads require human review</p>
+          <h3 className="text-sm font-medium mb-4">Performance Summary</h3>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-600">Avg. Response Time</span>
+              <span className="font-medium">4.2 hours</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-600">Conversion Rate</span>
+              <span className="font-medium text-green-600">23.5%</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-600">Escalation Rate</span>
+              <span className="font-medium text-red-600">8.2%</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-600">Active Conversations</span>
+              <span className="font-medium">{leads.filter(lead => lead.nextAction.isAutomated).length}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-600">Avg. Script Progress</span>
+              <span className="font-medium">62%</span>
+            </div>
+          </div>
         </Card>
-
-        <Card className="p-4">
-          <h3 className="text-lg font-semibold mb-2">Auto-Chase Success</h3>
-          <p className="text-3xl font-bold text-blue-600">76%</p>
-          <p className="text-sm text-gray-500">Leads progress without manual help</p>
-        </Card>
-      </div>
-
-      <div className="border-t pt-4 text-center text-sm text-gray-500">
-        <p>Analytics updated every 15 minutes. Historical data available in full reports.</p>
       </div>
     </div>
   );

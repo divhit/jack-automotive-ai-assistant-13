@@ -13,7 +13,7 @@ import { subprimeLeads } from "@/data";
 import { SubprimeLeadFilters } from "@/components/subprime/SubprimeLeadFilters";
 import { SubprimeAnalytics } from "@/components/subprime/SubprimeAnalytics";
 import { SubprimeLeadsList } from "@/components/subprime/SubprimeLeadsList";
-import { TelephonyInterface } from "@/components/subprime/TelephonyInterface";
+import { TelephonyInterfaceModern } from "@/components/subprime/TelephonyInterfaceModern";
 import { SubprimeLead } from "@/data/subprime/subprimeLeads";
 import { BarChart3, Users, MessageSquare, Clock, Info, Settings, Sliders, Phone, X, Minimize, Maximize } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -21,9 +21,8 @@ import { SubprimeSettingsDialog } from "@/components/subprime/SubprimeSettingsDi
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-const SubprimeDashboard = () => {
+const SubprimeDashboardModern = () => {
   const [allLeads, setAllLeads] = useState<SubprimeLead[]>(subprimeLeads);
   const [filteredLeads, setFilteredLeads] = useState<SubprimeLead[]>(subprimeLeads);
   const [searchTerm, setSearchTerm] = useState("");
@@ -84,7 +83,7 @@ const SubprimeDashboard = () => {
       setSelectedLead(prev => prev ? { ...prev, ...updates } : null);
     }
 
-    toast.success(`Lead ${leadId} updated successfully`);
+    toast.success(`Lead updated successfully`);
   };
 
   const handleLeadSelect = (lead: SubprimeLead) => {
@@ -316,7 +315,7 @@ const SubprimeDashboard = () => {
                 </div>
               </div>
               <div className="flex-1 overflow-hidden">
-                <TelephonyInterface 
+                <TelephonyInterfaceModern 
                   selectedLead={selectedLead}
                   onLeadUpdate={handleLeadUpdate}
                   className="h-full"
@@ -347,7 +346,7 @@ const SubprimeDashboard = () => {
               </div>
             </DialogHeader>
             <div className="flex-1 overflow-hidden">
-              <TelephonyInterface 
+              <TelephonyInterfaceModern 
                 selectedLead={selectedLead}
                 onLeadUpdate={handleLeadUpdate}
                 className="h-full"
@@ -383,5 +382,4 @@ const SubprimeDashboard = () => {
   );
 };
 
-export default SubprimeDashboard;
-
+export default SubprimeDashboardModern; 

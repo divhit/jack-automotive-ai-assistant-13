@@ -118,7 +118,8 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
     
     closeEventSource(); // Close existing connection
     
-    const eventSource = new EventSource(`/api/stream/conversation/${selectedLead.id}`);
+    // Include phone number in query params for proper lead-to-phone mapping
+    const eventSource = new EventSource(`/api/stream/conversation/${selectedLead.id}?phoneNumber=${encodeURIComponent(selectedLead.phoneNumber)}`);
     eventSourceRef.current = eventSource;
     
     eventSource.onopen = () => {
@@ -229,8 +230,47 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
         });
         break;
         
+      case 'conversation_started':
+        setConversationId(data.conversationId);
+        setIsCallActive(true);
+        setCurrentMode('voice');
+        addConversationMessage({
+          id: `conv-start-${Date.now()}`,
+          type: 'system',
+          content: `Voice conversation started`,
+          timestamp: data.timestamp,
+          sentBy: 'system'
+        });
+        break;
+        
+      case 'conversation_ended':
+        setIsCallActive(false);
+        setCurrentMode('text');
+        addConversationMessage({
+          id: `conv-end-${Date.now()}`,
+          type: 'system',
+          content: `Voice conversation ended. Duration: ${formatDuration((data.duration || 0) / 1000)}`,
+          timestamp: data.timestamp,
+          sentBy: 'system'
+        });
+        break;
+        
+      case 'post_call_summary':
+        addConversationMessage({
+          id: `summary-${data.conversationId}-${Date.now()}`,
+          type: 'system',
+          content: `Call Summary: ${data.summary || 'No summary available'}`,
+          timestamp: data.timestamp,
+          sentBy: 'system'
+        });
+        break;
+        
+      case 'heartbeat':
+        // Keep connection alive, no UI update needed
+        break;
+        
       default:
-        console.log('Unknown real-time update type:', data.type);
+        console.log('Unknown real-time update type:', data.type, data);
     }
   };
 
