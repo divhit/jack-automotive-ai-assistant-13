@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "build:fallback": "node -e \"const fs = require('fs'); const path = require('path'); const distDir = path.join(__dirname, 'dist'); if (!fs.existsSync(distDir)) { fs.mkdirSync(distDir, { recursive: true }); fs.writeFileSync(path.join(distDir, 'index.html'), '<!DOCTYPE html><html><head><title>Jack AI Assistant API</title></head><body><h1>Jack Automotive AI Assistant</h1><p>API is running. Check <a href=\"/api/health\">/api/health</a> for status.</p></body></html>'); console.log('Created fallback dist folder'); }\"",
+    "build:fallback": "node build-fallback.mjs",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
