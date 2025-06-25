@@ -3,11 +3,9 @@ services:
     name: jack-automotive-ai-assistant
     env: node
     plan: starter
-    buildCommand: npm install && npm run build && npm run build:fallback
-    startCommand: npm run server
+    buildCommand: NODE_ENV=development npm install && npm run build && npm run build:fallback
+    startCommand: NODE_ENV=production npm run server
     envVars:
-      - key: NODE_ENV
-        value: production
       - key: PORT
         value: 3001
       - key: ELEVENLABS_API_KEY
