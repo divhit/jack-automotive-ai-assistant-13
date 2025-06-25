@@ -3,7 +3,7 @@ services:
     name: jack-automotive-ai-assistant
     env: node
     plan: starter
-    buildCommand: npm install && npm run build && npm run build:fallback
+    buildCommand: NODE_ENV=development npm ci && npm run build && npm run build:fallback
     startCommand: npm run server
     envVars:
       - key: NODE_ENV

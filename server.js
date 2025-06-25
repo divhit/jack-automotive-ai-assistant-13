@@ -13,7 +13,15 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const app = express();
+let app;
+try {
+  app = express();
+  console.log('✅ Express app initialized successfully');
+} catch (error) {
+  console.error('❌ Error initializing Express app:', error);
+  process.exit(1);
+}
+
 const PORT = process.env.PORT || 3001;
 
 // Middleware
@@ -1529,8 +1537,14 @@ if (process.env.NODE_ENV === 'production') {
 
 // --- SERVER STARTUP ---
 
-app.listen(PORT, () => {
-  console.log(`🚀 Webhook server running on port ${PORT}`);
-});
+try {
+  app.listen(PORT, () => {
+    console.log(`🚀 Webhook server running on port ${PORT}`);
+  });
+} catch (error) {
+  console.error('❌ Error starting server:', error);
+  console.error('❌ Stack trace:', error.stack);
+  process.exit(1);
+}
 
 export default app; 
