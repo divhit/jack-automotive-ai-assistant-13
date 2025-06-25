@@ -261,8 +261,8 @@ async function initiateSubprimeVoiceCall(leadId) {
   const call = await twilioClient.calls.create({
     from: TWILIO_SUBPRIME_VOICE_NUMBER,
     to: lead.phoneNumber,
-    webhook: `${BASE_URL}/webhook/subprime-voice`,
-    statusCallback: `${BASE_URL}/webhook/call-status`
+    webhook: `https://jack-automotive-ai-assistant-13.onrender.com/webhook/subprime-voice`,
+    statusCallback: `https://jack-automotive-ai-assistant-13.onrender.com/webhook/call-status`
   });
 
   // Initialize ElevenLabs conversation with full context

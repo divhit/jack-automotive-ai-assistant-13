@@ -91,6 +91,22 @@ Configure your ElevenLabs agent with these dynamic variables:
    https://your-domain.com/api/webhooks/elevenlabs/post-call
    ```
 
+### 6. Configure Webhooks
+
+#### ElevenLabs Agent Configuration
+
+In your ElevenLabs agent settings:
+
+1. **Post-call webhook**: 
+   ```
+   https://jack-automotive-ai-assistant-13.onrender.com/api/webhooks/elevenlabs/post-call
+   ```
+
+2. **Conversation initiation webhook**:
+   ```
+   https://jack-automotive-ai-assistant-13.onrender.com/api/webhooks/elevenlabs/conversation-initiation
+   ```
+
 ## 💻 Usage Examples
 
 ### Initiating a Call

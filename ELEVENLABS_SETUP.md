@@ -36,11 +36,12 @@ Create a `.env.local` file in your project root only if you need signed URLs or 
 
 ```bash
 # ElevenLabs Configuration (Optional for public agents)
-VITE_ELEVENLABS_API_KEY=your_elevenlabs_api_key_here
-VITE_ELEVENLABS_AGENT_ID=agent_01jwc5v1nafjwv7zw4vtz1050m
+VITE_ELEVENLABS_API_KEY=your_elevenlabs_api_key
+VITE_ELEVENLABS_AGENT_ID=your_agent_id
+VITE_ELEVENLABS_PHONE_NUMBER_ID=your_phone_number_id
 
 # Optional: For production signed URLs
-VITE_API_BASE_URL=https://your-backend-api.com
+VITE_API_BASE_URL=https://jack-automotive-ai-assistant-13.onrender.com
 
 # Optional: Twilio Integration (for actual phone calls)
 VITE_TWILIO_ACCOUNT_SID=your_twilio_account_sid
@@ -109,7 +110,7 @@ Add the following server tools for CRM integration:
   "name": "update_lead_status",
   "description": "Update the lead's status in the CRM system based on conversation progress",
   "type": "webhook",
-  "url": "https://your-backend.com/api/crm/update-lead-status",
+                  "url": "https://jack-automotive-ai-assistant-13.onrender.com/api/crm/update-lead-status",
   "method": "POST",
   "parameters": [
     {
@@ -140,7 +141,7 @@ Add the following server tools for CRM integration:
   "name": "schedule_follow_up",
   "description": "Schedule a follow-up call or SMS for the lead",
   "type": "webhook",
-  "url": "https://your-backend.com/api/crm/schedule-follow-up",
+                  "url": "https://jack-automotive-ai-assistant-13.onrender.com/api/crm/schedule-follow-up",
   "method": "POST",
   "parameters": [
     {
@@ -171,7 +172,7 @@ Add the following server tools for CRM integration:
   "name": "transfer_to_human",
   "description": "Transfer the conversation to a human agent when needed",
   "type": "webhook",
-  "url": "https://your-backend.com/api/escalation/transfer-to-human",
+                  "url": "https://jack-automotive-ai-assistant-13.onrender.com/api/escalation/transfer-to-human",
   "method": "POST",
   "parameters": [
     {

@@ -30,14 +30,20 @@
 - [ ] Deploy and get production URL
 
 ### 2. Update Webhook URLs
-Once deployed with URL like `https://jack-automotive-ai-assistant.onrender.com`:
 
-**ElevenLabs Agent Settings:**
-- [ ] Post-call webhook: `https://your-app.onrender.com/api/webhooks/elevenlabs/post-call`
+Once deployed with URL: `https://jack-automotive-ai-assistant-13.onrender.com`:
 
-**Twilio Phone Number Settings:**  
-- [ ] SMS webhook: `https://your-app.onrender.com/api/webhooks/twilio/sms/incoming`
-- [ ] Voice status webhook: `https://your-app.onrender.com/api/webhooks/twilio/voice/status`
+**ElevenLabs:**
+- [x] Post-call webhook: `https://jack-automotive-ai-assistant-13.onrender.com/api/webhooks/elevenlabs/post-call`
+- [x] Conversation initiation webhook: `https://jack-automotive-ai-assistant-13.onrender.com/api/webhooks/elevenlabs/conversation-initiation`
+
+**Twilio:**
+- [x] SMS webhook: `https://jack-automotive-ai-assistant-13.onrender.com/api/webhooks/twilio/sms/incoming`
+- [x] Voice status webhook: `https://jack-automotive-ai-assistant-13.onrender.com/api/webhooks/twilio/voice/status`
+
+**Testing:**
+- [x] Test health endpoint: `https://jack-automotive-ai-assistant-13.onrender.com/api/health`
+- [x] Test frontend: `https://jack-automotive-ai-assistant-13.onrender.com`
 
 ### 3. Production Testing
 - [ ] Test health endpoint: `https://your-app.onrender.com/api/health`

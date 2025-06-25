@@ -57,8 +57,8 @@ REACT_APP_ELEVENLABS_API_KEY=your_elevenlabs_api_key_here
    - Set up post-call webhooks
 
 3. **Webhook URLs**:
-   - Post-call webhook: `https://your-domain.com/api/webhooks/elevenlabs/post-call`
-   - SMS webhook: `https://your-domain.com/api/webhooks/elevenlabs/sms`
+   - Post-call webhook: `https://jack-automotive-ai-assistant-13.onrender.com/api/webhooks/elevenlabs/post-call`
+   - Conversation initiation webhook: `https://jack-automotive-ai-assistant-13.onrender.com/api/webhooks/elevenlabs/conversation-initiation`
 
 ### 3. Twilio Configuration
 
@@ -229,4 +229,16 @@ This implementation enhances your existing:
 - Conversation history management
 - Context preservation system
 
-The telephony features integrate seamlessly with your existing workflow without requiring major architectural changes. 
+The telephony features integrate seamlessly with your existing workflow without requiring major architectural changes.
+
+### 🔗 Webhook Configuration
+
+Configure these webhooks in your ElevenLabs and Twilio dashboards:
+
+**ElevenLabs Webhooks:**
+- Post-call webhook: `https://jack-automotive-ai-assistant-13.onrender.com/api/webhooks/elevenlabs/post-call`
+- Conversation initiation webhook: `https://jack-automotive-ai-assistant-13.onrender.com/api/webhooks/elevenlabs/conversation-initiation`
+
+**Twilio Webhooks:**
+- SMS webhook: `https://jack-automotive-ai-assistant-13.onrender.com/api/webhooks/twilio/sms/incoming`
+- Voice status webhook: `https://jack-automotive-ai-assistant-13.onrender.com/api/webhooks/twilio/voice/status` 

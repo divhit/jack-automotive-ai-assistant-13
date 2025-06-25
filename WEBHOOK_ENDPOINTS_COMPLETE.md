@@ -32,6 +32,17 @@ This document outlines all webhook endpoints implemented for the comprehensive E
 - Silence detection
 - Live conversation status updates
 
+#### 📞 Conversation Initiation Webhook
+**Endpoint:** `POST /api/webhooks/elevenlabs/conversation-initiation`
+**Purpose:** Initiate a new conversation
+**Status:** ✅ Implemented
+
+**Features:**
+- New conversation initiation
+- Context injection with conversation history
+- Lead information passing
+- Error handling and validation
+
 ### 2. Twilio Webhooks
 
 #### 📱 SMS Incoming Webhook
@@ -139,19 +150,17 @@ TWILIO_PHONE_NUMBER=your_phone_number
 ### Webhook URLs to Configure
 
 #### In ElevenLabs Dashboard:
-```
-Post-call webhook: https://your-domain.com/api/webhooks/elevenlabs/post-call
-Conversation events: https://your-domain.com/api/webhooks/elevenlabs/conversation-events
-```
-**Important:** Each webhook URL will generate its own unique secret. Make sure to copy each secret to the corresponding environment variable.
+**Production URLs:**
+Post-call webhook: https://jack-automotive-ai-assistant-13.onrender.com/api/webhooks/elevenlabs/post-call
+Conversation events: https://jack-automotive-ai-assistant-13.onrender.com/api/webhooks/elevenlabs/conversation-events
+Conversation initiation: https://jack-automotive-ai-assistant-13.onrender.com/api/webhooks/elevenlabs/conversation-initiation
 
 #### In Twilio Console:
-```
-SMS incoming: https://your-domain.com/api/webhooks/twilio/sms/incoming
-SMS status: https://your-domain.com/api/webhooks/twilio/sms/status
-Voice status: https://your-domain.com/api/webhooks/twilio/voice/status
-Voice recording: https://your-domain.com/api/webhooks/twilio/voice/recording
-```
+**Production URLs:**
+SMS incoming: https://jack-automotive-ai-assistant-13.onrender.com/api/webhooks/twilio/sms/incoming
+SMS status: https://jack-automotive-ai-assistant-13.onrender.com/api/webhooks/twilio/sms/status
+Voice status: https://jack-automotive-ai-assistant-13.onrender.com/api/webhooks/twilio/voice/status
+Voice recording: https://jack-automotive-ai-assistant-13.onrender.com/api/webhooks/twilio/voice/recording
 
 ## Real-time Architecture
 
