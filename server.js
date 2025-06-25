@@ -30,9 +30,9 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.raw({ type: 'application/json' }));
 
-// Serve static files from React build in production
+// CRITICAL: Serve static files FIRST, before any routes that might fail
+// This ensures the React app is served even if there are route registration errors
 if (process.env.NODE_ENV === 'production') {
-  // Check if dist folder exists, if not create a simple fallback
   try {
     app.use(express.static(path.join(__dirname, 'dist')));
     console.log('✅ Serving static files from dist folder');
@@ -1506,33 +1506,55 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', (req, res) => {
 
 // Catch-all handler: send back React's index.html file in production
 if (process.env.NODE_ENV === 'production') {
-  app.get('*', (req, res) => {
-    try {
+  try {
+    app.get('*', (req, res) => {
+      try {
+        const indexPath = path.join(__dirname, 'dist', 'index.html');
+        console.log(`📄 Serving React app for: ${req.url}`);
+        
+        // Check if file exists before trying to send it
+        if (fs.existsSync(indexPath)) {
+          res.sendFile(indexPath);
+        } else {
+          console.error('❌ dist/index.html not found!');
+          // Fallback: send a simple API-only response
+          res.status(404).json({
+            error: 'React app not found',
+            message: 'Jack Automotive AI Assistant API',
+            status: 'running',
+            mode: 'api-only',
+            endpoints: {
+              health: '/api/health',
+              webhooks: {
+                sms: '/api/webhooks/twilio/sms/incoming',
+                voice: '/api/webhooks/twilio/voice/status',
+                postCall: '/api/webhooks/elevenlabs/post-call'
+              }
+            }
+          });
+        }
+      } catch (error) {
+        console.error('❌ Error serving static files:', error);
+        res.status(500).json({ error: 'Server error', details: error.message });
+      }
+    });
+    console.log('✅ Catch-all route registered successfully');
+  } catch (routeError) {
+    console.error('❌ Failed to register catch-all route:', routeError);
+    
+    // Fallback: manually handle all requests
+    app.use((req, res) => {
       const indexPath = path.join(__dirname, 'dist', 'index.html');
-      // Check if file exists before trying to send it
       if (fs.existsSync(indexPath)) {
         res.sendFile(indexPath);
       } else {
-        // Fallback: send a simple API-only response
-        res.status(200).json({
-          message: 'Jack Automotive AI Assistant API',
-          status: 'running',
-          mode: 'api-only',
-          endpoints: {
-            health: '/api/health',
-            webhooks: {
-              sms: '/api/webhooks/twilio/sms/incoming',
-              voice: '/api/webhooks/twilio/voice/status',
-              postCall: '/api/webhooks/elevenlabs/post-call'
-            }
-          }
+        res.status(404).json({
+          error: 'React app not found',
+          message: 'Fallback handler active'
         });
       }
-    } catch (error) {
-      console.error('❌ Error serving static files:', error);
-      res.status(500).json({ error: 'Server error' });
-    }
-  });
+    });
+  }
 }
 
 // --- SERVER STARTUP ---
@@ -1547,4 +1569,4 @@ try {
   process.exit(1);
 }
 
-export default app; 
+export default app;
