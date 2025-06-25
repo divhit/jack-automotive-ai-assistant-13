@@ -361,7 +361,8 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
         body: JSON.stringify({
           to: selectedLead.phoneNumber,
           message: messageToSend,
-          leadId: selectedLead.id
+          leadId: selectedLead.id,
+          agentId: 'telephony-interface'
         })
       });
 
@@ -473,14 +474,25 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
         {/* Voice Controls */}
         <div className="flex gap-2">
           {!isCallActive ? (
-            <Button 
-              onClick={handleStartVoiceCall}
-              disabled={isLoading}
-              className="flex items-center gap-2"
-            >
-              <PhoneCall className="h-4 w-4" />
-              Start Voice Call
-            </Button>
+            <>
+              <Button 
+                onClick={handleStartVoiceCall}
+                disabled={isLoading}
+                className="flex items-center gap-2"
+              >
+                <PhoneCall className="h-4 w-4" />
+                Start Voice Call
+              </Button>
+              <Button 
+                onClick={handleSendTextMessage}
+                disabled={isLoading || !textInput.trim()}
+                variant="outline"
+                className="flex items-center gap-2"
+              >
+                <MessageSquare className="h-4 w-4" />
+                Send SMS
+              </Button>
+            </>
           ) : (
             <Button 
               onClick={handleEndCall}
