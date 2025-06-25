@@ -322,12 +322,29 @@ function startConversation(phoneNumber, initialMessage) {
     // Build conversation context from existing history
     const conversationContext = buildConversationContext(phoneNumber);
     
+    // Get lead data and build dynamic variables like voice calls do
+    const leadId = getActiveLeadForPhone(phoneNumber);
+    const leadData = getLeadData(leadId);
+    const customerName = leadData?.customerName || `Customer ${phoneNumber}`;
+    const summaryData = getConversationSummary(phoneNumber);
+    const history = getConversationHistory(phoneNumber);
+    const leadStatus = summaryData?.summary ? "Returning Customer" : (history.length > 0 ? "Active Lead" : "New Inquiry");
+    const previousSummary = summaryData?.summary || (history.length > 0 ? "Continuing from previous conversation" : "First conversation");
+    
     ws.send(JSON.stringify({
       type: 'conversation_initiation_client_data',
       client_data: {
         conversation_context: conversationContext,
         phone_number: phoneNumber,
-        channel: 'sms'
+        channel: 'sms',
+        lead_id: leadId,
+        // Add dynamic variables like voice calls
+        dynamic_variables: {
+          conversation_context: conversationContext.length > 500 ? conversationContext.substring(0, 500) + "..." : conversationContext,
+          customer_name: customerName,
+          lead_status: leadStatus,
+          previous_summary: previousSummary
+        }
       }
     }));
   });
