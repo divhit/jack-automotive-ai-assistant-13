@@ -762,6 +762,59 @@ app.post('/api/elevenlabs/outbound-call', async (req, res) => {
   }
 });
 
+// Twilio SMS Send API (for manual SMS from dashboard text box)
+app.post('/api/twilio/send-sms', async (req, res) => {
+  try {
+    const { to, message, leadId, agentId } = req.body;
+    
+    if (!to || !message) {
+      return res.status(400).json({ error: 'Both "to" and "message" are required' });
+    }
+    
+    if (!leadId) {
+      return res.status(400).json({ error: 'Lead ID is required for context management' });
+    }
+    
+    console.log('📱 Manual SMS send request:', { to, message: message.substring(0, 50) + '...', leadId, agentId });
+    
+    // Normalize phone number for consistent context storage
+    const normalizedPhone = normalizePhoneNumber(to);
+    
+    // Send SMS via existing Twilio function
+    await sendSMSReply(to, message);
+    
+    // Store in conversation history using existing function
+    addToConversationHistory(to, message, 'agent', 'text');
+    
+    // Broadcast to dashboard using existing SSE system
+    broadcastConversationUpdate({
+      type: 'sms_sent', 
+      phoneNumber: to,
+      message: message,
+      timestamp: new Date().toISOString(),
+      sentBy: 'agent',
+      leadId: leadId, // This ensures it goes to the correct dashboard
+      status: 'sent'
+    });
+    
+    console.log('✅ Manual SMS sent and broadcasted successfully');
+    
+    res.status(200).json({ 
+      success: true, 
+      message: 'SMS sent successfully',
+      normalizedPhone,
+      leadId
+    });
+    
+  } catch (error) {
+    console.error('❌ Error sending manual SMS:', error);
+    res.status(500).json({ 
+      error: 'Failed to send SMS',
+      details: error.message 
+    });
+  }
+});
+
 // Internal API for broadcasting conversation updates from Next.js webhooks
 app.post('/api/internal/broadcast', (req, res) => {
   try {
