@@ -1629,28 +1629,36 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', (req, res) => {
     const summary = getConversationSummary(normalizedPhone);
     const messages = getConversationHistory(caller_id);
     
+    console.log(`🧪 DEBUG: conversationContext length: ${conversationContext.length}`);
+    console.log(`🧪 DEBUG: activeLead:`, activeLead);
+    
     // Get actual lead data if we have an active lead
     const leadData = activeLead ? getLeadData(activeLead) : null;
-    const customerName = leadData?.customerName || `Customer`;
+    console.log(`🧪 DEBUG: leadData:`, leadData);
+    
+    const customerName = leadData?.customerName || "Customer";
     const leadStatus = summary?.summary ? "Returning Customer" : (messages.length > 0 ? "Active Lead" : "New Inquiry");
     const previousSummary = summary?.summary || (messages.length > 0 ? "Continuing from SMS conversation" : "First conversation");
 
-    // Build enhanced conversation context that includes customer name prominently
-    let enhancedContext = conversationContext;
-    if (leadData && leadData.customerName) {
-      enhancedContext = `CUSTOMER NAME: ${leadData.customerName}\n\n${conversationContext}`;
-    }
+    // Keep the conversation context simple - don't add extra formatting that might break ElevenLabs
+    const finalContext = conversationContext.length > 500 ? conversationContext.substring(0, 500) + "..." : conversationContext;
     
-    // Build the response in the format ElevenLabs expects
+    // Build the response in the format ElevenLabs expects (keeping it simple)
     const response = {
       dynamic_variables: {
-        conversation_context: enhancedContext.length > 500 ? enhancedContext.substring(0, 500) + "..." : enhancedContext,
+        conversation_context: finalContext,
         customer_name: customerName,
         lead_status: leadStatus,
-        previous_summary: previousSummary,
-        customer_phone: normalizedPhone
+        previous_summary: previousSummary
       }
     };
+    
+    console.log(`🧪 DEBUG: Final response variables:`, {
+      conversation_context_length: finalContext.length,
+      customer_name: customerName,
+      lead_status: leadStatus,
+      previous_summary_length: previousSummary.length
+    });
 
     console.log('✅ Returning conversation initiation data:', {
       caller_id,
