@@ -511,54 +511,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
         </div>
       </CardHeader>
 
-      {/* Fixed Voice Controls - Compact */}
-      <div className="flex items-center justify-between px-6 py-2 border-b bg-slate-50/50 flex-shrink-0">
-        <div className="flex gap-2">
-          {!isCallActive ? (
-            <Button 
-              onClick={handleStartVoiceCall}
-              disabled={isLoading}
-              size="sm"
-              className="h-8 text-xs"
-            >
-              <PhoneCall className="h-3 w-3 mr-1" />
-              Call
-            </Button>
-          ) : (
-            <Button 
-              onClick={handleEndCall}
-              variant="destructive"
-              size="sm"
-              className="h-8 text-xs"
-            >
-              <PhoneOff className="h-3 w-3 mr-1" />
-              End ({formatDuration(callDuration)})
-            </Button>
-          )}
-        </div>
-        
-        <Button 
-          variant="ghost"
-          size="sm"
-          onClick={() => setCurrentMode(currentMode === 'voice' ? 'text' : 'voice')}
-          disabled={isCallActive}
-          className="h-8 text-xs text-muted-foreground hover:text-foreground"
-        >
-          {currentMode === 'voice' ? (
-            <>
-              <MessageSquare className="h-3 w-3 mr-1" />
-              Text
-            </>
-          ) : (
-            <>
-              <Mic className="h-3 w-3 mr-1" />
-              Voice
-            </>
-          )}
-        </Button>
-      </div>
-
-      <CardContent className="flex-1 flex flex-col gap-4 overflow-hidden">
+      <CardContent className="flex-1 flex flex-col gap-4 overflow-hidden relative">
         {error && (
           <Alert variant="destructive" className="flex-shrink-0">
             <AlertTriangle className="h-4 w-4" />
@@ -631,6 +584,45 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
             </div>
             <div ref={messagesEndRef} />
           </ScrollArea>
+        </div>
+
+        {/* Floating Voice Call Button */}
+        <div className="absolute top-4 right-4 z-10 flex gap-2">
+          {!isCallActive ? (
+            <Button 
+              onClick={handleStartVoiceCall}
+              disabled={isLoading}
+              size="sm"
+              className="shadow-lg hover:shadow-xl transition-shadow bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              <PhoneCall className="h-4 w-4 mr-1" />
+              Call
+            </Button>
+          ) : (
+            <Button 
+              onClick={handleEndCall}
+              variant="destructive"
+              size="sm"
+              className="shadow-lg hover:shadow-xl transition-shadow"
+            >
+              <PhoneOff className="h-4 w-4 mr-1" />
+              End ({formatDuration(callDuration)})
+            </Button>
+          )}
+          
+          <Button 
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentMode(currentMode === 'voice' ? 'text' : 'voice')}
+            disabled={isCallActive}
+            className="shadow-lg hover:shadow-xl transition-shadow bg-white/95 backdrop-blur-sm"
+          >
+            {currentMode === 'voice' ? (
+              <MessageSquare className="h-4 w-4" />
+            ) : (
+              <Mic className="h-4 w-4" />
+            )}
+          </Button>
         </div>
 
         {/* Text Input */}
