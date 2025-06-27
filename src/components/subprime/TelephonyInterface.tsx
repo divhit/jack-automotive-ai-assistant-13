@@ -484,16 +484,16 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
         </div>
       </CardHeader>
 
-      <CardContent className="flex-1 flex flex-col gap-4">
+      <CardContent className="flex-1 flex flex-col gap-4 overflow-hidden">
         {error && (
-          <Alert variant="destructive">
+          <Alert variant="destructive" className="flex-shrink-0">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
 
         {/* Voice Controls */}
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-shrink-0">
           {!isCallActive ? (
             <>
               <Button 
@@ -544,70 +544,80 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
           </Button>
         </div>
 
-        {/* Conversation History */}
-        <div className="flex-1 border rounded-lg">
-          <ScrollArea className="h-[400px] p-4">
+        {/* Conversation History - Takes up remaining space */}
+        <div className="flex-1 border rounded-lg overflow-hidden flex flex-col">
+          <div className="p-2 border-b bg-gray-50 flex-shrink-0">
+            <span className="text-sm font-medium">Conversation</span>
+          </div>
+          <ScrollArea className="flex-1 p-4">
             <div className="space-y-4">
-              {conversationHistory.map((message) => (
-                <div
-                  key={message.id}
-                  className={cn(
-                    "flex gap-3",
-                    message.sentBy === 'agent' ? "justify-end" : "justify-start"
-                  )}
-                >
+              {conversationHistory.length === 0 ? (
+                <div className="text-center text-muted-foreground py-8">
+                  <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p>No messages yet. Start a conversation!</p>
+                </div>
+              ) : (
+                conversationHistory.map((message) => (
                   <div
+                    key={message.id}
                     className={cn(
-                      "flex gap-2 max-w-[80%]",
-                      message.sentBy === 'agent' ? "flex-row-reverse" : "flex-row"
+                      "flex gap-3",
+                      message.sentBy === 'agent' ? "justify-end" : "justify-start"
                     )}
                   >
-                    <Avatar className="h-8 w-8">
-                      <AvatarFallback className="text-xs">
-                        {message.sentBy === 'user' ? (
-                          <User className="h-4 w-4" />
-                        ) : message.sentBy === 'agent' ? (
-                          <Bot className="h-4 w-4" />
-                        ) : (
-                          <Settings className="h-4 w-4" />
-                        )}
-                      </AvatarFallback>
-                    </Avatar>
                     <div
                       className={cn(
-                        "rounded-lg px-3 py-2 text-sm",
-                        message.sentBy === 'agent'
-                          ? "bg-blue-500 text-white"
-                          : message.sentBy === 'user'
-                          ? "bg-gray-100 text-gray-900"
-                          : "bg-yellow-50 text-yellow-800 border border-yellow-200"
+                        "flex gap-2 max-w-[80%]",
+                        message.sentBy === 'agent' ? "flex-row-reverse" : "flex-row"
                       )}
                     >
-                      <p>{message.content}</p>
-                      <div className="flex items-center justify-between mt-1 text-xs opacity-70">
-                        <span>{formatMessageTime(message.timestamp)}</span>
-                        {message.status && (
-                          <span className={getStatusColor(message.status)}>
-                            {message.status}
-                          </span>
+                      <Avatar className="h-8 w-8 flex-shrink-0">
+                        <AvatarFallback className="text-xs">
+                          {message.sentBy === 'user' ? (
+                            <User className="h-4 w-4" />
+                          ) : message.sentBy === 'agent' ? (
+                            <Bot className="h-4 w-4" />
+                          ) : (
+                            <Settings className="h-4 w-4" />
+                          )}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div
+                        className={cn(
+                          "rounded-lg px-3 py-2 text-sm",
+                          message.sentBy === 'agent'
+                            ? "bg-blue-500 text-white"
+                            : message.sentBy === 'user'
+                            ? "bg-gray-100 text-gray-900"
+                            : "bg-yellow-50 text-yellow-800 border border-yellow-200"
                         )}
+                      >
+                        <p className="whitespace-pre-wrap">{message.content}</p>
+                        <div className="flex items-center justify-between mt-1 text-xs opacity-70">
+                          <span>{formatMessageTime(message.timestamp)}</span>
+                          {message.status && (
+                            <span className={getStatusColor(message.status)}>
+                              {message.status}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
             <div ref={messagesEndRef} />
           </ScrollArea>
         </div>
 
         {/* Text Input */}
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-shrink-0">
           <Textarea
             value={textInput}
             onChange={(e) => setTextInput(e.target.value)}
             placeholder="Type your message..."
-            className="flex-1 min-h-[60px] resize-none"
+            className="flex-1 min-h-[60px] max-h-[120px] resize-none"
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -625,13 +635,9 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
         </div>
 
         {/* Lead Info */}
-        <div className="text-xs text-muted-foreground bg-gray-50 p-3 rounded-lg">
-          <div className="grid grid-cols-2 gap-2">
-            <div>Status: {selectedLead.chaseStatus}</div>
-            <div>Funding: {selectedLead.fundingReadiness}</div>
-            <div>Step: {selectedLead.scriptProgress.currentStep}</div>
-            <div>Specialist: {selectedLead.assignedSpecialist || 'Unassigned'}</div>
-          </div>
+        <div className="text-xs text-muted-foreground bg-gray-50 p-2 rounded text-center flex-shrink-0">
+          Status: {selectedLead.chaseStatus} • Funding: {selectedLead.fundingReadiness} • 
+          Step: {selectedLead.scriptProgress.currentStep} • Specialist: {selectedLead.assignedSpecialist || 'Unassigned'}
         </div>
       </CardContent>
     </Card>

@@ -76,8 +76,8 @@ const SubprimeLeadDetailModal: React.FC<SubprimeLeadDetailModalProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden">
-        <DialogHeader>
+      <DialogContent className="max-w-6xl max-h-[90vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <User className="w-6 h-6" />
@@ -97,8 +97,8 @@ const SubprimeLeadDetailModal: React.FC<SubprimeLeadDetailModalProps> = ({
           </DialogTitle>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1">
-          <TabsList className="grid w-full grid-cols-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+          <TabsList className="grid w-full grid-cols-4 flex-shrink-0">
             <TabsTrigger value="conversation" className="flex items-center gap-2">
               <Phone className="w-4 h-4" />
               Telephony
@@ -117,11 +117,11 @@ const SubprimeLeadDetailModal: React.FC<SubprimeLeadDetailModalProps> = ({
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="conversation" className="mt-4">
+          <TabsContent value="conversation" className="flex-1 mt-4">
             <TelephonyInterface
               selectedLead={lead}
               onLeadUpdate={onLeadUpdate}
-              className="h-[500px]"
+              className="h-full"
             />
           </TabsContent>
 
