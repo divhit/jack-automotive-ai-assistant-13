@@ -512,7 +512,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
       </CardHeader>
 
       {/* Floating Voice Call Button - Fixed to Card */}
-      <div className="absolute top-4 right-4 z-20 flex gap-2">
+      <div className="absolute top-20 right-4 z-50">
         {!isCallActive ? (
           <Button 
             onClick={handleStartVoiceCall}
@@ -534,20 +534,6 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
             End ({formatDuration(callDuration)})
           </Button>
         )}
-        
-        <Button 
-          variant="outline"
-          size="sm"
-          onClick={() => setCurrentMode(currentMode === 'voice' ? 'text' : 'voice')}
-          disabled={isCallActive}
-          className="shadow-lg hover:shadow-xl transition-shadow bg-white/95 backdrop-blur-sm"
-        >
-          {currentMode === 'voice' ? (
-            <MessageSquare className="h-4 w-4" />
-          ) : (
-            <Mic className="h-4 w-4" />
-          )}
-        </Button>
       </div>
 
       <CardContent className="flex-1 flex flex-col gap-4 overflow-hidden">
