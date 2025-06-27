@@ -336,9 +336,7 @@ function startConversation(phoneNumber, initialMessage) {
       type: 'conversation_initiation_client_data',
       dynamic_variables: {
         customer_name: customerName,
-        lead_status: leadStatus,
-        previous_summary: previousSummary,
-        conversation_context: conversationContext.length > 500 ? conversationContext.substring(0, 500) + "..." : conversationContext
+        lead_status: leadStatus
       },
       client_data: {
         conversation_context: conversationContext,
