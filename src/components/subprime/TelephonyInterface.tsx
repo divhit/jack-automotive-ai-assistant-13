@@ -511,6 +511,53 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
         </div>
       </CardHeader>
 
+      {/* Fixed Voice Controls - Compact */}
+      <div className="flex items-center justify-between px-6 py-2 border-b bg-slate-50/50 flex-shrink-0">
+        <div className="flex gap-2">
+          {!isCallActive ? (
+            <Button 
+              onClick={handleStartVoiceCall}
+              disabled={isLoading}
+              size="sm"
+              className="h-8 text-xs"
+            >
+              <PhoneCall className="h-3 w-3 mr-1" />
+              Call
+            </Button>
+          ) : (
+            <Button 
+              onClick={handleEndCall}
+              variant="destructive"
+              size="sm"
+              className="h-8 text-xs"
+            >
+              <PhoneOff className="h-3 w-3 mr-1" />
+              End ({formatDuration(callDuration)})
+            </Button>
+          )}
+        </div>
+        
+        <Button 
+          variant="ghost"
+          size="sm"
+          onClick={() => setCurrentMode(currentMode === 'voice' ? 'text' : 'voice')}
+          disabled={isCallActive}
+          className="h-8 text-xs text-muted-foreground hover:text-foreground"
+        >
+          {currentMode === 'voice' ? (
+            <>
+              <MessageSquare className="h-3 w-3 mr-1" />
+              Text
+            </>
+          ) : (
+            <>
+              <Mic className="h-3 w-3 mr-1" />
+              Voice
+            </>
+          )}
+        </Button>
+      </div>
+
       <CardContent className="flex-1 flex flex-col gap-4 overflow-hidden">
         {error && (
           <Alert variant="destructive" className="flex-shrink-0">
@@ -518,58 +565,6 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
-
-        {/* Voice Controls */}
-        <div className="flex gap-2 flex-shrink-0">
-          {!isCallActive ? (
-            <>
-              <Button 
-                onClick={handleStartVoiceCall}
-                disabled={isLoading}
-                className="flex items-center gap-2"
-              >
-                <PhoneCall className="h-4 w-4" />
-                Start Voice Call
-              </Button>
-              <Button 
-                onClick={handleSendTextMessage}
-                disabled={isLoading || !textInput.trim()}
-                variant="outline"
-                className="flex items-center gap-2"
-              >
-                <MessageSquare className="h-4 w-4" />
-                Send SMS
-              </Button>
-            </>
-          ) : (
-            <Button 
-              onClick={handleEndCall}
-              variant="destructive"
-              className="flex items-center gap-2"
-            >
-              <PhoneOff className="h-4 w-4" />
-              End Call
-            </Button>
-          )}
-          
-          <Button 
-            variant="outline"
-            onClick={() => setCurrentMode(currentMode === 'voice' ? 'text' : 'voice')}
-            disabled={isCallActive}
-          >
-            {currentMode === 'voice' ? (
-              <>
-                <MessageSquare className="h-4 w-4 mr-2" />
-                Switch to Text
-              </>
-            ) : (
-              <>
-                <Mic className="h-4 w-4 mr-2" />
-                Switch to Voice
-              </>
-            )}
-          </Button>
-        </div>
 
         {/* Conversation History - Takes up remaining space */}
         <div className="flex-1 border rounded-lg overflow-hidden flex flex-col">
