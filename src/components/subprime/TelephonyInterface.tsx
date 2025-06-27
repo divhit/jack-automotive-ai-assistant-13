@@ -2,7 +2,6 @@
 // Uses the working API endpoints we just tested
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -472,30 +471,29 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
 
   if (!selectedLead) {
     return (
-      <Card className={cn("h-full", className)}>
-        <CardContent className="flex items-center justify-center h-full">
-          <div className="text-center text-muted-foreground">
-            <Phone className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>Select a lead to start telephony interaction</p>
-          </div>
-        </CardContent>
-      </Card>
+      <div className={cn("h-full flex items-center justify-center", className)}>
+        <div className="text-center text-muted-foreground">
+          <Phone className="h-12 w-12 mx-auto mb-4 opacity-50" />
+          <p>Select a lead to start telephony interaction</p>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Card className={cn("h-full flex flex-col relative", className)}>
-      <CardHeader className="pb-3">
+    <div className={cn("h-full flex flex-col relative", className)}>
+      {/* Fixed Header */}
+      <div className="flex-shrink-0 border-b bg-white p-6 pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-lg flex items-center gap-2">
+          <div className="flex items-center gap-2">
             <Phone className="h-5 w-5" />
-            Telephony - {selectedLead.customerName}
-          </CardTitle>
+            <h3 className="text-lg font-semibold">Telephony - {selectedLead.customerName}</h3>
+          </div>
           <Badge variant={currentMode === 'voice' ? 'default' : 'secondary'}>
             {currentMode === 'voice' ? 'Voice Active' : 'Text Mode'}
           </Badge>
         </div>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
           <span>{selectedLead.phoneNumber}</span>
           <Separator orientation="vertical" className="h-4" />
           <span>Sentiment: {selectedLead.sentiment}</span>
@@ -509,10 +507,10 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
             </>
           )}
         </div>
-      </CardHeader>
+      </div>
 
-      {/* Floating Voice Call Button - Fixed to Card */}
-      <div className="absolute top-20 right-4 z-50">
+      {/* Floating Voice Call Button - Fixed to Container */}
+      <div className="absolute top-4 right-4 z-50">
         {!isCallActive ? (
           <Button 
             onClick={handleStartVoiceCall}
@@ -536,7 +534,8 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
         )}
       </div>
 
-      <CardContent className="flex-1 flex flex-col gap-4 overflow-hidden">
+      {/* Scrollable Content */}
+      <div className="flex-1 flex flex-col gap-4 overflow-hidden p-6">
         {error && (
           <Alert variant="destructive" className="flex-shrink-0">
             <AlertTriangle className="h-4 w-4" />
@@ -639,8 +638,8 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
           Status: {selectedLead.chaseStatus} • Funding: {selectedLead.fundingReadiness} • 
           Step: {selectedLead.scriptProgress.currentStep} • Specialist: {selectedLead.assignedSpecialist || 'Unassigned'}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 };
 
