@@ -89,7 +89,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
     return () => {
       closeEventSource();
     };
-  }, [selectedLead]);
+  }, [selectedLead?.id]); // Use selectedLead.id for better dependency tracking
 
   // Call duration timer with automatic call end detection
   useEffect(() => {
@@ -145,12 +145,13 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
     eventSourceRef.current = eventSource;
     
     eventSource.onopen = () => {
-      console.log('📡 SSE connection established for lead:', selectedLead.id);
+      console.log('📡 SSE connection established for lead:', selectedLead.id, '(phone:', selectedLead.phoneNumber, ')');
     };
     
     eventSource.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
+        console.log('📡 SSE message received:', data.type, data);
         handleRealTimeUpdate(data);
       } catch (error) {
         console.error('Error parsing SSE message:', error);
@@ -158,13 +159,14 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
     };
     
     eventSource.onerror = (error) => {
-      console.error('SSE connection error:', error);
-      // Attempt to reconnect after a delay
+      console.error('SSE connection error for lead:', selectedLead.id, error);
+      // Attempt to reconnect after a delay if still have a selected lead
       setTimeout(() => {
-        if (selectedLead) {
+        if (selectedLead && selectedLead.id) {
+          console.log('📡 Attempting SSE reconnection for lead:', selectedLead.id);
           setupEventSource();
         }
-      }, 5000);
+      }, 3000);
     };
   };
 
@@ -310,13 +312,38 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
     });
   };
 
-  const loadConversationHistory = () => {
+  const loadConversationHistory = async () => {
     if (!selectedLead) return;
 
-    // For ElevenLabs integration, we start with a clean slate
-    // The agent will handle all conversation context via its system prompt
-    // We only show actual telephony interactions (SMS/calls) here
-    setConversationHistory([]);
+    try {
+      // Load existing conversation history from server
+      const response = await fetch(`/api/conversation-history/${selectedLead.id}?phoneNumber=${encodeURIComponent(selectedLead.phoneNumber)}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Convert server messages to our ConversationMessage format
+        const messages: ConversationMessage[] = (data.messages || []).map((msg: any, index: number) => ({
+          id: msg.id || `history-${index}-${Date.now()}`,
+          type: msg.type || 'sms',
+          content: msg.content || msg.message || '',
+          timestamp: msg.timestamp || new Date().toISOString(),
+          sentBy: msg.sentBy || (msg.direction === 'inbound' ? 'user' : 'agent'),
+          status: msg.status || 'delivered'
+        }));
+        
+        setConversationHistory(messages);
+        console.log(`📋 Loaded ${messages.length} historical messages for ${selectedLead.phoneNumber}`);
+      } else {
+        // If no history endpoint exists, start with empty history
+        setConversationHistory([]);
+        console.log('📋 No conversation history available, starting fresh');
+      }
+    } catch (error) {
+      console.error('Error loading conversation history:', error);
+      // Fall back to empty history if loading fails
+      setConversationHistory([]);
+    }
   };
 
   const handleStartVoiceCall = async () => {

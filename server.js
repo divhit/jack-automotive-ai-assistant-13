@@ -1542,6 +1542,65 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Conversation history endpoint
+app.get('/api/conversation-history/:leadId', (req, res) => {
+  try {
+    const { leadId } = req.params;
+    const { phoneNumber } = req.query;
+    
+    if (!leadId) {
+      return res.status(400).json({ error: 'Lead ID is required' });
+    }
+    
+    let phoneToUse = phoneNumber;
+    
+    // If no phone number provided, try to get it from lead data
+    if (!phoneToUse) {
+      const leadData = getLeadData(leadId);
+      phoneToUse = leadData?.phoneNumber;
+    }
+    
+    if (!phoneToUse) {
+      console.log(`⚠️ No phone number found for lead ${leadId}`);
+      return res.json({ 
+        messages: [],
+        leadId,
+        message: 'No phone number associated with this lead'
+      });
+    }
+    
+    const messages = getConversationHistory(phoneToUse);
+    const summary = getConversationSummary(phoneToUse);
+    
+    console.log(`📋 API: Retrieved ${messages.length} messages for lead ${leadId} (${phoneToUse})`);
+    
+    // Convert internal message format to API format
+    const formattedMessages = messages.map((msg, index) => ({
+      id: `msg-${index}-${Date.now()}`,
+      content: msg.content,
+      timestamp: msg.timestamp,
+      sentBy: msg.sentBy,
+      type: msg.type || 'sms',
+      status: 'delivered'
+    }));
+    
+    res.json({
+      messages: formattedMessages,
+      leadId,
+      phoneNumber: phoneToUse,
+      summary: summary?.summary,
+      totalMessages: formattedMessages.length
+    });
+    
+  } catch (error) {
+    console.error('❌ Error retrieving conversation history:', error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve conversation history',
+      details: error.message 
+    });
+  }
+});
+
 // ElevenLabs Conversation Initiation Webhook
 app.post('/api/webhooks/elevenlabs/conversation-initiation', (req, res) => {
   console.log('🔄 ElevenLabs Conversation Initiation Webhook received:', {
