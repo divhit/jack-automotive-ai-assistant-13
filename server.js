@@ -331,20 +331,20 @@ function startConversation(phoneNumber, initialMessage) {
     const leadStatus = summaryData?.summary ? "Returning Customer" : (history.length > 0 ? "Active Lead" : "New Inquiry");
     const previousSummary = summaryData?.summary || (history.length > 0 ? "Continuing from previous conversation" : "First conversation");
     
+    // For WebSocket SMS conversations, dynamic variables need to be at the root level
     ws.send(JSON.stringify({
       type: 'conversation_initiation_client_data',
+      dynamic_variables: {
+        customer_name: customerName,
+        lead_status: leadStatus,
+        previous_summary: previousSummary,
+        conversation_context: conversationContext.length > 500 ? conversationContext.substring(0, 500) + "..." : conversationContext
+      },
       client_data: {
         conversation_context: conversationContext,
         phone_number: phoneNumber,
         channel: 'sms',
-        lead_id: leadId,
-        // Add dynamic variables like voice calls
-        dynamic_variables: {
-          conversation_context: conversationContext.length > 500 ? conversationContext.substring(0, 500) + "..." : conversationContext,
-          customer_name: customerName,
-          lead_status: leadStatus,
-          previous_summary: previousSummary
-        }
+        lead_id: leadId
       }
     }));
   });
