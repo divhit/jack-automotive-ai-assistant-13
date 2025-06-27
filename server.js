@@ -1620,24 +1620,35 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', (req, res) => {
     const normalizedPhone = normalizePhoneNumber(caller_id);
     console.log(`📞 Building conversation initiation data for ${caller_id} (normalized: ${normalizedPhone})`);
 
+    // Get the active lead for this phone number
+    const activeLead = getActiveLeadForPhone(normalizedPhone);
+    console.log(`🔍 Active lead for ${normalizedPhone}:`, activeLead);
+    
     // Build conversation context
     const conversationContext = buildConversationContext(caller_id);
     const summary = getConversationSummary(normalizedPhone);
     const messages = getConversationHistory(caller_id);
     
-    // Get actual lead data instead of placeholders
-    const leadData = getLeadData(leadId);
-    const customerName = leadData?.customerName || `Customer ${phoneNumber}`;
+    // Get actual lead data if we have an active lead
+    const leadData = activeLead ? getLeadData(activeLead) : null;
+    const customerName = leadData?.customerName || `Customer`;
     const leadStatus = summary?.summary ? "Returning Customer" : (messages.length > 0 ? "Active Lead" : "New Inquiry");
     const previousSummary = summary?.summary || (messages.length > 0 ? "Continuing from SMS conversation" : "First conversation");
 
+    // Build enhanced conversation context that includes customer name prominently
+    let enhancedContext = conversationContext;
+    if (leadData && leadData.customerName) {
+      enhancedContext = `CUSTOMER NAME: ${leadData.customerName}\n\n${conversationContext}`;
+    }
+    
     // Build the response in the format ElevenLabs expects
     const response = {
       dynamic_variables: {
-        conversation_context: conversationContext.length > 500 ? conversationContext.substring(0, 500) + "..." : conversationContext,
+        conversation_context: enhancedContext.length > 500 ? enhancedContext.substring(0, 500) + "..." : enhancedContext,
         customer_name: customerName,
         lead_status: leadStatus,
-        previous_summary: previousSummary
+        previous_summary: previousSummary,
+        customer_phone: normalizedPhone
       }
     };
 

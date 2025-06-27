@@ -76,8 +76,8 @@ const SubprimeLeadDetailModal: React.FC<SubprimeLeadDetailModalProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl max-h-[90vh] flex flex-col">
-        <DialogHeader className="flex-shrink-0">
+      <DialogContent className="max-w-6xl h-[90vh] flex flex-col p-0">
+        <DialogHeader className="flex-shrink-0 p-6 pb-4">
           <DialogTitle className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <User className="w-6 h-6" />
@@ -97,33 +97,34 @@ const SubprimeLeadDetailModal: React.FC<SubprimeLeadDetailModalProps> = ({
           </DialogTitle>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-          <TabsList className="grid w-full grid-cols-4 flex-shrink-0">
-            <TabsTrigger value="conversation" className="flex items-center gap-2">
-              <Phone className="w-4 h-4" />
-              Telephony
-            </TabsTrigger>
-            <TabsTrigger value="profile" className="flex items-center gap-2">
-              <User className="w-4 h-4" />
-              Profile
-            </TabsTrigger>
-            <TabsTrigger value="analytics" className="flex items-center gap-2">
-              <BarChart3 className="w-4 h-4" />
-              Analytics
-            </TabsTrigger>
-            <TabsTrigger value="settings" className="flex items-center gap-2">
-              <Settings className="w-4 h-4" />
-              Settings
-            </TabsTrigger>
-          </TabsList>
+        <div className="flex-1 flex flex-col px-6 pb-6 overflow-hidden">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+            <TabsList className="grid w-full grid-cols-4 flex-shrink-0 mb-4">
+              <TabsTrigger value="conversation" className="flex items-center gap-2">
+                <Phone className="w-4 h-4" />
+                Telephony
+              </TabsTrigger>
+              <TabsTrigger value="profile" className="flex items-center gap-2">
+                <User className="w-4 h-4" />
+                Profile
+              </TabsTrigger>
+              <TabsTrigger value="analytics" className="flex items-center gap-2">
+                <BarChart3 className="w-4 h-4" />
+                Analytics
+              </TabsTrigger>
+              <TabsTrigger value="settings" className="flex items-center gap-2">
+                <Settings className="w-4 h-4" />
+                Settings
+              </TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="conversation" className="flex-1 mt-4">
-            <TelephonyInterface
-              selectedLead={lead}
-              onLeadUpdate={onLeadUpdate}
-              className="h-full"
-            />
-          </TabsContent>
+            <TabsContent value="conversation" className="flex-1 overflow-hidden" style={{ marginTop: 0 }}>
+              <TelephonyInterface
+                selectedLead={lead}
+                onLeadUpdate={onLeadUpdate}
+                className="h-full"
+              />
+            </TabsContent>
 
           <TabsContent value="profile" className="mt-4 space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -405,7 +406,8 @@ const SubprimeLeadDetailModal: React.FC<SubprimeLeadDetailModalProps> = ({
               </Card>
             </div>
           </TabsContent>
-        </Tabs>
+          </Tabs>
+        </div>
       </DialogContent>
     </Dialog>
   );
