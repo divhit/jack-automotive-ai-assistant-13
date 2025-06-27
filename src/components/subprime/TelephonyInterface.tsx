@@ -373,23 +373,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
 
       const result = await response.json();
       toast.success(`SMS sent to ${selectedLead.phoneNumber}`);
-      console.log('SMS sent with ID:', result.messageSid);
-
-      // Update lead's last touchpoint
-      if (onLeadUpdate) {
-        onLeadUpdate(selectedLead.id, {
-          lastTouchpoint: new Date().toISOString(),
-          conversations: [
-            ...selectedLead.conversations,
-            {
-              type: 'message',
-              content: messageToSend,
-              timestamp: new Date().toISOString(),
-              sentBy: 'agent'
-            }
-          ]
-        });
-      }
+      console.log('✅ SMS sent successfully - message will appear via SSE stream');
 
     } catch (error) {
       console.error('Error sending SMS:', error);
