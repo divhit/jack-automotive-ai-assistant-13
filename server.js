@@ -961,6 +961,28 @@ app.post('/api/webhooks/elevenlabs/conversation-events', async (req, res) => {
         }
         break;
 
+      case 'call_ended':
+      case 'call_terminated':
+      case 'call_completed':
+      case 'call_disconnected':
+        console.log('📞 Call ended event:', eventData.type, conversationId);
+        if (leadId) {
+          broadcastConversationUpdate({
+            type: 'call_ended',
+            conversationId,
+            duration: eventData.data?.duration_ms || eventData.data?.call_duration_ms,
+            leadId,
+            phoneNumber,
+            reason: eventData.data?.end_reason || eventData.type,
+            timestamp: new Date(eventData.event_timestamp * 1000).toISOString()
+          });
+        }
+        // Clean up metadata after call ends
+        if (conversationId) {
+          conversationMetadata.delete(conversationId);
+        }
+        break;
+
       case 'user_message':
       case 'user_transcript':
         const userMessage = eventData.data?.message || eventData.data?.transcript;

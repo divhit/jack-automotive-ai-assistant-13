@@ -91,11 +91,33 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
     };
   }, [selectedLead]);
 
-  // Call duration timer
+  // Call duration timer with automatic call end detection
   useEffect(() => {
     if (isCallActive) {
       callTimerRef.current = setInterval(() => {
-        setCallDuration(prev => prev + 1);
+        setCallDuration(prev => {
+          const newDuration = prev + 1;
+          
+          // Auto-end call if it's been active for more than 30 minutes without proper end event
+          // This is a safety fallback for calls that don't properly end via webhooks
+          if (newDuration > 1800) { // 30 minutes
+            console.log('⚠️ Call automatically ended due to timeout (30+ minutes)');
+            setIsCallActive(false);
+            setCurrentMode('text');
+            setConversationId(null);
+            addConversationMessage({
+              id: `timeout-end-${Date.now()}`,
+              type: 'system',
+              content: `Call automatically ended due to timeout. Duration: ${formatDuration(newDuration)}`,
+              timestamp: new Date().toISOString(),
+              sentBy: 'system'
+            });
+            toast.warning('Call automatically ended due to timeout');
+            return 0;
+          }
+          
+          return newDuration;
+        });
       }, 1000);
     } else {
       if (callTimerRef.current) {
@@ -197,12 +219,14 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
         break;
         
       case 'call_ended':
+        console.log('📞 Call ended event received:', data);
         setIsCallActive(false);
         setCurrentMode('text');
+        setConversationId(null);
         addConversationMessage({
           id: `call-end-${Date.now()}`,
           type: 'system',
-          content: `Call ended. Duration: ${formatDuration(data.duration || 0)}`,
+          content: `Call ended${data.reason ? ` (${data.reason})` : ''}. Duration: ${formatDuration(data.duration || 0)}`,
           timestamp: data.timestamp,
           sentBy: 'system'
         });
@@ -244,8 +268,10 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
         break;
         
       case 'conversation_ended':
+        console.log('🎙️ Voice conversation ended event received:', data);
         setIsCallActive(false);
         setCurrentMode('text');
+        setConversationId(null);
         addConversationMessage({
           id: `conv-end-${Date.now()}`,
           type: 'system',
@@ -337,8 +363,19 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
   };
 
   const handleEndCall = async () => {
+    console.log('📞 Manual call end triggered');
     setIsCallActive(false);
     setCurrentMode('text');
+    setConversationId(null);
+    
+    // Add a system message to show the call was manually ended
+    addConversationMessage({
+      id: `manual-end-${Date.now()}`,
+      type: 'system',
+      content: `Call manually ended by agent. Duration: ${formatDuration(callDuration)}`,
+      timestamp: new Date().toISOString(),
+      sentBy: 'system'
+    });
     
     toast.info(`Call ended. Duration: ${formatDuration(callDuration)}`);
   };

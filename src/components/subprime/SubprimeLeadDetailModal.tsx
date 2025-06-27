@@ -17,8 +17,7 @@ import {
   Mail, 
   CreditCard, 
   Car, 
-  Calendar, 
-  MessageSquare,
+  Calendar,
   BarChart3,
   Settings,
   AlertTriangle,
@@ -27,8 +26,7 @@ import {
   DollarSign
 } from 'lucide-react';
 import { SubprimeLead } from '@/data/subprime/subprimeLeads';
-import { LeadContextData } from '@/types/elevenlabs';
-import ConversationInterface from './ConversationInterface';
+import { TelephonyInterface } from './TelephonyInterface';
 
 interface SubprimeLeadDetailModalProps {
   lead: SubprimeLead | null;
@@ -46,42 +44,6 @@ const SubprimeLeadDetailModal: React.FC<SubprimeLeadDetailModalProps> = ({
   const [activeTab, setActiveTab] = useState('conversation');
 
   if (!lead) return null;
-
-  // Convert SubprimeLead to LeadContextData for conversation interface
-  const leadContextData: LeadContextData = {
-    leadId: lead.id,
-    customerName: lead.customerName,
-    phoneNumber: lead.phoneNumber,
-    email: lead.email || '',
-    creditScore: lead.creditProfile?.scoreRange ? parseInt(lead.creditProfile.scoreRange.split('-')[0]) : undefined,
-    fundingReadiness: lead.fundingReadiness,
-    scriptProgress: {
-      currentStep: lead.scriptProgress?.currentStep || 'contacted',
-      completedSteps: lead.scriptProgress?.completedSteps || [],
-      nextStep: 'pending'
-    },
-    chaseStatus: lead.chaseStatus,
-    sentiment: lead.sentiment as 'Positive' | 'Neutral' | 'Negative' | 'Frustrated' | 'Ghosted',
-    specialist: lead.assignedSpecialist,
-    conversationHistory: [], // Would be loaded from API
-    lastContactDate: new Date().toISOString(),
-    preferredContactMethod: 'either' // Default, could be lead preference
-  };
-
-  const handleLeadUpdate = (leadId: string, updates: Partial<LeadContextData>) => {
-    // Convert back to SubprimeLead format and update
-    const leadUpdates: Partial<SubprimeLead> = {
-      sentiment: updates.sentiment as typeof lead.sentiment,
-      fundingReadiness: updates.fundingReadiness,
-      scriptProgress: updates.scriptProgress ? {
-        currentStep: updates.scriptProgress.currentStep as typeof lead.scriptProgress.currentStep,
-        completedSteps: updates.scriptProgress.completedSteps
-      } : undefined,
-      // Add other mappings as needed
-    };
-    
-    onLeadUpdate?.(leadId, leadUpdates);
-  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -138,8 +100,8 @@ const SubprimeLeadDetailModal: React.FC<SubprimeLeadDetailModalProps> = ({
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1">
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="conversation" className="flex items-center gap-2">
-              <MessageSquare className="w-4 h-4" />
-              Conversation
+              <Phone className="w-4 h-4" />
+              Telephony
             </TabsTrigger>
             <TabsTrigger value="profile" className="flex items-center gap-2">
               <User className="w-4 h-4" />
@@ -156,9 +118,10 @@ const SubprimeLeadDetailModal: React.FC<SubprimeLeadDetailModalProps> = ({
           </TabsList>
 
           <TabsContent value="conversation" className="mt-4">
-            <ConversationInterface
-              leadData={leadContextData}
-              onLeadUpdate={handleLeadUpdate}
+            <TelephonyInterface
+              selectedLead={lead}
+              onLeadUpdate={onLeadUpdate}
+              className="h-[500px]"
             />
           </TabsContent>
 
