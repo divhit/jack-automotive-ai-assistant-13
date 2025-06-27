@@ -484,7 +484,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
   }
 
   return (
-    <Card className={cn("h-full flex flex-col", className)}>
+    <Card className={cn("h-full flex flex-col relative", className)}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg flex items-center gap-2">
@@ -511,7 +511,46 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
         </div>
       </CardHeader>
 
-      <CardContent className="flex-1 flex flex-col gap-4 overflow-hidden relative">
+      {/* Floating Voice Call Button - Fixed to Card */}
+      <div className="absolute top-4 right-4 z-20 flex gap-2">
+        {!isCallActive ? (
+          <Button 
+            onClick={handleStartVoiceCall}
+            disabled={isLoading}
+            size="sm"
+            className="shadow-lg hover:shadow-xl transition-shadow bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            <PhoneCall className="h-4 w-4 mr-1" />
+            Call
+          </Button>
+        ) : (
+          <Button 
+            onClick={handleEndCall}
+            variant="destructive"
+            size="sm"
+            className="shadow-lg hover:shadow-xl transition-shadow"
+          >
+            <PhoneOff className="h-4 w-4 mr-1" />
+            End ({formatDuration(callDuration)})
+          </Button>
+        )}
+        
+        <Button 
+          variant="outline"
+          size="sm"
+          onClick={() => setCurrentMode(currentMode === 'voice' ? 'text' : 'voice')}
+          disabled={isCallActive}
+          className="shadow-lg hover:shadow-xl transition-shadow bg-white/95 backdrop-blur-sm"
+        >
+          {currentMode === 'voice' ? (
+            <MessageSquare className="h-4 w-4" />
+          ) : (
+            <Mic className="h-4 w-4" />
+          )}
+        </Button>
+      </div>
+
+      <CardContent className="flex-1 flex flex-col gap-4 overflow-hidden">
         {error && (
           <Alert variant="destructive" className="flex-shrink-0">
             <AlertTriangle className="h-4 w-4" />
@@ -584,45 +623,6 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
             </div>
             <div ref={messagesEndRef} />
           </ScrollArea>
-        </div>
-
-        {/* Floating Voice Call Button */}
-        <div className="absolute top-4 right-4 z-10 flex gap-2">
-          {!isCallActive ? (
-            <Button 
-              onClick={handleStartVoiceCall}
-              disabled={isLoading}
-              size="sm"
-              className="shadow-lg hover:shadow-xl transition-shadow bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              <PhoneCall className="h-4 w-4 mr-1" />
-              Call
-            </Button>
-          ) : (
-            <Button 
-              onClick={handleEndCall}
-              variant="destructive"
-              size="sm"
-              className="shadow-lg hover:shadow-xl transition-shadow"
-            >
-              <PhoneOff className="h-4 w-4 mr-1" />
-              End ({formatDuration(callDuration)})
-            </Button>
-          )}
-          
-          <Button 
-            variant="outline"
-            size="sm"
-            onClick={() => setCurrentMode(currentMode === 'voice' ? 'text' : 'voice')}
-            disabled={isCallActive}
-            className="shadow-lg hover:shadow-xl transition-shadow bg-white/95 backdrop-blur-sm"
-          >
-            {currentMode === 'voice' ? (
-              <MessageSquare className="h-4 w-4" />
-            ) : (
-              <Mic className="h-4 w-4" />
-            )}
-          </Button>
         </div>
 
         {/* Text Input */}
