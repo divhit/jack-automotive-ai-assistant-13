@@ -159,18 +159,23 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
     
     eventSource.onerror = (error) => {
       console.error('SSE connection error for lead:', selectedLead.id, error);
-      // Attempt to reconnect after a delay if still have a selected lead
-      setTimeout(() => {
-        if (selectedLead && selectedLead.id) {
-          console.log('📡 Attempting SSE reconnection for lead:', selectedLead.id);
-          setupEventSource();
-        }
-      }, 3000);
+      
+      // Only attempt to reconnect if the connection is in a failed state
+      // and we still have a selected lead
+      if (eventSource.readyState === EventSource.CLOSED && selectedLead && selectedLead.id) {
+        console.log('📡 SSE connection closed, attempting reconnection for lead:', selectedLead.id);
+        setTimeout(() => {
+          if (selectedLead && selectedLead.id && eventSourceRef.current === eventSource) {
+            setupEventSource();
+          }
+        }, 2000);
+      }
     };
   };
 
   const closeEventSource = () => {
     if (eventSourceRef.current) {
+      console.log('🔌 Closing SSE connection for lead:', selectedLead?.id);
       eventSourceRef.current.close();
       eventSourceRef.current = null;
     }
@@ -525,11 +530,11 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
         )}
 
         {/* Conversation History - Takes up remaining space */}
-        <div className="flex-1 border rounded-lg overflow-hidden flex flex-col">
+        <div className="flex-1 border rounded-lg overflow-hidden flex flex-col min-h-0">
           <div className="p-2 border-b bg-gray-50 flex-shrink-0">
             <span className="text-sm font-medium">Conversation</span>
           </div>
-          <ScrollArea className="flex-1 p-4">
+          <div className="flex-1 overflow-y-auto p-4 min-h-0">
             <div className="space-y-4">
               {conversationHistory.length === 0 ? (
                 <div className="text-center text-muted-foreground py-8">
@@ -588,7 +593,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
               )}
             </div>
             <div ref={messagesEndRef} />
-          </ScrollArea>
+          </div>
         </div>
 
         {/* Text Input */}

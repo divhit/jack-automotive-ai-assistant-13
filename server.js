@@ -227,7 +227,13 @@ function buildConversationContext(phoneNumber) {
     ).join('\n') + '\n\n';
   }
   
-  contextText += `INSTRUCTIONS: Continue this conversation naturally. Use the CALL SUMMARY to understand the customer's main interests and needs. Reference specific details from recent messages. The customer is now texting you, so respond in SMS format. Be helpful and maintain the context from all previous interactions.`;
+  contextText += `CRITICAL INSTRUCTIONS: 
+- FIRST: Read the CALL SUMMARY above - it contains essential customer details from voice conversations
+- If summary mentions specific vehicle models or budgets, DO NOT ask for this information again
+- Continue the conversation naturally from where it left off across ALL channels (SMS, voice, etc.)
+- The customer is now texting you, so respond in SMS format
+- Reference specific details from recent messages and call summary
+- Be helpful and maintain context from all previous interactions`;
   
   console.log(`📋 Built conversation context for ${phoneNumber} with summary + ${history.length} total messages (${voiceMessages.length} voice, ${smsMessages.length} SMS):`, contextText.substring(0, 400) + '...');
   return contextText;
