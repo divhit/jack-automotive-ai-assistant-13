@@ -482,34 +482,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
 
   return (
     <div className={cn("h-full flex flex-col relative", className)}>
-      {/* Fixed Header */}
-      <div className="flex-shrink-0 border-b bg-white p-6 pb-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Phone className="h-5 w-5" />
-            <h3 className="text-lg font-semibold">Telephony - {selectedLead.customerName}</h3>
-          </div>
-          <Badge variant={currentMode === 'voice' ? 'default' : 'secondary'}>
-            {currentMode === 'voice' ? 'Voice Active' : 'Text Mode'}
-          </Badge>
-        </div>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
-          <span>{selectedLead.phoneNumber}</span>
-          <Separator orientation="vertical" className="h-4" />
-          <span>Sentiment: {selectedLead.sentiment}</span>
-          {isCallActive && (
-            <>
-              <Separator orientation="vertical" className="h-4" />
-              <div className="flex items-center gap-1">
-                <Clock className="h-3 w-3" />
-                <span>{formatDuration(callDuration)}</span>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Floating Voice Call Button - Fixed to Container */}
+      {/* Call Button - Fixed relative to container */}
       <div className="absolute top-4 right-4 z-50">
         {!isCallActive ? (
           <Button 
@@ -534,13 +507,21 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
         )}
       </div>
 
-      {/* Scrollable Content */}
-      <div className="flex-1 flex flex-col gap-4 overflow-hidden p-6">
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col gap-4 overflow-hidden p-4">
         {error && (
           <Alert variant="destructive" className="flex-shrink-0">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
+        )}
+
+        {/* Call Status Indicator */}
+        {isCallActive && (
+          <div className="flex-shrink-0 bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2 text-sm text-green-700">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span>Voice call active - {formatDuration(callDuration)}</span>
+          </div>
         )}
 
         {/* Conversation History - Takes up remaining space */}
@@ -633,7 +614,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
           </Button>
         </div>
 
-        {/* Lead Info */}
+        {/* Lead Status Bar */}
         <div className="text-xs text-muted-foreground bg-gray-50 p-2 rounded text-center flex-shrink-0">
           Status: {selectedLead.chaseStatus} • Funding: {selectedLead.fundingReadiness} • 
           Step: {selectedLead.scriptProgress.currentStep} • Specialist: {selectedLead.assignedSpecialist || 'Unassigned'}
