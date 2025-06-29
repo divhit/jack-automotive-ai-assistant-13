@@ -53,6 +53,9 @@ const conversationSummaries = new Map(); // phoneNumber -> { summary, timestamp 
 const phoneToLeadMapping = new Map(); // normalizedPhoneNumber -> current active leadId
 const sseConnections = new Map(); // leadId -> response object
 
+// In-memory storage for dynamically added leads (in production, use a database)
+let dynamicLeads = new Map();
+
 // --- PHONE NUMBER NORMALIZATION ---
 
 /**
@@ -167,8 +170,19 @@ function getConversationSummary(phoneNumber) {
 
 // Get lead data for dynamic variables
 function getLeadData(leadId) {
-  // In a real application, this would query your database
-  // For now, we'll use the static data from subprimeLeads
+  // First check dynamically added leads
+  if (dynamicLeads.has(leadId)) {
+    const lead = dynamicLeads.get(leadId);
+    console.log(`📋 Found dynamic lead data for ${leadId}:`, {
+      customerName: lead.customerName,
+      phoneNumber: lead.phoneNumber,
+      sentiment: lead.sentiment,
+      fundingReadiness: lead.fundingReadiness
+    });
+    return lead;
+  }
+
+  // Fall back to static data (for backwards compatibility)
   const subprimeLeads = [
     {
       id: "test1",
@@ -191,7 +205,19 @@ function getLeadData(leadId) {
     // Add more leads as needed
   ];
   
-  return subprimeLeads.find(lead => lead.id === leadId);
+  const staticLead = subprimeLeads.find(lead => lead.id === leadId);
+  if (staticLead) {
+    console.log(`📋 Found static lead data for ${leadId}:`, {
+      customerName: staticLead.customerName,
+      phoneNumber: staticLead.phoneNumber,
+      sentiment: staticLead.sentiment,
+      fundingReadiness: staticLead.fundingReadiness
+    });
+  } else {
+    console.log(`❓ No lead data found for ${leadId}`);
+  }
+  
+  return staticLead;
 }
 
 function buildConversationContext(phoneNumber) {
@@ -1694,6 +1720,143 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', (req, res) => {
   } catch (error) {
     console.error('❌ Error processing conversation initiation webhook:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// API endpoint to create new leads (called from SubprimeAddLeadDialog)
+app.post('/api/subprime/create-lead', async (req, res) => {
+  try {
+    const leadData = req.body;
+    
+    console.log('📝 Creating new subprime lead:', {
+      id: leadData.id,
+      customerName: leadData.customerName,
+      phoneNumber: leadData.phoneNumber,
+      fundingReadiness: leadData.fundingReadiness,
+      sentiment: leadData.sentiment
+    });
+
+    // Validate required fields for telephony integration
+    if (!leadData.id || !leadData.customerName || !leadData.phoneNumber) {
+      return res.status(400).json({ 
+        error: 'Missing required fields: id, customerName, and phoneNumber are required for telephony integration' 
+      });
+    }
+
+    // Validate phone number format for Twilio
+    if (!/^\(\d{3}\) \d{3}-\d{4}$/.test(leadData.phoneNumber)) {
+      return res.status(400).json({ 
+        error: 'Phone number must be in format (555) 123-4567 for Twilio integration' 
+      });
+    }
+
+    // Store the lead in memory (in production, save to database)
+    dynamicLeads.set(leadData.id, {
+      id: leadData.id,
+      customerName: leadData.customerName,
+      phoneNumber: leadData.phoneNumber,
+      email: leadData.email,
+      chaseStatus: leadData.chaseStatus || "Auto Chase Running",
+      fundingReadiness: leadData.fundingReadiness || "Not Ready",
+      fundingReadinessReason: leadData.fundingReadinessReason,
+      sentiment: leadData.sentiment || "Neutral",
+      creditProfile: leadData.creditProfile,
+      vehiclePreference: leadData.vehiclePreference,
+      assignedAgent: leadData.assignedAgent,
+      assignedSpecialist: leadData.assignedSpecialist,
+      lastTouchpoint: leadData.lastTouchpoint || new Date().toISOString(),
+      conversations: leadData.conversations || [],
+      nextAction: leadData.nextAction,
+      scriptProgress: leadData.scriptProgress || {
+        currentStep: "contacted",
+        completedSteps: ["contacted"]
+      }
+    });
+
+    console.log(`✅ Lead ${leadData.id} stored successfully. Dynamic variables available:`, {
+      customer_name: leadData.customerName,
+      phone_number_normalized: normalizePhoneNumber(leadData.phoneNumber),
+      funding_readiness: leadData.fundingReadiness,
+      sentiment: leadData.sentiment
+    });
+
+    res.status(201).json({ 
+      success: true, 
+      message: 'Lead created successfully',
+      leadId: leadData.id,
+      dynamicVariables: {
+        customer_name: leadData.customerName,
+        lead_status: "New Inquiry", // Since it's a new lead
+        conversation_context: "New lead - no previous conversation history",
+        previous_summary: "First conversation"
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error creating lead:', error);
+    res.status(500).json({ 
+      error: 'Failed to create lead',
+      details: error.message 
+    });
+  }
+});
+
+// API endpoint to get all dynamic leads (for testing/debugging)
+app.get('/api/subprime/leads', (req, res) => {
+  try {
+    const leads = Array.from(dynamicLeads.values());
+    console.log(`📋 Retrieved ${leads.length} dynamic leads`);
+    
+    res.json({
+      success: true,
+      leads: leads,
+      count: leads.length
+    });
+  } catch (error) {
+    console.error('❌ Error retrieving leads:', error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve leads',
+      details: error.message 
+    });
+  }
+});
+
+// API endpoint to update lead data
+app.put('/api/subprime/update-lead/:leadId', async (req, res) => {
+  try {
+    const { leadId } = req.params;
+    const updates = req.body;
+    
+    if (!dynamicLeads.has(leadId)) {
+      return res.status(404).json({ 
+        error: `Lead ${leadId} not found in dynamic storage` 
+      });
+    }
+
+    const currentLead = dynamicLeads.get(leadId);
+    const updatedLead = { ...currentLead, ...updates };
+    
+    dynamicLeads.set(leadId, updatedLead);
+    
+    console.log(`✅ Updated lead ${leadId}:`, {
+      customerName: updatedLead.customerName,
+      sentiment: updatedLead.sentiment,
+      fundingReadiness: updatedLead.fundingReadiness
+    });
+
+    res.json({ 
+      success: true, 
+      message: 'Lead updated successfully',
+      leadId: leadId,
+      updatedFields: Object.keys(updates)
+    });
+
+  } catch (error) {
+    console.error('❌ Error updating lead:', error);
+    res.status(500).json({ 
+      error: 'Failed to update lead',
+      details: error.message 
+    });
   }
 });
 

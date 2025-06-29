@@ -13,8 +13,9 @@ import { subprimeLeads } from "@/data";
 import { SubprimeLeadFilters } from "@/components/subprime/SubprimeLeadFilters";
 import { SubprimeAnalytics } from "@/components/subprime/SubprimeAnalytics";
 import { SubprimeLeadsList } from "@/components/subprime/SubprimeLeadsList";
+import { SubprimeAddLeadDialog } from "@/components/subprime/SubprimeAddLeadDialog";
 import { SubprimeLead } from "@/data/subprime/subprimeLeads";
-import { BarChart3, Users, MessageSquare, Clock, Info, Settings, Sliders } from "lucide-react";
+import { BarChart3, Users, MessageSquare, Clock, Info, Settings, Sliders, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SubprimeSettingsDialog } from "@/components/subprime/SubprimeSettingsDialog";
 import { Toaster } from "@/components/ui/sonner";
@@ -26,6 +27,7 @@ const SubprimeDashboard = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [tileDialogOpen, setTileDialogOpen] = useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
+  const [addLeadDialogOpen, setAddLeadDialogOpen] = useState(false);
   const [activeTileInfo, setActiveTileInfo] = useState<{title: string; content: React.ReactNode}>({ 
     title: "", 
     content: null 
@@ -76,8 +78,6 @@ const SubprimeDashboard = () => {
       )
     );
 
-
-
     // Show toast notification
     toast.success(`Lead ${leadId} updated successfully`);
     
@@ -85,7 +85,34 @@ const SubprimeDashboard = () => {
     // await updateLeadInDatabase(leadId, updates);
   };
 
+  const handleLeadAdded = (newLead: SubprimeLead) => {
+    console.log('📝 Adding new lead to dashboard:', {
+      id: newLead.id,
+      customerName: newLead.customerName,
+      phoneNumber: newLead.phoneNumber,
+      fundingReadiness: newLead.fundingReadiness,
+      sentiment: newLead.sentiment
+    });
 
+    // Add to main leads array
+    setAllLeads(prevLeads => [newLead, ...prevLeads]);
+    
+    // Add to filtered leads if it matches current search/filter
+    const matchesSearch = searchTerm === "" || 
+      newLead.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      newLead.phoneNumber.includes(searchTerm);
+      
+    if (matchesSearch) {
+      setFilteredLeads(prevLeads => [newLead, ...prevLeads]);
+    }
+
+    // Here you would typically make an API call to persist the new lead
+    // await createLeadInDatabase(newLead);
+    
+    toast.success(`New lead added successfully`, {
+      description: `${newLead.customerName} is now in the subprime pipeline and ready for telephony integration`
+    });
+  };
 
   const handleTileClick = (title: string, content: React.ReactNode) => {
     setActiveTileInfo({ title, content });
@@ -167,6 +194,14 @@ const SubprimeDashboard = () => {
               className="w-full"
             />
           </div>
+
+          <Button
+            onClick={() => setAddLeadDialogOpen(true)}
+            className="gap-2"
+          >
+            <UserPlus className="h-4 w-4" />
+            Add Lead
+          </Button>
 
           <Button 
             variant="outline" 
@@ -298,18 +333,30 @@ const SubprimeDashboard = () => {
         </Card>
       </div>
 
+      <SubprimeSettingsDialog 
+        open={settingsDialogOpen} 
+        onOpenChange={setSettingsDialogOpen}
+      />
+
+      <SubprimeAddLeadDialog
+        open={addLeadDialogOpen}
+        onOpenChange={setAddLeadDialogOpen}
+        onLeadAdded={handleLeadAdded}
+      />
+
       <Dialog open={tileDialogOpen} onOpenChange={setTileDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>{activeTileInfo.title}</DialogTitle>
+            <DialogDescription>
+              Detailed breakdown of this metric
+            </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
+          <div className="mt-4">
             {activeTileInfo.content}
           </div>
         </DialogContent>
       </Dialog>
-
-      <SubprimeSettingsDialog open={settingsDialogOpen} onOpenChange={setSettingsDialogOpen} />
 
       <Toaster />
     </div>
