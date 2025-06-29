@@ -24,20 +24,37 @@ interface SubprimeAddLeadDialogProps {
   onLeadAdded: (lead: SubprimeLead) => void;
 }
 
+type FormDataType = {
+  customerName: string;
+  phoneNumber: string;
+  email: string;
+  fundingReadiness: SubprimeLead['fundingReadiness'];
+  fundingReadinessReason: string;
+  sentiment: SubprimeLead['sentiment'];
+  chaseStatus: SubprimeLead['chaseStatus'];
+  creditScoreRange: string;
+  knownIssues: string[];
+  vehiclePreference: string;
+  assignedAgent: string;
+  assignedSpecialist: SubprimeLead['assignedSpecialist'] | "none";
+  nextActionType: string;
+  nextActionDays: string;
+};
+
 export const SubprimeAddLeadDialog = ({ open, onOpenChange, onLeadAdded }: SubprimeAddLeadDialogProps) => {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormDataType>({
     customerName: "",
     phoneNumber: "",
     email: "",
-    fundingReadiness: "Not Ready" as SubprimeLead['fundingReadiness'],
+    fundingReadiness: "Not Ready",
     fundingReadinessReason: "",
-    sentiment: "Neutral" as SubprimeLead['sentiment'],
-    chaseStatus: "Auto Chase Running" as SubprimeLead['chaseStatus'],
+    sentiment: "Neutral",
+    chaseStatus: "Auto Chase Running",
     creditScoreRange: "",
-    knownIssues: [] as string[],
+    knownIssues: [],
     vehiclePreference: "",
     assignedAgent: "",
-    assignedSpecialist: undefined as SubprimeLead['assignedSpecialist'],
+    assignedSpecialist: "none",
     nextActionType: "",
     nextActionDays: "1"
   });
@@ -144,7 +161,7 @@ export const SubprimeAddLeadDialog = ({ open, onOpenChange, onLeadAdded }: Subpr
         sentBy: "system" as const
       }],
       assignedAgent: formData.assignedAgent.trim() || undefined,
-      assignedSpecialist: formData.assignedSpecialist
+      assignedSpecialist: formData.assignedSpecialist === "none" ? undefined : formData.assignedSpecialist
     };
 
     console.log('🎯 Creating new lead with data for dynamic variables:', {
@@ -191,7 +208,7 @@ export const SubprimeAddLeadDialog = ({ open, onOpenChange, onLeadAdded }: Subpr
         knownIssues: [],
         vehiclePreference: "",
         assignedAgent: "",
-        assignedSpecialist: undefined,
+        assignedSpecialist: "none",
         nextActionType: "",
         nextActionDays: "1"
       });
@@ -468,12 +485,18 @@ export const SubprimeAddLeadDialog = ({ open, onOpenChange, onLeadAdded }: Subpr
 
                 <div className="space-y-2">
                   <Label>Assigned Specialist</Label>
-                  <Select value={formData.assignedSpecialist || ""} onValueChange={(value) => handleInputChange("assignedSpecialist", value)}>
+                  <Select 
+                    value={formData.assignedSpecialist} 
+                    onValueChange={(value) => setFormData(prev => ({ 
+                      ...prev, 
+                      assignedSpecialist: value as FormDataType['assignedSpecialist']
+                    }))}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select specialist" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">None</SelectItem>
+                      <SelectItem value="none">None</SelectItem>
                       <SelectItem value="Andrea">Andrea</SelectItem>
                       <SelectItem value="Ian">Ian</SelectItem>
                       <SelectItem value="Kayam">Kayam</SelectItem>
