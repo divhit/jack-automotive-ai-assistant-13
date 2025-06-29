@@ -1248,6 +1248,18 @@ app.post('/api/webhooks/elevenlabs/post-call', async (req, res) => {
       storeConversationSummary(phoneNumber, summary);
     }
 
+    // CRITICAL FIX: Close existing SMS WebSocket conversation after voice call
+    // This forces the next SMS to start fresh with full voice + SMS context
+    if (phoneNumber) {
+      const normalized = normalizePhoneNumber(phoneNumber);
+      if (activeConversations.has(normalized)) {
+        console.log(`🔄 Closing existing SMS conversation for ${phoneNumber} to refresh context with voice messages`);
+        const ws = activeConversations.get(normalized);
+        ws.close();
+        activeConversations.delete(normalized);
+      }
+    }
+
     // Broadcast post-call summary to frontend if we have a lead ID
     if (leadId) {
       const updateData = {
