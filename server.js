@@ -111,7 +111,12 @@ function findConversationByPhone(phoneNumber) {
 function getConversationHistory(phoneNumber) {
   const result = findConversationByPhone(phoneNumber);
   const normalized = normalizePhoneNumber(phoneNumber);
-  console.log(`📋 Found ${result.history.length} messages for ${phoneNumber} (normalized: ${normalized})`);
+  
+  // Debug: Count message types to understand the voice message issue
+  const voiceCount = result.history.filter(msg => msg.type === 'voice').length;
+  const smsCount = result.history.filter(msg => msg.type === 'text').length;
+  
+  console.log(`📋 Found ${result.history.length} messages for ${phoneNumber} (normalized: ${normalized}) - ${voiceCount} voice, ${smsCount} SMS`);
   
   // Debug: Show all stored phone numbers
   if (result.history.length === 0) {
@@ -337,20 +342,20 @@ function startConversation(phoneNumber, initialMessage) {
     const leadStatus = summaryData?.summary ? "Returning Customer" : (history.length > 0 ? "Active Lead" : "New Inquiry");
     const previousSummary = summaryData?.summary || (history.length > 0 ? "Continuing from previous conversation" : "First conversation");
     
-    // For WebSocket SMS conversations, keep conversation_context in client_data (where it works)
-    // but add dynamic_variables inside client_data to preserve voice call context
+    // For WebSocket SMS conversations, dynamic variables at root level (like voice calls)
+    // Keep conversation_context in client_data where it works
     ws.send(JSON.stringify({
       type: 'conversation_initiation_client_data',
+      dynamic_variables: {
+        customer_name: customerName,
+        lead_status: leadStatus,
+        previous_summary: previousSummary
+      },
       client_data: {
         conversation_context: conversationContext,
         phone_number: phoneNumber,
         channel: 'sms',
-        lead_id: leadId,
-        dynamic_variables: {
-          customer_name: customerName,
-          lead_status: leadStatus,
-          previous_summary: previousSummary
-        }
+        lead_id: leadId
       }
     }));
   });

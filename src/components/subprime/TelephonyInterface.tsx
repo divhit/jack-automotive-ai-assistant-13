@@ -487,30 +487,6 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
 
   return (
     <div className={cn("h-full flex flex-col relative", className)}>
-      {/* Call Button - Fixed relative to container */}
-      <div className="absolute top-4 right-4 z-50">
-        {!isCallActive ? (
-          <Button 
-            onClick={handleStartVoiceCall}
-            disabled={isLoading}
-            size="sm"
-            className="shadow-lg hover:shadow-xl transition-shadow bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            <PhoneCall className="h-4 w-4 mr-1" />
-            Call
-          </Button>
-        ) : (
-          <Button 
-            onClick={handleEndCall}
-            variant="destructive"
-            size="sm"
-            className="shadow-lg hover:shadow-xl transition-shadow"
-          >
-            <PhoneOff className="h-4 w-4 mr-1" />
-            End ({formatDuration(callDuration)})
-          </Button>
-        )}
-      </div>
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col gap-4 overflow-hidden p-4">
@@ -596,7 +572,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
           </div>
         </div>
 
-        {/* Text Input */}
+        {/* Text Input and Call Button */}
         <div className="flex gap-2 flex-shrink-0">
           <Textarea
             value={textInput}
@@ -610,13 +586,36 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
               }
             }}
           />
-          <Button 
-            onClick={handleSendTextMessage}
-            disabled={isLoading || !textInput.trim()}
-            className="self-end"
-          >
-            <Send className="h-4 w-4" />
-          </Button>
+          <div className="flex flex-col gap-2">
+            {/* Call Button */}
+            {!isCallActive ? (
+              <Button 
+                onClick={handleStartVoiceCall}
+                disabled={isLoading}
+                size="sm"
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                <PhoneCall className="h-4 w-4 mr-1" />
+                Call
+              </Button>
+            ) : (
+              <Button 
+                onClick={handleEndCall}
+                variant="destructive"
+                size="sm"
+              >
+                <PhoneOff className="h-4 w-4 mr-1" />
+                End ({formatDuration(callDuration)})
+              </Button>
+            )}
+            {/* Send Button */}
+            <Button 
+              onClick={handleSendTextMessage}
+              disabled={isLoading || !textInput.trim()}
+            >
+              <Send className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
 
         {/* Lead Status Bar */}
