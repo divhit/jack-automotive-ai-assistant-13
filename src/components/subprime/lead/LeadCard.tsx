@@ -1,4 +1,4 @@
-import { Clock, Phone, MessageSquare, Eye } from "lucide-react";
+import { Clock, Phone, MessageSquare, Eye, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,10 +17,11 @@ interface LeadCardProps {
   lead: SubprimeLead;
   onViewDetails: (lead: SubprimeLead) => void;
   onSelect?: (lead: SubprimeLead) => void;
+  onDelete?: (leadId: string) => void;
   isSelected?: boolean;
 }
 
-export const LeadCard = ({ lead, onViewDetails, onSelect, isSelected }: LeadCardProps) => {
+export const LeadCard = ({ lead, onViewDetails, onSelect, onDelete, isSelected }: LeadCardProps) => {
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   
   const getBorderColor = (lead: SubprimeLead) => {
@@ -149,6 +150,20 @@ export const LeadCard = ({ lead, onViewDetails, onSelect, isSelected }: LeadCard
           >
             <Eye className="h-4 w-4" />
           </Button>
+          {onDelete && (
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(lead.id);
+              }}
+              title="Delete lead"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       </div>
 

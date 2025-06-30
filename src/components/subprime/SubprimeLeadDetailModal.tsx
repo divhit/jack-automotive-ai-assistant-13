@@ -26,7 +26,7 @@ import {
   DollarSign
 } from 'lucide-react';
 import { SubprimeLead } from '@/data/subprime/subprimeLeads';
-import { TelephonyInterface } from './TelephonyInterface';
+import { TelephonyInterface } from './TelephonyInterface-fixed';
 import { toast } from 'sonner';
 
 interface SubprimeLeadDetailModalProps {

@@ -485,6 +485,81 @@ class SupabasePersistenceService {
       return [];
     }
   }
+  // DELETE OPERATIONS
+  async deleteLead(leadId) {
+    if (!this.isEnabled || !this.isConnected) return;
+    
+    try {
+      // First delete all conversations for this lead
+      const { error: conversationError } = await this.supabase
+        .from('conversations')
+        .delete()
+        .eq('lead_id', leadId);
+
+      if (conversationError) throw conversationError;
+
+      // Then delete the lead
+      const { error: leadError } = await this.supabase
+        .from('leads')
+        .delete()
+        .eq('id', leadId);
+
+      if (leadError) throw leadError;
+      
+      console.log(`🗑️ Lead ${leadId} and all related data deleted from Supabase`);
+    } catch (error) {
+      console.error(`❌ Failed to delete lead ${leadId}:`, error);
+      throw error; // Rethrow so API can handle error response
+    }
+  }
+
+  async deleteMultipleLeads(leadIds) {
+    if (!this.isEnabled || !this.isConnected) return;
+    
+    try {
+      // Delete conversations for all these leads
+      const { error: conversationError } = await this.supabase
+        .from('conversations')
+        .delete()
+        .in('lead_id', leadIds);
+
+      if (conversationError) throw conversationError;
+
+      // Delete all the leads
+      const { error: leadError } = await this.supabase
+        .from('leads')
+        .delete()
+        .in('id', leadIds);
+
+      if (leadError) throw leadError;
+      
+      console.log(`🗑️ Deleted ${leadIds.length} leads and all related data from Supabase`);
+    } catch (error) {
+      console.error(`❌ Failed to delete multiple leads:`, error);
+      throw error; // Rethrow so API can handle error response
+    }
+  }
+
+  // CONVENIENCE METHODS FOR API
+  async getAllLeads(limit = 100) {
+    if (!this.isEnabled || !this.isConnected) return [];
+    
+    try {
+      const { data: leads, error } = await this.supabase
+        .from('leads')
+        .select('*')
+        .order('updated_at', { ascending: false })
+        .limit(limit);
+
+      if (error) throw error;
+      
+      console.log(`🗄️ Retrieved ${leads?.length || 0} leads from Supabase`);
+      return leads || [];
+    } catch (error) {
+      console.error('❌ Failed to get all leads:', error);
+      return [];
+    }
+  }
 }
 
 // Create singleton instance

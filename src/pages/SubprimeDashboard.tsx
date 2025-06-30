@@ -17,7 +17,7 @@ import { SubprimeLeadsList } from "@/components/subprime/SubprimeLeadsList";
 import { SubprimeAddLeadDialog } from "@/components/subprime/SubprimeAddLeadDialog";
 import { LeadAnalyticsDashboard } from "@/components/subprime/analytics/LeadAnalyticsDashboard";
 import { SubprimeLead } from "@/data/subprime/subprimeLeads";
-import { BarChart3, Users, MessageSquare, Clock, Info, Settings, Sliders, UserPlus, Database, RefreshCw } from "lucide-react";
+import { BarChart3, Users, MessageSquare, Clock, Info, Settings, Sliders, UserPlus, Database, RefreshCw, Trash2, Eraser } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SubprimeSettingsDialog } from "@/components/subprime/SubprimeSettingsDialog";
 import { Toaster } from "@/components/ui/sonner";
@@ -168,6 +168,66 @@ const SubprimeDashboard = () => {
     setTileDialogOpen(true);
   };
 
+  const handleClearTestData = async () => {
+    if (!confirm('Are you sure you want to clear all test data? This will remove Test User, John Smith, and other sample leads.')) {
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/subprime/clear-test-data', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        toast.success(`Cleared ${data.deletedCount} test leads successfully`);
+        await loadLeadsFromServer(); // Refresh the data
+      } else {
+        throw new Error(data.error || 'Failed to clear test data');
+      }
+    } catch (error) {
+      console.error('Error clearing test data:', error);
+      toast.error(error.message || 'Failed to clear test data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteLead = async (leadId: string) => {
+    if (!confirm('Are you sure you want to delete this lead? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/subprime/delete-lead?id=${leadId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        // Remove from local state immediately
+        setAllLeads(prevLeads => prevLeads.filter(lead => lead.id !== leadId));
+        setFilteredLeads(prevLeads => prevLeads.filter(lead => lead.id !== leadId));
+        
+        toast.success(`Lead ${leadId} deleted successfully`);
+      } else {
+        throw new Error(data.error || 'Failed to delete lead');
+      }
+    } catch (error) {
+      console.error('Error deleting lead:', error);
+      toast.error(error.message || 'Failed to delete lead');
+    }
+  };
+
   // Use allLeads for tile calculations to ensure real-time updates
   const getTileContent = () => {
     return {
@@ -269,6 +329,17 @@ const SubprimeDashboard = () => {
           >
             <UserPlus className="h-4 w-4" />
             Add Lead
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleClearTestData}
+            disabled={isLoading}
+            className="gap-2 text-orange-600 border-orange-200 hover:bg-orange-50"
+          >
+            <Eraser className="h-4 w-4" />
+            Clear Test Data
           </Button>
 
           <Button 
@@ -389,6 +460,7 @@ const SubprimeDashboard = () => {
           <SubprimeLeadsList 
             leads={filteredLeads} 
             onLeadUpdate={handleLeadUpdate}
+            onLeadDelete={handleDeleteLead}
           />
         </div>
       </div>
