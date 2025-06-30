@@ -16,12 +16,20 @@ class SupabasePersistenceService {
 
   initialize() {
     try {
-      const supabaseUrl = process.env.SUPABASE_URL;
-      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
-      const enablePersistence = process.env.ENABLE_SUPABASE_PERSISTENCE === 'true';
+      // Support both Node.js and browser environments
+      const supabaseUrl = process.env.SUPABASE_URL || process.env.REACT_APP_SUPABASE_URL || 'https://dgzadilmtuqvimolzxms.supabase.co';
+      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.REACT_APP_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRnejFkaWxtdHVxdmltb2x6eG1zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzM5MDEyMzMsImV4cCI6MjA0OTQ3NzIzM30.e80AhUU44MNlXZpJR4LPcQB8sWhRn-kNLjFDFPuwCx4';
+      const enablePersistence = process.env.ENABLE_SUPABASE_PERSISTENCE !== 'false'; // Default to enabled
 
-      if (!supabaseUrl || !supabaseKey || !enablePersistence) {
-        console.log('🗄️ Supabase persistence DISABLED (missing config or disabled in env)');
+      console.log('🗄️ Supabase initialization:', {
+        hasUrl: !!supabaseUrl,
+        hasKey: !!supabaseKey,
+        url: supabaseUrl ? supabaseUrl.substring(0, 30) + '...' : 'MISSING',
+        enabled: enablePersistence
+      });
+
+      if (!supabaseUrl || !supabaseKey) {
+        console.log('🗄️ Supabase persistence DISABLED (missing URL or key)');
         console.log('🗄️ Current system continues working normally with in-memory storage');
         return;
       }
@@ -48,10 +56,23 @@ class SupabasePersistenceService {
         .from('leads')
         .select('count', { count: 'exact', head: true });
       
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Supabase connection test failed:', error);
+        
+        if (error.message.includes('Invalid API key')) {
+          console.error('🔐 API Key Issue: The Supabase API key is invalid for this project');
+          console.error('💡 Solution: Get the correct API keys from your Supabase dashboard');
+          console.error('📋 Project URL: https://dgzadilmtuqvimolzxms.supabase.co');
+        } else if (error.message.includes('table') && error.message.includes('does not exist')) {
+          console.error('📋 Table Issue: The "leads" table does not exist in your database');
+          console.error('💡 Solution: Run the schema creation SQL in your Supabase SQL editor');
+        }
+        
+        throw error;
+      }
       
       this.isConnected = true;
-      console.log('✅ Supabase connection verified');
+      console.log('✅ Supabase connection verified - delete operations will work');
       return true;
     } catch (error) {
       console.error('❌ Supabase connection test failed:', error);

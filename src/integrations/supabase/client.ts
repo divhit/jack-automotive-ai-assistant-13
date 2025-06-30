@@ -1,8 +1,8 @@
-
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from './types'
 
-const supabaseUrl = 'https://krpzyvpwtbdxjaemqjab.supabase.co'
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtycHp5dnB3dGJkeGphZW1xamFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk4Mzk0MDUsImV4cCI6MjA2NTQxNTQwNX0.89nz9gLXXPI2208kGJhZ8xYXQzyfoxMxysNMK1b3oF0'
+// Use environment variables instead of hardcoded values
+const supabaseUrl = process.env.REACT_APP_SUPABASE_URL || 'https://dgzadilmtuqvimolzxms.supabase.co'
+const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRnejFkaWxtdHVxdmltb2x6eG1zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzM5MDEyMzMsImV4cCI6MjA0OTQ3NzIzM30.e80AhUU44MNlXZpJR4LPcQB8sWhRn-kNLjFDFPuwCx4'
 
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey)
