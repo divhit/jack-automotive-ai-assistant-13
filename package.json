@@ -12,11 +12,14 @@
     "preview": "vite preview",
     "server": "node server.js",
     "dev:full": "concurrently \"npm run dev\" \"npm run server\"",
-    "start": "node server.js"
+    "start": "node server.js",
+    "test:supabase": "node test-supabase-persistence.js",
+    "setup:crm": "echo '🚀 Setting up Supabase CRM persistence...' && npm install @supabase/supabase-js && echo '✅ Dependencies installed! Next: Set up Supabase project and add environment variables. See SUPABASE_CRM_SETUP.md for details.'"
   },
   "dependencies": {
     "@elevenlabs/client": "^0.1.6",
     "@hookform/resolvers": "^3.9.0",
+    "@supabase/supabase-js": "^2.39.3",
     "@radix-ui/react-accordion": "^1.2.0",
     "@radix-ui/react-alert-dialog": "^1.1.1",
     "@radix-ui/react-aspect-ratio": "^1.1.0",

@@ -8,6 +8,9 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 
+// ENHANCED: Import Supabase persistence service (non-breaking addition)
+import supabasePersistence from './services/supabasePersistence.js';
+
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
@@ -137,12 +140,14 @@ function addToConversationHistory(phoneNumber, message, sentBy, messageType = 't
   }
   
   const history = conversationContexts.get(normalized);
-  history.push({
+  const messageData = {
     content: message,
     sentBy: sentBy,
     timestamp: new Date().toISOString(),
     type: messageType
-  });
+  };
+  
+  history.push(messageData);
   
   // Keep only last 50 messages to prevent memory issues
   if (history.length > 50) {
@@ -150,16 +155,32 @@ function addToConversationHistory(phoneNumber, message, sentBy, messageType = 't
   }
   
   console.log(`📝 Added ${messageType} message to history for ${normalized} (${sentBy}): ${message.substring(0, 100)}...`);
+  
+  // ENHANCED: Async persistence to Supabase (non-blocking)
+  // This doesn't affect existing functionality at all
+  supabasePersistence.persistConversationMessage(phoneNumber, message, sentBy, messageType)
+    .catch(error => {
+      // Silent fail - system continues working normally
+      console.log(`🗄️ Persistence failed for message (system continues normally):`, error.message);
+    });
 }
 
 // Store conversation summary from post-call webhook
 function storeConversationSummary(phoneNumber, summary) {
   const normalized = normalizePhoneNumber(phoneNumber);
-  conversationSummaries.set(normalized, {
+  const summaryData = {
     summary,
     timestamp: new Date().toISOString()
-  });
+  };
+  
+  conversationSummaries.set(normalized, summaryData);
   console.log(`📋 Stored conversation summary for ${normalized}:`, summary.substring(0, 100) + '...');
+  
+  // ENHANCED: Async persistence to Supabase (non-blocking)
+  supabasePersistence.persistConversationSummary(phoneNumber, summary, summaryData.timestamp)
+    .catch(error => {
+      console.log(`🗄️ Persistence failed for summary (system continues normally):`, error.message);
+    });
 }
 
 // Get conversation summary
@@ -773,6 +794,21 @@ app.post('/api/elevenlabs/outbound-call', async (req, res) => {
     // Store conversation metadata for webhook processing
     const conversationId = result.call_sid || result.conversation_id || tempConversationId;
     storeConversationMetadata(conversationId, phoneNumber, leadId);
+    
+    // ENHANCED: Persist call session to Supabase (non-blocking)
+    supabasePersistence.persistCallSession({
+      id: conversationId,
+      leadId: leadId,
+      elevenlabsConversationId: result.conversation_id,
+      twilioCallSid: result.call_sid,
+      phoneNumber: phoneNumber,
+      callDirection: 'outbound',
+      startedAt: new Date().toISOString(),
+      conversationContext: conversationContext,
+      dynamicVariables: callPayload.conversation_initiation_client_data?.dynamic_variables
+    }).catch(error => {
+      console.log(`🗄️ Call session persistence failed (system continues normally):`, error.message);
+    });
     
     broadcastConversationUpdate({
       type: 'call_initiated',
@@ -1390,6 +1426,17 @@ function broadcastConversationUpdate(data) {
     } else {
       console.log(`❌ No SSE connection found for lead ${data.leadId}`);
     }
+    
+    // ENHANCED: Log activity to Supabase (non-blocking CRM feature)
+    if (data.leadId && data.type) {
+      const description = data.message || data.summary || `${data.type} event occurred`;
+      supabasePersistence.logLeadActivity(data.leadId, data.type, description, {
+        phoneNumber: data.phoneNumber,
+        timestamp: data.timestamp
+      }).catch(error => {
+        console.log(`🗄️ Activity logging failed (system continues normally):`, error.message);
+      });
+    }
   } else {
     // Broadcast to all connections if no specific leadId
     console.log(`📡 Broadcasting to all ${sseConnections.size} connections`);
@@ -1750,8 +1797,8 @@ app.post('/api/subprime/create-lead', async (req, res) => {
       });
     }
 
-    // Store the lead in memory (in production, save to database)
-    dynamicLeads.set(leadData.id, {
+    // Store the lead in memory (preserves all existing functionality)
+    const leadRecord = {
       id: leadData.id,
       customerName: leadData.customerName,
       phoneNumber: leadData.phoneNumber,
@@ -1771,7 +1818,15 @@ app.post('/api/subprime/create-lead', async (req, res) => {
         currentStep: "contacted",
         completedSteps: ["contacted"]
       }
-    });
+    };
+    
+    dynamicLeads.set(leadData.id, leadRecord);
+    
+    // ENHANCED: Async persistence to Supabase (non-blocking)
+    supabasePersistence.persistLead(leadRecord)
+      .catch(error => {
+        console.log(`🗄️ Persistence failed for lead ${leadData.id} (system continues normally):`, error.message);
+      });
 
     console.log(`✅ Lead ${leadData.id} stored successfully. Dynamic variables available:`, {
       customer_name: leadData.customerName,
@@ -1844,6 +1899,12 @@ app.put('/api/subprime/update-lead/:leadId', async (req, res) => {
       fundingReadiness: updatedLead.fundingReadiness
     });
 
+    // ENHANCED: Persist lead updates to Supabase (non-blocking)
+    supabasePersistence.persistLead(updatedLead)
+      .catch(error => {
+        console.log(`🗄️ Lead update persistence failed (system continues normally):`, error.message);
+      });
+
     res.json({ 
       success: true, 
       message: 'Lead updated successfully',
@@ -1858,6 +1919,198 @@ app.put('/api/subprime/update-lead/:leadId', async (req, res) => {
       details: error.message 
     });
   }
+});
+
+// NEW CRM ENDPOINTS (don't affect existing functionality)
+
+// Get lead analytics
+app.get('/api/analytics/lead/:leadId', async (req, res) => {
+  try {
+    const { leadId } = req.params;
+    
+    // Try to get from Supabase first, fallback to memory
+    const analytics = await supabasePersistence.getLeadAnalytics(leadId);
+    
+    if (analytics) {
+      res.json({
+        success: true,
+        analytics: analytics,
+        source: 'database'
+      });
+    } else {
+      // Fallback to memory-based calculation
+      const lead = dynamicLeads.get(leadId);
+      if (!lead) {
+        return res.status(404).json({ error: 'Lead not found' });
+      }
+      
+      const memoryAnalytics = {
+        leadScore: 50, // Default score
+        totalInteractions: lead.conversations?.length || 0,
+        lastActivityDays: 0,
+        communicationPreference: 'SMS',
+        engagementLevel: 'Medium'
+      };
+      
+      res.json({
+        success: true,
+        analytics: memoryAnalytics,
+        source: 'memory'
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ Error getting lead analytics:', error);
+    res.status(500).json({ 
+      error: 'Failed to get analytics',
+      details: error.message 
+    });
+  }
+});
+
+// Get all leads with analytics (CRM dashboard)
+app.get('/api/analytics/leads', async (req, res) => {
+  try {
+    const { limit = 100 } = req.query;
+    
+    const analyticsData = await supabasePersistence.getAllLeadsWithAnalytics(parseInt(limit));
+    
+    if (analyticsData && analyticsData.length > 0) {
+      res.json({
+        success: true,
+        leads: analyticsData,
+        count: analyticsData.length,
+        source: 'database'
+      });
+    } else {
+      // Fallback to memory data
+      const memoryLeads = Array.from(dynamicLeads.values()).map(lead => ({
+        id: lead.id,
+        customer_name: lead.customerName,
+        phone_number: lead.phoneNumber,
+        sentiment: lead.sentiment,
+        funding_readiness: lead.fundingReadiness,
+        total_conversations: lead.conversations?.length || 0,
+        last_activity: lead.lastTouchpoint,
+        lead_score: 50
+      }));
+      
+      res.json({
+        success: true,
+        leads: memoryLeads,
+        count: memoryLeads.length,
+        source: 'memory'
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ Error getting leads analytics:', error);
+    res.status(500).json({ 
+      error: 'Failed to get leads analytics',
+      details: error.message 
+    });
+  }
+});
+
+// Get conversation history for a lead (enhanced)
+app.get('/api/conversations/:leadId', async (req, res) => {
+  try {
+    const { leadId } = req.params;
+    const { limit = 50 } = req.query;
+    
+    // Get lead to find phone number
+    const lead = dynamicLeads.get(leadId);
+    if (!lead) {
+      return res.status(404).json({ error: 'Lead not found' });
+    }
+    
+    // Try Supabase first, fallback to memory
+    const dbHistory = await supabasePersistence.getConversationHistory(lead.phoneNumber, parseInt(limit));
+    
+    if (dbHistory && dbHistory.length > 0) {
+      res.json({
+        success: true,
+        conversations: dbHistory,
+        count: dbHistory.length,
+        source: 'database'
+      });
+    } else {
+      // Fallback to memory
+      const memoryHistory = getConversationHistory(lead.phoneNumber);
+      res.json({
+        success: true,
+        conversations: memoryHistory,
+        count: memoryHistory.length,
+        source: 'memory'
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ Error getting conversation history:', error);
+    res.status(500).json({ 
+      error: 'Failed to get conversation history',
+      details: error.message 
+    });
+  }
+});
+
+// Add agent note
+app.post('/api/notes/:leadId', async (req, res) => {
+  try {
+    const { leadId } = req.params;
+    const { content, noteType = 'general', agentName, isPrivate = false } = req.body;
+    
+    if (!content || !agentName) {
+      return res.status(400).json({ error: 'Content and agent name are required' });
+    }
+    
+    // For now, just log to Supabase (memory storage would be complex for notes)
+    await supabasePersistence.logLeadActivity(leadId, 'note_added', content, {
+      noteType,
+      agentName,
+      isPrivate
+    });
+    
+    res.json({
+      success: true,
+      message: 'Note added successfully'
+    });
+    
+  } catch (error) {
+    console.error('❌ Error adding note:', error);
+    res.status(500).json({ 
+      error: 'Failed to add note',
+      details: error.message 
+    });
+  }
+});
+
+// System status endpoint (shows persistence status)
+app.get('/api/system/status', (req, res) => {
+  res.json({
+    success: true,
+    status: 'running',
+    memory: {
+      activeConversations: activeConversations.size,
+      conversationContexts: conversationContexts.size,
+      conversationSummaries: conversationSummaries.size,
+      dynamicLeads: dynamicLeads.size,
+      sseConnections: sseConnections.size
+    },
+    persistence: {
+      enabled: supabasePersistence.isEnabled,
+      connected: supabasePersistence.isConnected,
+      service: 'Supabase'
+    },
+    features: {
+      telephony: true,
+      sms: true,
+      voice: true,
+      realTimeUpdates: true,
+      analytics: supabasePersistence.isEnabled,
+      crm: supabasePersistence.isEnabled
+    }
+  });
 });
 
 // Catch-all handler: send back React's index.html file in production

@@ -121,7 +121,24 @@ export const LeadCard = ({ lead, onViewDetails, onSelect, isSelected }: LeadCard
           >
             <Phone className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="h-8 w-8 p-0"
+            onClick={(e) => {
+              e.stopPropagation();
+              onViewDetails(lead);
+              // Navigate to conversation tab
+              setTimeout(() => {
+                const modal = document.querySelector('[role="dialog"]');
+                const conversationTab = modal?.querySelector('[data-value="conversation"]');
+                if (conversationTab) {
+                  (conversationTab as HTMLElement).click();
+                }
+              }, 100);
+            }}
+            title="Open conversation"
+          >
             <MessageSquare className="h-4 w-4" />
           </Button>
           <Button 

@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { InformationGatheringTab } from "./settings/InformationGatheringTab";
 import { CommunicationStyleTab } from "./settings/CommunicationStyleTab";
 import { AutomationTab } from "./settings/AutomationTab";
+import { toast } from "sonner";
 
 interface SubprimeSettingsDialogProps {
   open: boolean;
@@ -21,6 +22,7 @@ interface SubprimeSettingsDialogProps {
 
 export const SubprimeSettingsDialog = ({ open, onOpenChange }: SubprimeSettingsDialogProps) => {
   const [selectedTab, setSelectedTab] = useState("information");
+  const [isLoading, setIsLoading] = useState(false);
   const [formSettings, setFormSettings] = useState({
     enabledSections: {
       identity: true,
@@ -93,6 +95,34 @@ export const SubprimeSettingsDialog = ({ open, onOpenChange }: SubprimeSettingsD
     }));
   };
 
+  const handleSaveSettings = async () => {
+    setIsLoading(true);
+    try {
+      // Save settings to backend
+      const response = await fetch('/api/subprime/settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formSettings)
+      });
+
+      if (response.ok) {
+        toast.success('Settings saved successfully');
+        console.log('✅ Subprime settings saved:', formSettings);
+      } else {
+        throw new Error('Failed to save settings');
+      }
+    } catch (error) {
+      console.error('❌ Error saving settings:', error);
+      toast.error('Failed to save settings');
+    } finally {
+      setIsLoading(false);
+    }
+    
+    onOpenChange(false);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -139,7 +169,12 @@ export const SubprimeSettingsDialog = ({ open, onOpenChange }: SubprimeSettingsD
         
         <DialogFooter className="mt-6">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={() => onOpenChange(false)}>Save Settings</Button>
+          <Button 
+            onClick={handleSaveSettings}
+            disabled={isLoading}
+          >
+            {isLoading ? 'Saving...' : 'Save Settings'}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

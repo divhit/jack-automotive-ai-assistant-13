@@ -1,4 +1,3 @@
-
 import { SubprimeLead } from "@/data/subprime/subprimeLeads";
 import { Card } from "@/components/ui/card";
 import { 
@@ -92,29 +91,99 @@ export const SubprimeAnalytics = ({ leads }: SubprimeAnalyticsProps) => {
     }
   ];
 
-  // New data for funnel metrics
+  // Calculate real funnel metrics based on lead data
+  const totalLeads = leads.length;
   const funnelDropoffData = [
-    { name: "Initial Contact", value: 100, color: "#3b82f6" },
-    { name: "Screening Complete", value: 75, color: "#8b5cf6" },
-    { name: "Docs Submitted", value: 45, color: "#ec4899" },
-    { name: "Credit Verified", value: 30, color: "#f97316" },
-    { name: "Final Approval", value: 20, color: "#10b981" }
+    { 
+      name: "Initial Contact", 
+      value: totalLeads, 
+      color: "#3b82f6" 
+    },
+    { 
+      name: "Screening Complete", 
+      value: leads.filter(lead => 
+        lead.scriptProgress.completedSteps.includes("screening") ||
+        ["qualification", "routing", "submitted"].includes(lead.scriptProgress.currentStep)
+      ).length, 
+      color: "#8b5cf6" 
+    },
+    { 
+      name: "Qualification Done", 
+      value: leads.filter(lead => 
+        lead.scriptProgress.completedSteps.includes("qualification") ||
+        ["routing", "submitted"].includes(lead.scriptProgress.currentStep)
+      ).length, 
+      color: "#ec4899" 
+    },
+    { 
+      name: "Routing Complete", 
+      value: leads.filter(lead => 
+        lead.scriptProgress.completedSteps.includes("routing") ||
+        lead.scriptProgress.currentStep === "submitted"
+      ).length, 
+      color: "#f97316" 
+    },
+    { 
+      name: "Final Submission", 
+      value: leads.filter(lead => lead.scriptProgress.currentStep === "submitted").length, 
+      color: "#10b981" 
+    }
   ];
+
+  // Calculate response time distribution based on last touchpoint
+  const now = new Date();
+  const getHoursFromLastContact = (lead: SubprimeLead) => {
+    const lastContact = new Date(lead.lastTouchpoint);
+    return Math.floor((now.getTime() - lastContact.getTime()) / (1000 * 60 * 60));
+  };
 
   const replyLatencyData = [
-    { name: "< 12 hrs", value: 45, color: "#22c55e" },
-    { name: "12-24 hrs", value: 30, color: "#eab308" },
-    { name: "24-48 hrs", value: 15, color: "#ef4444" },
-    { name: "48+ hrs", value: 10, color: "#64748b" }
+    { 
+      name: "< 12 hrs", 
+      value: leads.filter(lead => getHoursFromLastContact(lead) < 12).length, 
+      color: "#22c55e" 
+    },
+    { 
+      name: "12-24 hrs", 
+      value: leads.filter(lead => {
+        const hours = getHoursFromLastContact(lead);
+        return hours >= 12 && hours < 24;
+      }).length, 
+      color: "#eab308" 
+    },
+    { 
+      name: "24-48 hrs", 
+      value: leads.filter(lead => {
+        const hours = getHoursFromLastContact(lead);
+        return hours >= 24 && hours < 48;
+      }).length, 
+      color: "#ef4444" 
+    },
+    { 
+      name: "48+ hrs", 
+      value: leads.filter(lead => getHoursFromLastContact(lead) >= 48).length, 
+      color: "#64748b" 
+    }
   ];
 
-  // Script variant performance data
-  const scriptVariantData = [
-    { name: "Standard", replies: 68, escalations: 12, color: "#3b82f6" },
-    { name: "Friendly", replies: 75, escalations: 8, color: "#22c55e" },
-    { name: "Direct", replies: 62, escalations: 15, color: "#f97316" },
-    { name: "Educational", replies: 70, escalations: 10, color: "#8b5cf6" }
-  ];
+  // Calculate performance metrics by sentiment (as proxy for script effectiveness)
+  const sentimentGroups = {
+    "Positive": leads.filter(lead => ["Warm"].includes(lead.sentiment)),
+    "Neutral": leads.filter(lead => ["Neutral"].includes(lead.sentiment)),
+    "Challenging": leads.filter(lead => ["Negative", "Cold", "Frustrated"].includes(lead.sentiment)),
+    "Inactive": leads.filter(lead => ["Ghosted"].includes(lead.sentiment))
+  };
+
+  const scriptVariantData = Object.entries(sentimentGroups).map(([name, groupLeads]) => ({
+    name,
+    replies: groupLeads.length > 0 ? Math.round((groupLeads.filter(lead => 
+      lead.conversations.length > 1
+    ).length / groupLeads.length) * 100) : 0,
+    escalations: groupLeads.length > 0 ? Math.round((groupLeads.filter(lead => 
+      lead.sentiment === "Needs Human" || lead.chaseStatus === "Manual Review"
+    ).length / groupLeads.length) * 100) : 0,
+    color: name === "Positive" ? "#22c55e" : name === "Neutral" ? "#3b82f6" : name === "Challenging" ? "#f97316" : "#64748b"
+  }));
 
   // Custom tooltip to display more info
   const CustomTooltip = ({ active, payload }: TooltipProps<number, string>) => {
@@ -197,11 +266,11 @@ export const SubprimeAnalytics = ({ leads }: SubprimeAnalyticsProps) => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {/* Funnel Performance */}
         <Card className="p-4">
-          <h3 className="text-sm font-medium mb-4">Funnel Drop-off Analysis</h3>
+          <h3 className="text-sm font-medium mb-4">Lead Progress Funnel</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={funnelDropoffData} layout="vertical">
-                <XAxis type="number" domain={[0, 100]} />
+                <XAxis type="number" />
                 <YAxis dataKey="name" type="category" />
                 <Tooltip content={<CustomTooltip />} />
                 <Bar dataKey="value">
@@ -216,7 +285,7 @@ export const SubprimeAnalytics = ({ leads }: SubprimeAnalyticsProps) => {
 
         {/* Reply Latency Distribution */}
         <Card className="p-4">
-          <h3 className="text-sm font-medium mb-4">Response Time Distribution</h3>
+          <h3 className="text-sm font-medium mb-4">Time Since Last Contact</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -243,7 +312,7 @@ export const SubprimeAnalytics = ({ leads }: SubprimeAnalyticsProps) => {
 
       {/* Script Variant Performance */}
       <Card className="p-4">
-        <h3 className="text-sm font-medium mb-4">Script Variant Performance</h3>
+        <h3 className="text-sm font-medium mb-4">Lead Engagement by Sentiment</h3>
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={scriptVariantData} barSize={20}>
@@ -260,26 +329,34 @@ export const SubprimeAnalytics = ({ leads }: SubprimeAnalyticsProps) => {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="p-4">
-          <h3 className="text-lg font-semibold mb-2">Average Time to Ready</h3>
-          <p className="text-3xl font-bold text-green-600">3.2 days</p>
-          <p className="text-sm text-gray-500">From first contact to funding ready</p>
+          <h3 className="text-lg font-semibold mb-2">Ready for Funding</h3>
+          <p className="text-3xl font-bold text-green-600">
+            {leads.filter(lead => lead.fundingReadiness === "Ready").length}
+          </p>
+          <p className="text-sm text-gray-500">
+            {totalLeads > 0 ? Math.round((leads.filter(lead => lead.fundingReadiness === "Ready").length / totalLeads) * 100) : 0}% of all leads
+          </p>
         </Card>
 
         <Card className="p-4">
           <h3 className="text-lg font-semibold mb-2">Manual Intervention Rate</h3>
-          <p className="text-3xl font-bold text-purple-600">24%</p>
+          <p className="text-3xl font-bold text-purple-600">
+            {totalLeads > 0 ? Math.round((leads.filter(lead => lead.chaseStatus === "Manual Review").length / totalLeads) * 100) : 0}%
+          </p>
           <p className="text-sm text-gray-500">Of leads require human review</p>
         </Card>
 
         <Card className="p-4">
-          <h3 className="text-lg font-semibold mb-2">Auto-Chase Success</h3>
-          <p className="text-3xl font-bold text-blue-600">76%</p>
-          <p className="text-sm text-gray-500">Leads progress without manual help</p>
+          <h3 className="text-lg font-semibold mb-2">Auto-Chase Active</h3>
+          <p className="text-3xl font-bold text-blue-600">
+            {totalLeads > 0 ? Math.round((leads.filter(lead => lead.chaseStatus === "Auto Chase Running").length / totalLeads) * 100) : 0}%
+          </p>
+          <p className="text-sm text-gray-500">Leads in automated follow-up</p>
         </Card>
       </div>
 
       <div className="border-t pt-4 text-center text-sm text-gray-500">
-        <p>Analytics updated every 15 minutes. Historical data available in full reports.</p>
+        <p>Analytics update in real-time based on current lead data. All metrics calculated from actual lead information.</p>
       </div>
     </div>
   );

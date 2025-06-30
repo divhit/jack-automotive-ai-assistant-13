@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -9,13 +9,15 @@ import {
   DialogTitle,
   DialogDescription
 } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { subprimeLeads } from "@/data";
 import { SubprimeLeadFilters } from "@/components/subprime/SubprimeLeadFilters";
 import { SubprimeAnalytics } from "@/components/subprime/SubprimeAnalytics";
 import { SubprimeLeadsList } from "@/components/subprime/SubprimeLeadsList";
 import { SubprimeAddLeadDialog } from "@/components/subprime/SubprimeAddLeadDialog";
+import { LeadAnalyticsDashboard } from "@/components/subprime/analytics/LeadAnalyticsDashboard";
 import { SubprimeLead } from "@/data/subprime/subprimeLeads";
-import { BarChart3, Users, MessageSquare, Clock, Info, Settings, Sliders, UserPlus } from "lucide-react";
+import { BarChart3, Users, MessageSquare, Clock, Info, Settings, Sliders, UserPlus, Database, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SubprimeSettingsDialog } from "@/components/subprime/SubprimeSettingsDialog";
 import { Toaster } from "@/components/ui/sonner";
@@ -32,6 +34,10 @@ const SubprimeDashboard = () => {
     title: "", 
     content: null 
   });
+  const [activeMainTab, setActiveMainTab] = useState("overview");
+  const [isLoading, setIsLoading] = useState(false);
+  const [dataSource, setDataSource] = useState<'database' | 'memory'>('memory');
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   
   // Calculate metrics from current leads state
   const readyLeads = allLeads.filter(lead => lead.fundingReadiness === "Ready").length;
@@ -59,12 +65,42 @@ const SubprimeDashboard = () => {
     setFilteredLeads(filteredLeads);
   };
 
-  const handleLeadUpdate = (leadId: string, updates: Partial<SubprimeLead>) => {
+  // Load leads from server on component mount
+  useEffect(() => {
+    loadLeadsFromServer();
+  }, []);
+
+  const loadLeadsFromServer = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/subprime/leads?limit=100');
+      const data = await response.json();
+      
+      if (data.success) {
+        setAllLeads(data.leads);
+        setFilteredLeads(data.leads);
+        setDataSource(data.source);
+        setLastRefresh(new Date());
+        console.log(`📊 Loaded ${data.leads.length} leads from ${data.source}`);
+        
+        if (data.source === 'database') {
+          toast.success(`Loaded ${data.leads.length} leads from database`);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading leads:', error);
+      toast.error('Failed to load leads from server, using local data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleLeadUpdate = async (leadId: string, updates: Partial<SubprimeLead>) => {
     // Update the lead in the main leads array
     setAllLeads(prevLeads => 
       prevLeads.map(lead => 
         lead.id === leadId 
-          ? { ...lead, ...updates, lastActivity: new Date().toISOString() }
+          ? { ...lead, ...updates, lastTouchpoint: new Date().toISOString() }
           : lead
       )
     );
@@ -73,16 +109,31 @@ const SubprimeDashboard = () => {
     setFilteredLeads(prevLeads => 
       prevLeads.map(lead => 
         lead.id === leadId 
-          ? { ...lead, ...updates, lastActivity: new Date().toISOString() }
+          ? { ...lead, ...updates, lastTouchpoint: new Date().toISOString() }
           : lead
       )
     );
 
-    // Show toast notification
-    toast.success(`Lead ${leadId} updated successfully`);
-    
-    // Here you would typically make an API call to persist the changes
-    // await updateLeadInDatabase(leadId, updates);
+    // Persist changes to server
+    try {
+      const response = await fetch('/api/subprime/update-lead', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ leadId, updates })
+      });
+
+      if (response.ok) {
+        toast.success(`Lead ${leadId} updated successfully`);
+      } else {
+        console.warn('Failed to persist lead update to server');
+        toast.warning('Lead updated locally, but server sync failed');
+      }
+    } catch (error) {
+      console.error('Error persisting lead update:', error);
+      toast.warning('Lead updated locally, but server sync failed');
+    }
   };
 
   const handleLeadAdded = (newLead: SubprimeLead) => {
@@ -106,9 +157,7 @@ const SubprimeDashboard = () => {
       setFilteredLeads(prevLeads => [newLead, ...prevLeads]);
     }
 
-    // Here you would typically make an API call to persist the new lead
-    // await createLeadInDatabase(newLead);
-    
+    // No need to make API call here as SubprimeAddLeadDialog handles it
     toast.success(`New lead added successfully`, {
       description: `${newLead.customerName} is now in the subprime pipeline and ready for telephony integration`
     });
@@ -184,7 +233,15 @@ const SubprimeDashboard = () => {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Subprime Dashboard</h1>
+        <div className="flex items-center gap-4">
+          <h1 className="text-2xl font-bold">Subprime Dashboard</h1>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Database className="h-4 w-4" />
+            <span>Data: {dataSource}</span>
+            <span>•</span>
+            <span>Updated: {lastRefresh.toLocaleTimeString()}</span>
+          </div>
+        </div>
         <div className="flex items-center gap-3">
           <div className="w-64">
             <Input 
@@ -194,6 +251,17 @@ const SubprimeDashboard = () => {
               className="w-full"
             />
           </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={loadLeadsFromServer}
+            disabled={isLoading}
+            className="gap-2"
+          >
+            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
 
           <Button
             onClick={() => setAddLeadDialogOpen(true)}
@@ -213,6 +281,14 @@ const SubprimeDashboard = () => {
           </Button>
         </div>
       </div>
+
+      <Tabs value={activeMainTab} onValueChange={setActiveMainTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="overview">Lead Overview</TabsTrigger>
+          <TabsTrigger value="analytics">CRM Analytics</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="overview" className="space-y-6 mt-6">
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="cursor-pointer hover:bg-gray-50 transition-colors" 
@@ -332,6 +408,12 @@ const SubprimeDashboard = () => {
           </CardContent>
         </Card>
       </div>
+        </TabsContent>
+        
+        <TabsContent value="analytics" className="mt-6">
+          <LeadAnalyticsDashboard />
+        </TabsContent>
+      </Tabs>
 
       <SubprimeSettingsDialog 
         open={settingsDialogOpen} 

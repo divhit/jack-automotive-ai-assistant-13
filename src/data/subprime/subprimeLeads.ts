@@ -24,6 +24,15 @@ export interface SubprimeLead {
     knownIssues: string[];
   };
   vehiclePreference?: string;
+  vehicleInterest?: {
+    type: string;
+    budget: {
+      min: number;
+      max: number;
+    };
+    downPayment: number;
+    features?: string[];
+  };
   conversations: {
     type: string;
     content: string;
@@ -60,6 +69,15 @@ export const subprimeLeads: SubprimeLead[] = [
       knownIssues: []
     },
     vehiclePreference: "SUV",
+    vehicleInterest: {
+      type: "SUV",
+      budget: {
+        min: 20000,
+        max: 30000
+      },
+      downPayment: 5000,
+      features: ["All-wheel drive", "Backup camera", "Bluetooth"]
+    },
     conversations: [
       {
         type: "message",
@@ -138,6 +156,15 @@ export const subprimeLeads: SubprimeLead[] = [
       knownIssues: ["Short credit history"]
     },
     vehiclePreference: "Sedan",
+    vehicleInterest: {
+      type: "Sedan",
+      budget: {
+        min: 15000,
+        max: 22000
+      },
+      downPayment: 3000,
+      features: ["Good fuel economy", "Reliable", "Low maintenance"]
+    },
     conversations: [
       {
         type: "message",
@@ -318,6 +345,15 @@ export const subprimeLeads: SubprimeLead[] = [
       knownIssues: []
     },
     vehiclePreference: "Luxury Car",
+    vehicleInterest: {
+      type: "Luxury Car",
+      budget: {
+        min: 35000,
+        max: 50000
+      },
+      downPayment: 8000,
+      features: ["Leather seats", "Navigation", "Sunroof", "Premium sound"]
+    },
     conversations: [
       {
         type: "message",
