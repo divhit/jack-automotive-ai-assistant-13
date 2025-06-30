@@ -45,138 +45,6 @@ export interface SubprimeLead {
 
 export const subprimeLeads: SubprimeLead[] = [
   {
-    id: "test1",
-    customerName: "Test User",
-    phoneNumber: "(604) 908-5474",
-    email: "test@example.com",
-    chaseStatus: "Auto Chase Running",
-    fundingReadiness: "Ready",
-    fundingReadinessReason: "Test lead for telephony integration",
-    sentiment: "Warm",
-    lastTouchpoint: "2025-01-21T11:00:00Z",
-    nextAction: {
-      type: "Test telephony integration",
-      dueDate: "2025-01-21T15:00:00Z",
-      isAutomated: true,
-      isOverdue: false
-    },
-    scriptProgress: {
-      currentStep: "contacted",
-      completedSteps: ["contacted"]
-    },
-    creditProfile: {
-      scoreRange: "700-750",
-      knownIssues: []
-    },
-    vehiclePreference: "SUV",
-    vehicleInterest: {
-      type: "SUV",
-      budget: {
-        min: 20000,
-        max: 30000
-      },
-      downPayment: 5000,
-      features: ["All-wheel drive", "Backup camera", "Bluetooth"]
-    },
-    conversations: [
-      {
-        type: "message",
-        content: "Welcome! This is a test lead for telephony integration.",
-        timestamp: "2025-01-21T11:00:00Z",
-        sentBy: "system"
-      }
-    ],
-    assignedAgent: "Test Agent",
-    assignedSpecialist: "Andrea"
-  },
-  {
-    id: "sl1",
-    customerName: "John Smith",
-    phoneNumber: "(555) 123-4567",
-    email: "john.123@example.com",
-    chaseStatus: "Auto Chase Running",
-    fundingReadiness: "Ready",
-    fundingReadinessReason: "All documents submitted and verified",
-    sentiment: "Warm",
-    lastTouchpoint: "2025-04-23T10:00:00Z",
-    nextAction: {
-      type: "Schedule test drive",
-      dueDate: "2025-04-24T14:00:00Z",
-      isAutomated: true,
-      isOverdue: false
-    },
-    scriptProgress: {
-      currentStep: "routing",
-      completedSteps: ["contacted", "screening", "qualification"]
-    },
-    creditProfile: {
-      scoreRange: "680-720",
-      knownIssues: []
-    },
-    vehiclePreference: "SUV",
-    conversations: [
-      {
-        type: "message",
-        content: "Hi John, just confirming your test drive appointment for tomorrow.",
-        timestamp: "2025-04-23T10:00:00Z",
-        sentBy: "system"
-      },
-      {
-        type: "message",
-        content: "Yes, I'll be there!",
-        timestamp: "2025-04-23T10:05:00Z",
-        sentBy: "lead"
-      }
-    ],
-    assignedAgent: "Alice Johnson",
-    assignedSpecialist: "Andrea"
-  },
-  {
-    id: "sl2",
-    customerName: "Emily White",
-    phoneNumber: "(555) 987-6543",
-    email: "emily.white@example.com",
-    chaseStatus: "Paused",
-    fundingReadiness: "Partial",
-    fundingReadinessReason: "Waiting on proof of income",
-    sentiment: "Neutral",
-    lastTouchpoint: "2025-04-22T16:30:00Z",
-    nextAction: {
-      type: "Request pay stubs",
-      dueDate: "2025-04-25T10:00:00Z",
-      isAutomated: true,
-      isOverdue: false
-    },
-    scriptProgress: {
-      currentStep: "qualification",
-      completedSteps: ["contacted", "screening"]
-    },
-    creditProfile: {
-      scoreRange: "620-680",
-      knownIssues: ["Short credit history"]
-    },
-    vehiclePreference: "Sedan",
-    vehicleInterest: {
-      type: "Sedan",
-      budget: {
-        min: 15000,
-        max: 22000
-      },
-      downPayment: 3000,
-      features: ["Good fuel economy", "Reliable", "Low maintenance"]
-    },
-    conversations: [
-      {
-        type: "message",
-        content: "Hi Emily, please upload your latest pay stubs to continue your application.",
-        timestamp: "2025-04-22T16:30:00Z",
-        sentBy: "system"
-      }
-    ],
-    assignedAgent: "Bob Williams",
-    assignedSpecialist: "Ian"
-  },
-  {
     id: "sl3",
     customerName: "Carlos Rodriguez",
     phoneNumber: "(555) 456-7890",
@@ -201,15 +69,24 @@ export const subprimeLeads: SubprimeLead[] = [
       knownIssues: []
     },
     vehiclePreference: "Truck",
+    vehicleInterest: {
+      type: "Truck",
+      budget: {
+        min: 25000,
+        max: 35000
+      },
+      downPayment: 5000,
+      features: ["4WD", "Towing package", "Extended cab"]
+    },
     conversations: [
       {
         type: "message",
-        content: "Hi Carlos, your truck will be delivered on Thursday at 3 PM.",
+        content: "Great news Carlos! Your loan has been approved and we're ready to finalize your truck purchase.",
         timestamp: "2025-04-21T12:00:00Z",
         sentBy: "system"
       }
     ],
-    assignedAgent: "Alice Johnson",
+    assignedAgent: "Charlie Brown",
     assignedSpecialist: "Kayam"
   },
   {
@@ -613,3 +490,25 @@ export const subprimeLeads: SubprimeLead[] = [
     assignedSpecialist: "Ian"
   }
 ];
+
+// Utility functions for direct in-memory data manipulation
+export const deleteLeadFromMemory = (leadId: string): boolean => {
+  const index = subprimeLeads.findIndex(lead => lead.id === leadId);
+  if (index !== -1) {
+    subprimeLeads.splice(index, 1);
+    console.log(`🗑️ Deleted lead ${leadId} from memory. ${subprimeLeads.length} leads remaining.`);
+    return true;
+  }
+  return false;
+};
+
+export const deleteAllLeadsFromMemory = (): number => {
+  const deletedCount = subprimeLeads.length;
+  subprimeLeads.splice(0); // Clear the entire array
+  console.log(`🗑️ Deleted all ${deletedCount} leads from memory.`);
+  return deletedCount;
+};
+
+export const getLeadsCount = (): number => {
+  return subprimeLeads.length;
+};

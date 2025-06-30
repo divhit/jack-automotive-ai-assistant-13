@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Technical documentation (contains implementation details)
+TWILIO_ELEVENLABS_IMPLEMENTATION_GUIDE.md

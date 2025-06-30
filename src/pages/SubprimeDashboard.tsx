@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -10,14 +10,14 @@ import {
   DialogDescription
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { subprimeLeads } from "@/data";
+import { subprimeLeads, deleteLeadFromMemory, deleteAllLeadsFromMemory } from "@/data";
 import { SubprimeLeadFilters } from "@/components/subprime/SubprimeLeadFilters";
 import { SubprimeAnalytics } from "@/components/subprime/SubprimeAnalytics";
 import { SubprimeLeadsList } from "@/components/subprime/SubprimeLeadsList";
 import { SubprimeAddLeadDialog } from "@/components/subprime/SubprimeAddLeadDialog";
 import { LeadAnalyticsDashboard } from "@/components/subprime/analytics/LeadAnalyticsDashboard";
 import { SubprimeLead } from "@/data/subprime/subprimeLeads";
-import { BarChart3, Users, MessageSquare, Clock, Info, Settings, Sliders, UserPlus, Database, RefreshCw, Trash2, Eraser } from "lucide-react";
+import { BarChart3, Users, MessageSquare, Clock, Info, Settings, Sliders, UserPlus, Database, RefreshCw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SubprimeSettingsDialog } from "@/components/subprime/SubprimeSettingsDialog";
 import { Toaster } from "@/components/ui/sonner";
@@ -39,12 +39,22 @@ const SubprimeDashboard = () => {
   const [dataSource, setDataSource] = useState<'database' | 'memory'>('memory');
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   
-  // Calculate metrics from current leads state
-  const readyLeads = allLeads.filter(lead => lead.fundingReadiness === "Ready").length;
-  const partialLeads = allLeads.filter(lead => lead.fundingReadiness === "Partial").length;
-  const notReadyLeads = allLeads.filter(lead => lead.fundingReadiness === "Not Ready").length;
-  const needsActionLeads = allLeads.filter(lead => lead.nextAction.isOverdue).length;
-  const totalLeads = allLeads.length;
+  // Calculate metrics from current leads state - wrapped in useMemo to prevent infinite loops
+  const metrics = useMemo(() => {
+    const readyLeads = allLeads.filter(lead => lead.fundingReadiness === "Ready").length;
+    const partialLeads = allLeads.filter(lead => lead.fundingReadiness === "Partial").length;
+    const notReadyLeads = allLeads.filter(lead => lead.fundingReadiness === "Not Ready").length;
+    const needsActionLeads = allLeads.filter(lead => lead.nextAction.isOverdue).length;
+    const totalLeads = allLeads.length;
+    
+    return {
+      readyLeads,
+      partialLeads,
+      notReadyLeads,
+      needsActionLeads,
+      totalLeads
+    };
+  }, [allLeads]);
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     const term = e.target.value.toLowerCase();
@@ -168,63 +178,46 @@ const SubprimeDashboard = () => {
     setTileDialogOpen(true);
   };
 
-  const handleClearTestData = async () => {
-    if (!confirm('Are you sure you want to clear all test data? This will remove Test User, John Smith, and other sample leads.')) {
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const response = await fetch('/api/subprime/clear-test-data', {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-
-      const data = await response.json();
-      
-      if (data.success) {
-        toast.success(`Cleared ${data.deletedCount} test leads successfully`);
-        await loadLeadsFromServer(); // Refresh the data
-      } else {
-        throw new Error(data.error || 'Failed to clear test data');
-      }
-    } catch (error) {
-      console.error('Error clearing test data:', error);
-      toast.error(error.message || 'Failed to clear test data');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleDeleteLead = async (leadId: string) => {
+  const handleDeleteLead = (leadId: string) => {
     if (!confirm('Are you sure you want to delete this lead? This action cannot be undone.')) {
       return;
     }
 
     try {
-      const response = await fetch(`/api/subprime/delete-lead?id=${leadId}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-
-      const data = await response.json();
+      // Delete from memory directly
+      const success = deleteLeadFromMemory(leadId);
       
-      if (data.success) {
-        // Remove from local state immediately
+      if (success) {
+        // Update local state immediately
         setAllLeads(prevLeads => prevLeads.filter(lead => lead.id !== leadId));
         setFilteredLeads(prevLeads => prevLeads.filter(lead => lead.id !== leadId));
         
-        toast.success(`Lead ${leadId} deleted successfully`);
+        toast.success(`Lead deleted successfully`);
       } else {
-        throw new Error(data.error || 'Failed to delete lead');
+        toast.error('Lead not found');
       }
     } catch (error) {
       console.error('Error deleting lead:', error);
-      toast.error(error.message || 'Failed to delete lead');
+      toast.error('Failed to delete lead');
+    }
+  };
+
+  const handleDeleteAllLeads = () => {
+    if (!confirm('Are you sure you want to delete ALL leads? This action cannot be undone and will remove all leads from memory.')) {
+      return;
+    }
+
+    try {
+      const deletedCount = deleteAllLeadsFromMemory();
+      
+      // Clear local state
+      setAllLeads([]);
+      setFilteredLeads([]);
+      
+      toast.success(`Deleted all ${deletedCount} leads successfully`);
+    } catch (error) {
+      console.error('Error deleting all leads:', error);
+      toast.error('Failed to delete all leads');
     }
   };
 
@@ -235,7 +228,7 @@ const SubprimeDashboard = () => {
         title: "In Progress Leads",
         content: (
           <div className="space-y-4">
-            <p>There are currently <span className="font-bold text-yellow-600">{partialLeads}</span> leads in progress.</p>
+            <p>There are currently <span className="font-bold text-yellow-600">{metrics.partialLeads}</span> leads in progress.</p>
             <ul className="list-disc pl-5 space-y-2">
               <li><span className="font-semibold">{allLeads.filter(l => l.scriptProgress.currentStep === "screening").length}</span> leads in Screening stage</li>
               <li><span className="font-semibold">{allLeads.filter(l => l.scriptProgress.currentStep === "qualification").length}</span> leads in Qualification stage</li>
@@ -249,7 +242,7 @@ const SubprimeDashboard = () => {
         title: "Not Ready Leads",
         content: (
           <div className="space-y-4">
-            <p>There are <span className="font-bold text-red-600">{notReadyLeads}</span> leads that are not ready for funding.</p>
+            <p>There are <span className="font-bold text-red-600">{metrics.notReadyLeads}</span> leads that are not ready for funding.</p>
             <ul className="list-disc pl-5 space-y-2">
               <li><span className="font-semibold">{allLeads.filter(l => l.creditProfile?.knownIssues.includes("Multiple Collections")).length}</span> with major collections issues</li>
               <li><span className="font-semibold">{allLeads.filter(l => l.creditProfile?.knownIssues.includes("Recent Bankruptcy")).length}</span> with recent bankruptcies</li>
@@ -263,7 +256,7 @@ const SubprimeDashboard = () => {
         title: "Needs Action Leads",
         content: (
           <div className="space-y-4">
-            <p><span className="font-bold text-purple-600">{needsActionLeads}</span> leads require immediate attention.</p>
+            <p><span className="font-bold text-purple-600">{metrics.needsActionLeads}</span> leads require immediate attention.</p>
             <ul className="list-disc pl-5 space-y-2">
               <li><span className="font-semibold">{allLeads.filter(l => l.nextAction.isOverdue && l.sentiment === "Frustrated").length}</span> overdue and showing frustration</li>
               <li><span className="font-semibold">{allLeads.filter(l => l.nextAction.isOverdue && l.chaseStatus === "Manual Review").length}</span> flagged for manual review</li>
@@ -277,11 +270,11 @@ const SubprimeDashboard = () => {
         title: "Ready for Funding Leads",
         content: (
           <div className="space-y-4">
-            <p><span className="font-bold text-green-600">{readyLeads}</span> leads are ready for financing.</p>
+            <p><span className="font-bold text-green-600">{metrics.readyLeads}</span> leads are ready for financing.</p>
             <ul className="list-disc pl-5 space-y-2">
-              <li><span className="font-semibold">{Math.round(readyLeads * 0.4)}</span> ready for traditional financing</li>
-              <li><span className="font-semibold">{Math.round(readyLeads * 0.35)}</span> qualified for special programs</li>
-              <li><span className="font-semibold">{Math.round(readyLeads * 0.25)}</span> ready for alternative financing</li>
+              <li><span className="font-semibold">{Math.round(metrics.readyLeads * 0.4)}</span> ready for traditional financing</li>
+              <li><span className="font-semibold">{Math.round(metrics.readyLeads * 0.35)}</span> qualified for special programs</li>
+              <li><span className="font-semibold">{Math.round(metrics.readyLeads * 0.25)}</span> ready for alternative financing</li>
             </ul>
             <p className="text-sm text-gray-600 mt-4">Average time to funding ready: 3.2 days (20% faster than last month)</p>
           </div>
@@ -332,14 +325,13 @@ const SubprimeDashboard = () => {
           </Button>
 
           <Button
-            variant="outline"
+            variant="destructive"
             size="sm"
-            onClick={handleClearTestData}
-            disabled={isLoading}
-            className="gap-2 text-orange-600 border-orange-200 hover:bg-orange-50"
+            onClick={handleDeleteAllLeads}
+            className="gap-2"
           >
-            <Eraser className="h-4 w-4" />
-            Clear Test Data
+            <Trash2 className="h-4 w-4" />
+            Delete All Leads
           </Button>
 
           <Button 
@@ -373,13 +365,13 @@ const SubprimeDashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
-              <div className="text-xl font-bold">{partialLeads}</div>
+              <div className="text-xl font-bold">{metrics.partialLeads}</div>
               <div className="bg-yellow-100 p-1.5 rounded-full">
                 <MessageSquare className="h-3.5 w-3.5 text-yellow-600" />
               </div>
             </div>
             <div className="flex items-center mt-3 text-xs">
-              <span className="text-muted-foreground">{Math.round((partialLeads / totalLeads) * 100)}% of all leads</span>
+              <span className="text-muted-foreground">{Math.round((metrics.partialLeads / metrics.totalLeads) * 100)}% of all leads</span>
             </div>
           </CardContent>
         </Card>
@@ -395,13 +387,13 @@ const SubprimeDashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
-              <div className="text-xl font-bold">{notReadyLeads}</div>
+              <div className="text-xl font-bold">{metrics.notReadyLeads}</div>
               <div className="bg-red-100 p-1.5 rounded-full">
                 <Users className="h-3.5 w-3.5 text-red-600" />
               </div>
             </div>
             <div className="flex items-center mt-3 text-xs">
-              <span className="text-muted-foreground">{Math.round((notReadyLeads / totalLeads) * 100)}% of all leads</span>
+              <span className="text-muted-foreground">{Math.round((metrics.notReadyLeads / metrics.totalLeads) * 100)}% of all leads</span>
             </div>
           </CardContent>
         </Card>
@@ -417,13 +409,13 @@ const SubprimeDashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
-              <div className="text-xl font-bold">{needsActionLeads}</div>
+              <div className="text-xl font-bold">{metrics.needsActionLeads}</div>
               <div className="bg-purple-100 p-1.5 rounded-full">
                 <Clock className="h-3.5 w-3.5 text-purple-600" />
               </div>
             </div>
             <Badge variant="outline" className="mt-3 text-xs bg-red-50 text-red-700 border-red-200">
-              {needsActionLeads} overdue actions
+              {metrics.needsActionLeads} overdue actions
             </Badge>
           </CardContent>
         </Card>
@@ -439,13 +431,13 @@ const SubprimeDashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
-              <div className="text-xl font-bold">{readyLeads}</div>
+              <div className="text-xl font-bold">{metrics.readyLeads}</div>
               <div className="bg-green-100 p-1.5 rounded-full">
                 <Users className="h-3.5 w-3.5 text-green-600" />
               </div>
             </div>
             <div className="flex items-center mt-3 text-xs">
-              <span className="text-muted-foreground">{Math.round((readyLeads / totalLeads) * 100)}% of all leads</span>
+              <span className="text-muted-foreground">{Math.round((metrics.readyLeads / metrics.totalLeads) * 100)}% of all leads</span>
             </div>
           </CardContent>
         </Card>
