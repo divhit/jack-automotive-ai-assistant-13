@@ -1,7 +1,7 @@
 // Enhanced Telephony Interface for Subprime Dashboard
 // Uses the working API endpoints we just tested
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -463,7 +463,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
     }
   };
 
-  const handleReassignSpecialist = async () => {
+  const handleReassignSpecialist = useCallback(async () => {
     if (!selectedLead) return;
     setIsUpdating(true);
     
@@ -480,7 +480,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
     } finally {
       setIsUpdating(false);
     }
-  };
+  }, [selectedLead, onLeadUpdate]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -491,7 +491,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
     }).format(amount);
   };
 
-  const handleContactMethodChange = async (method: 'Voice' | 'SMS' | 'Email') => {
+  const handleContactMethodChange = useCallback(async (method: 'Voice' | 'SMS' | 'Email') => {
     if (!selectedLead) return;
     setIsUpdating(true);
     
@@ -512,7 +512,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
     } finally {
       setIsUpdating(false);
     }
-  };
+  }, [selectedLead, onLeadUpdate]);
 
   if (!selectedLead) {
     return (
