@@ -198,21 +198,52 @@ function findConversationByPhone(phoneNumber) {
 
 // --- CONVERSATION CONTEXT MANAGEMENT ---
 
-function getConversationHistory(phoneNumber) {
-  const result = findConversationByPhone(phoneNumber);
+async function getConversationHistory(phoneNumber) {
   const normalized = normalizePhoneNumber(phoneNumber);
+  
+  // ENHANCED: Try to load from Supabase first, then fallback to memory
+  try {
+    if (supabasePersistence.isEnabled && supabasePersistence.isConnected) {
+      console.log(`🗄️ Loading conversation history from Supabase for ${normalized}`);
+      const supabaseHistory = await supabasePersistence.getConversationHistory(phoneNumber);
+      
+      if (supabaseHistory && supabaseHistory.length > 0) {
+        // Count message types from Supabase
+        const voiceCount = supabaseHistory.filter(msg => msg.type === 'voice').length;
+        const smsCount = supabaseHistory.filter(msg => msg.type === 'text').length;
+        
+        console.log(`📋 Loaded ${supabaseHistory.length} messages from Supabase for ${phoneNumber} - ${voiceCount} voice, ${smsCount} SMS`);
+        
+        // Sync to memory for faster access
+        conversationContexts.set(normalized, supabaseHistory);
+        
+        return supabaseHistory;
+      }
+    }
+  } catch (error) {
+    console.log(`⚠️ Failed to load from Supabase, falling back to memory:`, error.message);
+  }
+  
+  // Fallback to memory-based system
+  const result = findConversationByPhone(phoneNumber);
   
   // Debug: Count message types to understand the voice message issue
   const voiceCount = result.history.filter(msg => msg.type === 'voice').length;
   const smsCount = result.history.filter(msg => msg.type === 'text').length;
   
-  console.log(`📋 Found ${result.history.length} messages for ${phoneNumber} (normalized: ${normalized}) - ${voiceCount} voice, ${smsCount} SMS`);
+  console.log(`📋 Found ${result.history.length} messages from memory for ${phoneNumber} (normalized: ${normalized}) - ${voiceCount} voice, ${smsCount} SMS`);
   
   // Debug: Show all stored phone numbers
   if (result.history.length === 0) {
     console.log(`🔍 DEBUG: All stored phone numbers:`, Array.from(conversationContexts.keys()));
   }
   
+  return result.history;
+}
+
+// Synchronous version for backwards compatibility
+function getConversationHistorySync(phoneNumber) {
+  const result = findConversationByPhone(phoneNumber);
   return result.history;
 }
 
@@ -267,8 +298,35 @@ function storeConversationSummary(phoneNumber, summary) {
     });
 }
 
-// Get conversation summary
-function getConversationSummary(phoneNumber) {
+// Get conversation summary - enhanced with Supabase loading
+async function getConversationSummary(phoneNumber) {
+  const normalized = normalizePhoneNumber(phoneNumber);
+  
+  // ENHANCED: Try to load from Supabase first, then fallback to memory
+  try {
+    if (supabasePersistence.isEnabled && supabasePersistence.isConnected) {
+      console.log(`🗄️ Loading conversation summary from Supabase for ${normalized}`);
+      const supabaseSummary = await supabasePersistence.getConversationSummary(phoneNumber);
+      
+      if (supabaseSummary) {
+        console.log(`📋 Loaded summary from Supabase for ${phoneNumber}`);
+        
+        // Sync to memory for faster access
+        conversationSummaries.set(normalized, supabaseSummary);
+        
+        return supabaseSummary;
+      }
+    }
+  } catch (error) {
+    console.log(`⚠️ Failed to load summary from Supabase, falling back to memory:`, error.message);
+  }
+  
+  // Fallback to memory
+  return conversationSummaries.get(normalized);
+}
+
+// Synchronous version for backwards compatibility
+function getConversationSummarySync(phoneNumber) {
   const normalized = normalizePhoneNumber(phoneNumber);
   return conversationSummaries.get(normalized);
 }
@@ -325,9 +383,9 @@ function getLeadData(leadId) {
   return staticLead;
 }
 
-function buildConversationContext(phoneNumber) {
-  const history = getConversationHistory(phoneNumber);
-  const summaryData = getConversationSummary(phoneNumber);
+async function buildConversationContext(phoneNumber) {
+  const history = await getConversationHistory(phoneNumber);
+  const summaryData = await getConversationSummary(phoneNumber);
   
   if (history.length === 0 && !summaryData) {
     console.log(`📋 No conversation history or summary found for ${phoneNumber} (normalized: ${normalizePhoneNumber(phoneNumber)})`);
@@ -372,6 +430,51 @@ function buildConversationContext(phoneNumber) {
 - Be helpful and maintain context from all previous interactions`;
   
   console.log(`📋 Built conversation context for ${phoneNumber} with summary + ${history.length} total messages (${voiceMessages.length} voice, ${smsMessages.length} SMS):`, contextText.substring(0, 400) + '...');
+  return contextText;
+}
+
+// Synchronous version for backwards compatibility
+function buildConversationContextSync(phoneNumber) {
+  const history = getConversationHistorySync(phoneNumber);
+  const summaryData = getConversationSummarySync(phoneNumber);
+  
+  if (history.length === 0 && !summaryData) {
+    return '';
+  }
+  
+  const voiceMessages = history.filter(msg => msg.type === 'voice');
+  const smsMessages = history.filter(msg => msg.type === 'text');
+  
+  let contextText = `CONVERSATION CONTEXT for customer ${phoneNumber}:\n\n`;
+  
+  if (summaryData && summaryData.summary) {
+    contextText += `CALL SUMMARY: ${summaryData.summary}\n\n`;
+  }
+  
+  if (voiceMessages.length > 0) {
+    const recentVoiceMessages = voiceMessages.slice(-3);
+    contextText += `RECENT VOICE CONVERSATION (last ${recentVoiceMessages.length} messages):\n`;
+    contextText += recentVoiceMessages.map(msg => 
+      `${msg.sentBy === 'user' ? 'Customer' : 'Agent'}: ${msg.content}`
+    ).join('\n') + '\n\n';
+  }
+  
+  if (smsMessages.length > 0) {
+    const recentSmsMessages = smsMessages.slice(-3);
+    contextText += `RECENT SMS CONVERSATION (last ${recentSmsMessages.length} messages):\n`;
+    contextText += recentSmsMessages.map(msg => 
+      `${msg.sentBy === 'user' ? 'Customer' : 'Agent'}: ${msg.content}`
+    ).join('\n') + '\n\n';
+  }
+  
+  contextText += `CRITICAL INSTRUCTIONS: 
+- FIRST: Read the CALL SUMMARY above - it contains essential customer details from voice conversations
+- If summary mentions specific vehicle models or budgets, DO NOT ask for this information again
+- Continue the conversation naturally from where it left off across ALL channels (SMS, voice, etc.)
+- The customer is now texting you, so respond in SMS format
+- Reference specific details from recent messages and call summary
+- Be helpful and maintain context from all previous interactions`;
+  
   return contextText;
 }
 
@@ -461,15 +564,15 @@ function startConversation(phoneNumber, initialMessage) {
     console.log(`🔗 WebSocket connected for ${phoneNumber} (normalized: ${normalized})`);
     activeConversations.set(normalized, ws);
     
-    // Build conversation context from existing history
-    const conversationContext = buildConversationContext(phoneNumber);
+    // Build conversation context from existing history - Use sync version for WebSocket event
+    const conversationContext = buildConversationContextSync(phoneNumber);
     
     // Get lead data and build dynamic variables like voice calls do
     const leadId = getActiveLeadForPhone(phoneNumber);
     const leadData = getLeadData(leadId);
     const customerName = leadData?.customerName || `Customer ${phoneNumber}`;
-    const summaryData = getConversationSummary(phoneNumber);
-    const history = getConversationHistory(phoneNumber);
+    const summaryData = getConversationSummarySync(phoneNumber);
+    const history = getConversationHistorySync(phoneNumber);
     const leadStatus = summaryData?.summary ? "Returning Customer" : (history.length > 0 ? "Active Lead" : "New Inquiry");
     const previousSummary = summaryData?.summary || (history.length > 0 ? "Continuing from previous conversation" : "First conversation");
     
@@ -818,13 +921,14 @@ app.post('/api/elevenlabs/outbound-call', async (req, res) => {
     // Get conversation context for seamless SMS ↔ Voice transition
     // Use normalized phone number to ensure consistency with stored history
     const normalizedPhoneNumber = normalizePhoneNumber(phoneNumber);
-    const conversationContext = buildConversationContext(normalizedPhoneNumber);
+    // PERFORMANCE FIX: Use sync versions to avoid DB latency during voice call initiation
+    const conversationContext = buildConversationContextSync(normalizedPhoneNumber);
     
     // Generate a unique conversation ID for tracking
     const tempConversationId = `temp_${Date.now()}_${phoneNumber}`;
     
-    const summary = getConversationSummary(normalizedPhoneNumber);
-    const messages = getConversationHistory(normalizedPhoneNumber);
+    const summary = getConversationSummarySync(normalizedPhoneNumber);
+    const messages = getConversationHistorySync(normalizedPhoneNumber);
     
     // Get actual lead data instead of placeholders
     const leadData = getLeadData(leadId);
@@ -1537,9 +1641,9 @@ function broadcastConversationUpdate(data) {
 }
 
 // Server-Sent Events endpoint for real-time UI updates
-app.get('/api/stream/conversation/:leadId', (req, res) => {
+app.get('/api/stream/conversation/:leadId', async (req, res) => {
   const { leadId } = req.params;
-  const { phoneNumber } = req.query; // Get phone number from query params if provided
+  const { phoneNumber, load } = req.query; // Get phone number and load flag from query params
   
   console.log(`📡 SSE connection established for lead: ${leadId}`, phoneNumber ? `(phone: ${phoneNumber})` : '');
   
@@ -1559,6 +1663,46 @@ app.get('/api/stream/conversation/:leadId', (req, res) => {
   }
   
   res.write(`data: ${JSON.stringify({ type: 'connected', leadId })}\n\n`);
+
+  // ENHANCED: If load=true, send existing conversation history
+  if (load === 'true' && phoneNumber) {
+    try {
+      console.log(`📋 Loading conversation history for SSE connection: ${leadId} (phone: ${phoneNumber})`);
+      
+      const messages = await getConversationHistory(phoneNumber);
+      const summary = await getConversationSummary(phoneNumber);
+      
+      // Format messages for frontend
+      const formattedMessages = messages.map((msg, index) => ({
+        id: `msg-${index}-${Date.now()}`,
+        content: msg.content,
+        timestamp: msg.timestamp,
+        sentBy: msg.sentBy,
+        type: msg.type || 'sms',
+        status: 'delivered'
+      }));
+      
+      // Send conversation history as initial data
+      res.write(`data: ${JSON.stringify({
+        type: 'conversation_history',
+        leadId,
+        phoneNumber,
+        messages: formattedMessages,
+        summary: summary?.summary,
+        totalMessages: formattedMessages.length
+      })}\n\n`);
+      
+      console.log(`📋 Sent ${formattedMessages.length} messages via SSE for lead ${leadId}`);
+      
+    } catch (error) {
+      console.error(`❌ Error loading conversation history for SSE:`, error);
+      res.write(`data: ${JSON.stringify({
+        type: 'error',
+        message: 'Failed to load conversation history',
+        error: error.message
+      })}\n\n`);
+    }
+  }
 
   // Send heartbeat every 30 seconds to keep connection alive
   const heartbeat = setInterval(() => {
@@ -1722,8 +1866,8 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Conversation history endpoint
-app.get('/api/conversation-history/:leadId', (req, res) => {
+// Conversation history endpoint - ENHANCED with Supabase loading
+app.get('/api/conversation-history/:leadId', async (req, res) => {
   try {
     const { leadId } = req.params;
     const { phoneNumber } = req.query;
@@ -1749,8 +1893,9 @@ app.get('/api/conversation-history/:leadId', (req, res) => {
       });
     }
     
-    const messages = getConversationHistory(phoneToUse);
-    const summary = getConversationSummary(phoneToUse);
+    // ENHANCED: Use async function to load from Supabase
+    const messages = await getConversationHistory(phoneToUse);
+    const summary = await getConversationSummary(phoneToUse);
     
     console.log(`📋 API: Retrieved ${messages.length} messages for lead ${leadId} (${phoneToUse})`);
     
@@ -1782,7 +1927,7 @@ app.get('/api/conversation-history/:leadId', (req, res) => {
 });
 
 // ElevenLabs Conversation Initiation Webhook
-app.post('/api/webhooks/elevenlabs/conversation-initiation', (req, res) => {
+app.post('/api/webhooks/elevenlabs/conversation-initiation', async (req, res) => {
   console.log('🔄 ElevenLabs Conversation Initiation Webhook received:', {
     timestamp: new Date().toISOString(),
     body: req.body,
@@ -1804,10 +1949,10 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', (req, res) => {
     const activeLead = getActiveLeadForPhone(normalizedPhone);
     console.log(`🔍 Active lead for ${normalizedPhone}:`, activeLead);
 
-    // Build conversation context
-    const conversationContext = buildConversationContext(caller_id);
-    const summary = getConversationSummary(normalizedPhone);
-    const messages = getConversationHistory(caller_id);
+    // Build conversation context - PERFORMANCE FIX: Use sync versions to avoid DB latency during inbound call setup
+    const conversationContext = buildConversationContextSync(caller_id);
+    const summary = getConversationSummarySync(normalizedPhone);
+    const messages = getConversationHistorySync(caller_id);
     
     console.log(`🧪 DEBUG: conversationContext length: ${conversationContext.length}`);
     console.log(`🧪 DEBUG: activeLead:`, activeLead);

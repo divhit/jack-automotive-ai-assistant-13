@@ -87,7 +87,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
   // Load conversation history when lead changes
   useEffect(() => {
     if (selectedLead) {
-      loadConversationHistory();
+      // SSE with load=true will automatically load conversation history
       setupEventSource();
     } else {
       setConversationHistory([]);
@@ -149,7 +149,8 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
     closeEventSource(); // Close existing connection
     
     // Include phone number in query params for proper lead-to-phone mapping
-    const eventSource = new EventSource(`/api/stream/conversation/${selectedLead.id}?phoneNumber=${encodeURIComponent(selectedLead.phoneNumber)}`);
+    // ENHANCED: Add load=true to automatically load conversation history from Supabase
+    const eventSource = new EventSource(`/api/stream/conversation/${selectedLead.id}?phoneNumber=${encodeURIComponent(selectedLead.phoneNumber)}&load=true`);
     eventSourceRef.current = eventSource;
     
     eventSource.onopen = () => {
@@ -196,6 +197,24 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
     switch (data.type) {
       case 'connected':
         console.log('Connected to real-time stream for lead:', data.leadId);
+        break;
+        
+      case 'conversation_history':
+        // ENHANCED: Load conversation history from Supabase via SSE
+        if (data.messages && Array.isArray(data.messages)) {
+          console.log('📋 Loading conversation history from SSE:', data.messages.length, 'messages');
+          setConversationHistory(data.messages);
+          
+          if (data.summary) {
+            addConversationMessage({
+              id: `loaded-summary-${Date.now()}`,
+              type: 'system',
+              content: `📞 Previous Call Summary: ${data.summary}`,
+              timestamp: new Date().toISOString(),
+              sentBy: 'system'
+            });
+          }
+        }
         break;
         
       case 'sms_received':
@@ -255,6 +274,11 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
             sentBy: 'system'
           });
         }
+        break;
+        
+      case 'error':
+        console.error('SSE Error:', data.message);
+        setError(data.message || 'Connection error');
         break;
         
       default:
