@@ -1921,6 +1921,58 @@ app.put('/api/subprime/update-lead/:leadId', async (req, res) => {
   }
 });
 
+// API endpoint to delete lead data
+app.delete('/api/subprime/delete-lead', async (req, res) => {
+  try {
+    const leadId = req.query.id;
+    
+    if (!leadId) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Lead ID is required' 
+      });
+    }
+
+    console.log('🗑️ Deleting lead:', leadId);
+
+    // Try to delete from database first
+    try {
+      await supabasePersistence.deleteLead(leadId);
+      console.log('✅ Lead deleted from database:', leadId);
+    } catch (dbError) {
+      console.warn('⚠️ Database delete failed, continuing with memory delete:', dbError.message);
+    }
+
+    // Delete from in-memory storage
+    if (dynamicLeads.has(leadId)) {
+      dynamicLeads.delete(leadId);
+      console.log('✅ Lead deleted from memory:', leadId);
+    }
+
+    // Also remove from phone mappings if exists
+    const phoneToRemove = Array.from(activeLead.entries())
+      .find(([phone, storedLeadId]) => storedLeadId === leadId)?.[0];
+    
+    if (phoneToRemove) {
+      activeLead.delete(phoneToRemove);
+      console.log('✅ Removed phone mapping for lead:', leadId);
+    }
+
+    res.json({
+      success: true,
+      message: 'Lead deleted successfully',
+      leadId
+    });
+
+  } catch (error) {
+    console.error('❌ Error deleting lead:', error);
+    res.status(500).json({ 
+      success: false,
+      error: error.message || 'Failed to delete lead' 
+    });
+  }
+});
+
 // NEW CRM ENDPOINTS (don't affect existing functionality)
 
 // Get lead analytics

@@ -25,7 +25,7 @@ import { toast } from "sonner";
 
 const SubprimeDashboard = () => {
   const [allLeads, setAllLeads] = useState<SubprimeLead[]>(subprimeLeads);
-  const [filteredLeads, setFilteredLeads] = useState<SubprimeLead[]>(subprimeLeads);
+  // Remove filteredLeads state - we'll use the computed value directly
   const [searchTerm, setSearchTerm] = useState("");
   const [tileDialogOpen, setTileDialogOpen] = useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
@@ -53,7 +53,7 @@ const SubprimeDashboard = () => {
     setSearchTerm(term);
   };
 
-  // Separate useEffect to handle filtering based on search term and allLeads changes
+  // Filter leads based on search term (direct calculation, no state needed)
   const filteredLeadsCalculation = useMemo(() => {
     if (searchTerm === "") {
       return allLeads;
@@ -65,13 +65,10 @@ const SubprimeDashboard = () => {
     }
   }, [allLeads, searchTerm]);
 
-  // Use useEffect to update filteredLeads when calculation changes
-  useEffect(() => {
-    setFilteredLeads(filteredLeadsCalculation);
-  }, [filteredLeadsCalculation]);
-
   const handleFilterChange = (filteredLeads: SubprimeLead[]) => {
-    setFilteredLeads(filteredLeads);
+    // Note: This function is now used only by filters - consider refactoring
+    // For now, we'll update allLeads to match the filtered result
+    setAllLeads(filteredLeads);
   };
 
   // Load leads from server on component mount
@@ -87,7 +84,6 @@ const SubprimeDashboard = () => {
       
       if (data.success) {
         setAllLeads(data.leads);
-        setFilteredLeads(data.leads);
         setDataSource(data.source);
         setLastRefresh(new Date());
         console.log(`📊 Loaded ${data.leads.length} leads from ${data.source}`);
@@ -114,14 +110,7 @@ const SubprimeDashboard = () => {
       )
     );
 
-    // Update filtered leads as well
-    setFilteredLeads(prevLeads => 
-      prevLeads.map(lead => 
-        lead.id === leadId 
-          ? { ...lead, ...updates, lastTouchpoint: new Date().toISOString() }
-          : lead
-      )
-    );
+    // Note: filteredLeads will automatically update via useMemo
 
     // Persist changes to server
     try {
@@ -162,9 +151,7 @@ const SubprimeDashboard = () => {
       newLead.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       newLead.phoneNumber.includes(searchTerm);
       
-    if (matchesSearch) {
-      setFilteredLeads(prevLeads => [newLead, ...prevLeads]);
-    }
+    // Note: filteredLeads will automatically update via useMemo when allLeads changes
 
     // No need to make API call here as SubprimeAddLeadDialog handles it
     toast.success(`New lead added successfully`, {
@@ -504,8 +491,8 @@ const SubprimeDashboard = () => {
         </div>
         
         <div className="lg:col-span-3">
-          <SubprimeLeadsList 
-            leads={filteredLeads} 
+                          <SubprimeLeadsList 
+                  leads={filteredLeadsCalculation} 
             onLeadUpdate={handleLeadUpdate}
             onLeadDelete={handleDeleteLead}
           />
