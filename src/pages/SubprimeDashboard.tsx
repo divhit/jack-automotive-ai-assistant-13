@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { SubprimeSettingsDialog } from "@/components/subprime/SubprimeSettingsDialog";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
+import supabasePersistence from '../../services/supabasePersistence';
 
 const SubprimeDashboard = () => {
   const [allLeads, setAllLeads] = useState<SubprimeLead[]>(subprimeLeads);
@@ -39,20 +40,15 @@ const SubprimeDashboard = () => {
   const [dataSource, setDataSource] = useState<'database' | 'memory'>('memory');
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   
-  // Calculate metrics from current leads state - wrapped in useMemo to prevent infinite loops
+  // Use useMemo to prevent infinite recalculation of metrics
   const metrics = useMemo(() => {
-    const readyLeads = allLeads.filter(lead => lead.fundingReadiness === "Ready").length;
-    const partialLeads = allLeads.filter(lead => lead.fundingReadiness === "Partial").length;
-    const notReadyLeads = allLeads.filter(lead => lead.fundingReadiness === "Not Ready").length;
-    const needsActionLeads = allLeads.filter(lead => lead.nextAction.isOverdue).length;
-    const totalLeads = allLeads.length;
-    
     return {
-      readyLeads,
-      partialLeads,
-      notReadyLeads,
-      needsActionLeads,
-      totalLeads
+      totalLeads: allLeads.length,
+      readyForFunding: allLeads.filter(lead => lead.fundingReadiness === 'Ready').length,
+      averageScore: allLeads.length > 0 
+        ? Math.round(allLeads.reduce((sum, lead) => sum + lead.projectedScore, 0) / allLeads.length)
+        : 0,
+      activeChases: allLeads.filter(lead => lead.chaseStatus === 'Auto Chase Running').length
     };
   }, [allLeads]);
 
@@ -62,17 +58,21 @@ const SubprimeDashboard = () => {
   };
 
   // Separate useEffect to handle filtering based on search term and allLeads changes
-  useEffect(() => {
+  const filteredLeadsCalculation = useMemo(() => {
     if (searchTerm === "") {
-      setFilteredLeads(allLeads);
+      return allLeads;
     } else {
-      const filtered = allLeads.filter(lead => 
-        lead.customerName.toLowerCase().includes(searchTerm) || 
+      return allLeads.filter(lead => 
+        lead.customerName.toLowerCase().includes(searchTerm.toLowerCase()) || 
         lead.phoneNumber.includes(searchTerm)
       );
-      setFilteredLeads(filtered);
     }
   }, [allLeads, searchTerm]);
+
+  // Use useEffect to update filteredLeads when calculation changes
+  useEffect(() => {
+    setFilteredLeads(filteredLeadsCalculation);
+  }, [filteredLeadsCalculation]);
 
   const handleFilterChange = (filteredLeads: SubprimeLead[]) => {
     setFilteredLeads(filteredLeads);
@@ -181,40 +181,42 @@ const SubprimeDashboard = () => {
     setTileDialogOpen(true);
   };
 
-  const handleDeleteLead = (leadId: string) => {
+  const handleDeleteLead = async (leadId: string) => {
     if (!confirm('Are you sure you want to delete this lead? This action cannot be undone.')) {
       return;
     }
 
     try {
-      console.log(`🗑️ Deleting lead ${leadId} directly from memory...`);
+      console.log(`🗑️ Deleting lead ${leadId} from Supabase...`);
       
-      // Direct memory deletion - import and modify the subprimeLeads array
-      import('@/data/subprime/subprimeLeads').then(({ subprimeLeads }) => {
-        const leadIndex = subprimeLeads.findIndex((lead: any) => lead.id === leadId);
-        
-        if (leadIndex !== -1) {
-          subprimeLeads.splice(leadIndex, 1);
-          console.log(`✅ Lead ${leadId} removed from memory array`);
-        }
-      }).catch(() => {
-        console.warn('Could not modify memory array directly');
-      });
+      // Delete from Supabase first
+      await supabasePersistence.deleteLead(leadId);
+      console.log(`✅ Lead ${leadId} deleted from Supabase`);
       
-      // Update local state immediately (this is the main deletion)
+      // Update local state after successful database deletion
       setAllLeads(prevLeads => prevLeads.filter(lead => lead.id !== leadId));
-      setFilteredLeads(prevLeads => prevLeads.filter(lead => lead.id !== leadId));
       
       console.log(`✅ Lead ${leadId} deleted successfully`);
-      toast.success(`Lead deleted successfully`);
+      toast.success(`Lead deleted successfully from database`);
       
     } catch (error) {
-      console.error('❌ Error deleting lead:', error);
-      toast.error(`Failed to delete lead: ${error.message}`);
+      console.error('❌ Error deleting lead from Supabase:', error);
+      
+      // If Supabase deletion fails, still offer to remove from UI
+      const shouldRemoveFromUI = confirm(
+        'Failed to delete from database. Remove from view only? (Lead will reappear on refresh)'
+      );
+      
+      if (shouldRemoveFromUI) {
+        setAllLeads(prevLeads => prevLeads.filter(lead => lead.id !== leadId));
+        toast.warning('Lead removed from view only (database deletion failed)');
+      } else {
+        toast.error(`Failed to delete lead: ${error.message}`);
+      }
     }
   };
 
-  const handleDeleteAllLeads = () => {
+  const handleDeleteAllLeads = async () => {
     const currentLeadCount = allLeads.length;
     
     if (currentLeadCount === 0) {
@@ -222,36 +224,37 @@ const SubprimeDashboard = () => {
       return;
     }
 
-    if (!confirm(`Are you sure you want to delete ALL ${currentLeadCount} leads? This action cannot be undone.`)) {
+    if (!confirm(`Are you sure you want to delete ALL ${currentLeadCount} leads? This action cannot be undone and will delete all leads from the database.`)) {
       return;
     }
 
     try {
-      console.log(`🗑️ Deleting all ${currentLeadCount} leads directly from memory...`);
+      console.log(`🗑️ Deleting all leads from Supabase...`);
       
-      // Direct memory deletion - clear the entire subprimeLeads array
-      import('@/data/subprime/subprimeLeads').then(({ subprimeLeads }) => {
-        subprimeLeads.splice(0); // Clear the entire array
-        console.log(`✅ All leads cleared from memory array`);
-      }).catch(() => {
-        console.warn('Could not modify memory array directly');
-      });
+      // Delete all leads from Supabase
+      const deletedCount = await supabasePersistence.deleteAllLeads();
+      console.log(`✅ Deleted ${deletedCount} leads from Supabase`);
       
-      // Clear local state (this is the main deletion)
+      // Clear local state after successful database deletion
       setAllLeads([]);
-      setFilteredLeads([]);
       
-      console.log(`✅ All ${currentLeadCount} leads deleted successfully`);
-      toast.success(`Deleted all ${currentLeadCount} leads successfully`);
+      console.log(`✅ All leads deleted successfully`);
+      toast.success(`Deleted all ${deletedCount} leads from database`);
       
     } catch (error) {
-      console.error('❌ Error deleting all leads:', error);
+      console.error('❌ Error deleting all leads from Supabase:', error);
       
-      // If memory deletion fails, still clear frontend state
-      setAllLeads([]);
-      setFilteredLeads([]);
+      // If Supabase deletion fails, still offer to clear UI
+      const shouldClearUI = confirm(
+        'Failed to delete from database. Clear from view only? (Leads will reappear on refresh)'
+      );
       
-      toast.warning(`Cleared ${currentLeadCount} leads from view`);
+      if (shouldClearUI) {
+        setAllLeads([]);
+        toast.warning('Leads cleared from view only (database deletion failed)');
+      } else {
+        toast.error(`Failed to delete all leads: ${error.message}`);
+      }
     }
   };
 
@@ -262,7 +265,7 @@ const SubprimeDashboard = () => {
         title: "In Progress Leads",
         content: (
           <div className="space-y-4">
-            <p>There are currently <span className="font-bold text-yellow-600">{metrics.partialLeads}</span> leads in progress.</p>
+            <p>There are currently <span className="font-bold text-yellow-600">{metrics.readyForFunding}</span> leads in progress.</p>
             <ul className="list-disc pl-5 space-y-2">
               <li><span className="font-semibold">{allLeads.filter(l => l.scriptProgress.currentStep === "screening").length}</span> leads in Screening stage</li>
               <li><span className="font-semibold">{allLeads.filter(l => l.scriptProgress.currentStep === "qualification").length}</span> leads in Qualification stage</li>
@@ -276,7 +279,7 @@ const SubprimeDashboard = () => {
         title: "Not Ready Leads",
         content: (
           <div className="space-y-4">
-            <p>There are <span className="font-bold text-red-600">{metrics.notReadyLeads}</span> leads that are not ready for funding.</p>
+            <p>There are <span className="font-bold text-red-600">{allLeads.filter(l => l.fundingReadiness === "Not Ready").length}</span> leads that are not ready for funding.</p>
             <ul className="list-disc pl-5 space-y-2">
               <li><span className="font-semibold">{allLeads.filter(l => l.creditProfile?.knownIssues.includes("Multiple Collections")).length}</span> with major collections issues</li>
               <li><span className="font-semibold">{allLeads.filter(l => l.creditProfile?.knownIssues.includes("Recent Bankruptcy")).length}</span> with recent bankruptcies</li>
@@ -290,7 +293,7 @@ const SubprimeDashboard = () => {
         title: "Needs Action Leads",
         content: (
           <div className="space-y-4">
-            <p><span className="font-bold text-purple-600">{metrics.needsActionLeads}</span> leads require immediate attention.</p>
+            <p><span className="font-bold text-purple-600">{allLeads.filter(l => l.nextAction.isOverdue).length}</span> leads require immediate attention.</p>
             <ul className="list-disc pl-5 space-y-2">
               <li><span className="font-semibold">{allLeads.filter(l => l.nextAction.isOverdue && l.sentiment === "Frustrated").length}</span> overdue and showing frustration</li>
               <li><span className="font-semibold">{allLeads.filter(l => l.nextAction.isOverdue && l.chaseStatus === "Manual Review").length}</span> flagged for manual review</li>
@@ -304,11 +307,11 @@ const SubprimeDashboard = () => {
         title: "Ready for Funding Leads",
         content: (
           <div className="space-y-4">
-            <p><span className="font-bold text-green-600">{metrics.readyLeads}</span> leads are ready for financing.</p>
+            <p><span className="font-bold text-green-600">{metrics.readyForFunding}</span> leads are ready for financing.</p>
             <ul className="list-disc pl-5 space-y-2">
-              <li><span className="font-semibold">{Math.round(metrics.readyLeads * 0.4)}</span> ready for traditional financing</li>
-              <li><span className="font-semibold">{Math.round(metrics.readyLeads * 0.35)}</span> qualified for special programs</li>
-              <li><span className="font-semibold">{Math.round(metrics.readyLeads * 0.25)}</span> ready for alternative financing</li>
+              <li><span className="font-semibold">{Math.round(metrics.readyForFunding * 0.4)}</span> ready for traditional financing</li>
+              <li><span className="font-semibold">{Math.round(metrics.readyForFunding * 0.35)}</span> qualified for special programs</li>
+              <li><span className="font-semibold">{Math.round(metrics.readyForFunding * 0.25)}</span> ready for alternative financing</li>
             </ul>
             <p className="text-sm text-gray-600 mt-4">Average time to funding ready: 3.2 days (20% faster than last month)</p>
           </div>
@@ -399,13 +402,13 @@ const SubprimeDashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
-              <div className="text-xl font-bold">{metrics.partialLeads}</div>
+              <div className="text-xl font-bold">{metrics.readyForFunding}</div>
               <div className="bg-yellow-100 p-1.5 rounded-full">
                 <MessageSquare className="h-3.5 w-3.5 text-yellow-600" />
               </div>
             </div>
             <div className="flex items-center mt-3 text-xs">
-              <span className="text-muted-foreground">{Math.round((metrics.partialLeads / metrics.totalLeads) * 100)}% of all leads</span>
+              <span className="text-muted-foreground">{Math.round((metrics.readyForFunding / metrics.totalLeads) * 100)}% of all leads</span>
             </div>
           </CardContent>
         </Card>
@@ -421,13 +424,13 @@ const SubprimeDashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
-              <div className="text-xl font-bold">{metrics.notReadyLeads}</div>
+              <div className="text-xl font-bold">{allLeads.filter(l => l.fundingReadiness === "Not Ready").length}</div>
               <div className="bg-red-100 p-1.5 rounded-full">
                 <Users className="h-3.5 w-3.5 text-red-600" />
               </div>
             </div>
             <div className="flex items-center mt-3 text-xs">
-              <span className="text-muted-foreground">{Math.round((metrics.notReadyLeads / metrics.totalLeads) * 100)}% of all leads</span>
+              <span className="text-muted-foreground">{Math.round((allLeads.filter(l => l.fundingReadiness === "Not Ready").length / metrics.totalLeads) * 100)}% of all leads</span>
             </div>
           </CardContent>
         </Card>
@@ -443,13 +446,13 @@ const SubprimeDashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
-              <div className="text-xl font-bold">{metrics.needsActionLeads}</div>
+              <div className="text-xl font-bold">{allLeads.filter(l => l.nextAction.isOverdue).length}</div>
               <div className="bg-purple-100 p-1.5 rounded-full">
                 <Clock className="h-3.5 w-3.5 text-purple-600" />
               </div>
             </div>
             <Badge variant="outline" className="mt-3 text-xs bg-red-50 text-red-700 border-red-200">
-              {metrics.needsActionLeads} overdue actions
+              {allLeads.filter(l => l.nextAction.isOverdue).length} overdue actions
             </Badge>
           </CardContent>
         </Card>
@@ -465,13 +468,13 @@ const SubprimeDashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
-              <div className="text-xl font-bold">{metrics.readyLeads}</div>
+              <div className="text-xl font-bold">{metrics.readyForFunding}</div>
               <div className="bg-green-100 p-1.5 rounded-full">
                 <Users className="h-3.5 w-3.5 text-green-600" />
               </div>
             </div>
             <div className="flex items-center mt-3 text-xs">
-              <span className="text-muted-foreground">{Math.round((metrics.readyLeads / metrics.totalLeads) * 100)}% of all leads</span>
+              <span className="text-muted-foreground">{Math.round((metrics.readyForFunding / metrics.totalLeads) * 100)}% of all leads</span>
             </div>
           </CardContent>
         </Card>
