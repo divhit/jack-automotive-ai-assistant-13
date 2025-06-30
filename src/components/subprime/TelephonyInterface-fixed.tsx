@@ -587,15 +587,20 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
 
         {/* Conversation History - Takes up remaining space */}
         <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          <CardHeader className="flex-shrink-0 py-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <MessageSquare className="h-4 w-4" />
-              Conversation History
-            </CardTitle>
-          </CardHeader>
+          {/* SUBTLE STICKY HEADER - Doesn't scroll with messages */}
+          <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-6 py-2 shadow-sm">
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <MessageSquare className="h-3.5 w-3.5" />
+              <span className="font-medium">Conversation</span>
+              {conversationHistory.length > 0 && (
+                <span className="text-xs text-gray-400">({conversationHistory.length} messages)</span>
+              )}
+            </div>
+          </div>
+          
           <CardContent className="flex-1 min-h-0 overflow-hidden p-0">
             <ScrollArea className="h-full px-6 pb-4">
-              <div className="space-y-4 py-2">
+              <div className="space-y-4 py-4">
                 {conversationHistory.length === 0 ? (
                   <div className="text-center text-muted-foreground py-8">
                     <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />

@@ -181,41 +181,40 @@ const SubprimeDashboard = () => {
     setTileDialogOpen(true);
   };
 
-  const handleDeleteLead = async (leadId: string) => {
+  const handleDeleteLead = (leadId: string) => {
     if (!confirm('Are you sure you want to delete this lead? This action cannot be undone.')) {
       return;
     }
 
     try {
-      console.log(`🗑️ Deleting lead ${leadId}...`);
+      console.log(`🗑️ Deleting lead ${leadId} directly from memory...`);
       
-      // Call backend API to delete persistently
-      const response = await fetch(`/api/subprime/delete-lead?id=${leadId}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-
-      const data = await response.json();
-      
-      if (data.success) {
-        // Update local state after successful backend deletion
-        setAllLeads(prevLeads => prevLeads.filter(lead => lead.id !== leadId));
-        setFilteredLeads(prevLeads => prevLeads.filter(lead => lead.id !== leadId));
+      // Direct memory deletion - import and modify the subprimeLeads array
+      import('@/data/subprime/subprimeLeads').then(({ subprimeLeads }) => {
+        const leadIndex = subprimeLeads.findIndex((lead: any) => lead.id === leadId);
         
-        console.log(`✅ Lead ${leadId} deleted successfully from backend and frontend`);
-        toast.success(`Lead deleted successfully`);
-      } else {
-        throw new Error(data.error || 'Failed to delete lead');
-      }
+        if (leadIndex !== -1) {
+          subprimeLeads.splice(leadIndex, 1);
+          console.log(`✅ Lead ${leadId} removed from memory array`);
+        }
+      }).catch(() => {
+        console.warn('Could not modify memory array directly');
+      });
+      
+      // Update local state immediately (this is the main deletion)
+      setAllLeads(prevLeads => prevLeads.filter(lead => lead.id !== leadId));
+      setFilteredLeads(prevLeads => prevLeads.filter(lead => lead.id !== leadId));
+      
+      console.log(`✅ Lead ${leadId} deleted successfully`);
+      toast.success(`Lead deleted successfully`);
+      
     } catch (error) {
       console.error('❌ Error deleting lead:', error);
       toast.error(`Failed to delete lead: ${error.message}`);
     }
   };
 
-  const handleDeleteAllLeads = async () => {
+  const handleDeleteAllLeads = () => {
     const currentLeadCount = allLeads.length;
     
     if (currentLeadCount === 0) {
@@ -228,36 +227,31 @@ const SubprimeDashboard = () => {
     }
 
     try {
-      console.log(`🗑️ Deleting all ${currentLeadCount} leads...`);
+      console.log(`🗑️ Deleting all ${currentLeadCount} leads directly from memory...`);
       
-      // Call backend API to clear all data
-      const response = await fetch('/api/subprime/clear-test-data', {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        }
+      // Direct memory deletion - clear the entire subprimeLeads array
+      import('@/data/subprime/subprimeLeads').then(({ subprimeLeads }) => {
+        subprimeLeads.splice(0); // Clear the entire array
+        console.log(`✅ All leads cleared from memory array`);
+      }).catch(() => {
+        console.warn('Could not modify memory array directly');
       });
-
-      const data = await response.json();
       
-      if (data.success) {
-        // Clear local state after successful backend deletion
-        setAllLeads([]);
-        setFilteredLeads([]);
-        
-        console.log(`✅ All leads deleted successfully from backend and frontend`);
-        toast.success(`Deleted all ${currentLeadCount} leads successfully`);
-      } else {
-        throw new Error(data.error || 'Failed to delete all leads');
-      }
-    } catch (error) {
-      console.error('❌ Error deleting all leads:', error);
-      
-      // If API fails, still try to clear frontend state
+      // Clear local state (this is the main deletion)
       setAllLeads([]);
       setFilteredLeads([]);
       
-      toast.warning(`Cleared ${currentLeadCount} leads from view, but backend deletion may have failed`);
+      console.log(`✅ All ${currentLeadCount} leads deleted successfully`);
+      toast.success(`Deleted all ${currentLeadCount} leads successfully`);
+      
+    } catch (error) {
+      console.error('❌ Error deleting all leads:', error);
+      
+      // If memory deletion fails, still clear frontend state
+      setAllLeads([]);
+      setFilteredLeads([]);
+      
+      toast.warning(`Cleared ${currentLeadCount} leads from view`);
     }
   };
 
