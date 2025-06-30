@@ -1865,7 +1865,8 @@ app.get('/api/subprime/leads', (req, res) => {
     res.json({
       success: true,
       leads: leads,
-      count: leads.length
+      count: leads.length,
+      source: 'memory'  // Fix: Add missing source field
     });
   } catch (error) {
     console.error('❌ Error retrieving leads:', error);
@@ -1950,11 +1951,11 @@ app.delete('/api/subprime/delete-lead', async (req, res) => {
     }
 
     // Also remove from phone mappings if exists
-    const phoneToRemove = Array.from(activeLead.entries())
+    const phoneToRemove = Array.from(phoneToLeadMapping.entries())
       .find(([phone, storedLeadId]) => storedLeadId === leadId)?.[0];
     
     if (phoneToRemove) {
-      activeLead.delete(phoneToRemove);
+      phoneToLeadMapping.delete(phoneToRemove);
       console.log('✅ Removed phone mapping for lead:', leadId);
     }
 

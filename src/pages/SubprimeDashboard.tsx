@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -65,11 +65,11 @@ const SubprimeDashboard = () => {
     }
   }, [allLeads, searchTerm]);
 
-  const handleFilterChange = (filteredLeads: SubprimeLead[]) => {
+  const handleFilterChange = useCallback((filteredLeads: SubprimeLead[]) => {
     // Note: This function is now used only by filters - consider refactoring
     // For now, we'll update allLeads to match the filtered result
     setAllLeads(filteredLeads);
-  };
+  }, []);
 
   // Load leads from server on component mount
   useEffect(() => {
