@@ -16,11 +16,6 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-let app;
-try {
-  app = express();
-  console.log('✅ Express app initialized successfully');
-
 // Function to load existing leads from Supabase into memory
 async function loadExistingLeadsIntoMemory() {
   try {
@@ -89,6 +84,11 @@ async function loadExistingLeadsIntoMemory() {
     console.log('📋 Starting with empty lead storage (system will work normally)');
   }
 }
+
+let app;
+try {
+  app = express();
+  console.log('✅ Express app initialized successfully');
 } catch (error) {
   console.error('❌ Error initializing Express app:', error);
   process.exit(1);
