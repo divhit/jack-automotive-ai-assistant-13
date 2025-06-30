@@ -188,7 +188,7 @@ class SupabasePersistenceService {
         content: message,
         sent_by: sentBy,
         timestamp: new Date().toISOString(),
-        type: messageType,
+        type: messageType === 'text' ? 'sms' : messageType, // Ensure SMS messages are properly categorized
         phone_number_normalized: normalizedPhone,
         
         // Preserve all telephony metadata

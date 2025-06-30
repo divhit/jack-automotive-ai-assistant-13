@@ -578,12 +578,14 @@ async function buildConversationContext(phoneNumber) {
   }
   
   contextText += `CRITICAL INSTRUCTIONS: 
-- FIRST: Read the CALL SUMMARY above - it contains essential customer details from voice conversations
-- If summary mentions specific vehicle models or budgets, DO NOT ask for this information again
-- Continue the conversation naturally from where it left off across ALL channels (SMS, voice, etc.)
-- The customer is now texting you, so respond in SMS format
-- Reference specific details from recent messages and call summary
-- Be helpful and maintain context from all previous interactions`;
+- FIRST: Read the CONVERSATION SUMMARY above - it contains essential customer details from previous voice/SMS conversations
+- If summary mentions specific vehicle models, budgets, or customer details, DO NOT ask for this information again
+- This conversation may be RESUMING after a brief timeout - continue naturally from where you left off
+- The customer is texting you via SMS, so respond in SMS format (concise, friendly)
+- Reference specific details from recent messages and conversation summary to show continuity
+- Be helpful and maintain context from ALL previous interactions (voice calls, SMS, etc.)
+- If this feels like a continuation, acknowledge it naturally: "Great to hear from you again" or similar
+- DO NOT restart or re-introduce yourself if you've already spoken with this customer`;
   
   console.log(`📋 Built conversation context for ${phoneNumber} with summary + ${history.length} total messages (${voiceMessages.length} voice, ${smsMessages.length} SMS):`, contextText.substring(0, 400) + '...');
   return contextText;
@@ -624,12 +626,14 @@ function buildConversationContextSync(phoneNumber) {
   }
   
   contextText += `CRITICAL INSTRUCTIONS: 
-- FIRST: Read the CALL SUMMARY above - it contains essential customer details from voice conversations
-- If summary mentions specific vehicle models or budgets, DO NOT ask for this information again
-- Continue the conversation naturally from where it left off across ALL channels (SMS, voice, etc.)
-- The customer is now texting you, so respond in SMS format
-- Reference specific details from recent messages and call summary
-- Be helpful and maintain context from all previous interactions`;
+- FIRST: Read the CONVERSATION SUMMARY above - it contains essential customer details from previous voice/SMS conversations
+- If summary mentions specific vehicle models, budgets, or customer details, DO NOT ask for this information again
+- This conversation may be RESUMING after a brief timeout - continue naturally from where you left off
+- The customer is texting you via SMS, so respond in SMS format (concise, friendly)
+- Reference specific details from recent messages and conversation summary to show continuity
+- Be helpful and maintain context from ALL previous interactions (voice calls, SMS, etc.)
+- If this feels like a continuation, acknowledge it naturally: "Great to hear from you again" or similar
+- DO NOT restart or re-introduce yourself if you've already spoken with this customer`;
   
   return contextText;
 }
@@ -701,6 +705,36 @@ function removeActiveLeadForPhone(phoneNumber, leadId) {
 
 // --- STATEFUL CONVERSATION HANDLER ---
 
+// WebSocket timeout management
+const activeConversationTimeouts = new Map();
+const SMS_CONVERSATION_TIMEOUT = 60000; // 1 minute instead of 5+ minutes
+
+function startConversationWithTimeout(phoneNumber, initialMessage) {
+  const normalized = normalizePhoneNumber(phoneNumber);
+  
+  // Clear any existing timeout
+  if (activeConversationTimeouts.has(normalized)) {
+    clearTimeout(activeConversationTimeouts.get(normalized));
+  }
+  
+  // Start the conversation
+  startConversation(phoneNumber, initialMessage);
+  
+  // Set timeout to close idle connection after 1 minute
+  const timeoutId = setTimeout(() => {
+    console.log(`⏰ SMS conversation timeout for ${phoneNumber} - closing to save credits`);
+    if (activeConversations.has(normalized)) {
+      const ws = activeConversations.get(normalized);
+      ws.close();
+      activeConversations.delete(normalized);
+    }
+    activeConversationTimeouts.delete(normalized);
+  }, SMS_CONVERSATION_TIMEOUT);
+  
+  activeConversationTimeouts.set(normalized, timeoutId);
+  console.log(`⏰ Set 1-minute timeout for SMS conversation: ${phoneNumber}`);
+}
+
 function startConversation(phoneNumber, initialMessage) {
   const agentId = process.env.ELEVENLABS_AGENT_ID;
   const apiKey = process.env.ELEVENLABS_API_KEY;
@@ -716,36 +750,71 @@ function startConversation(phoneNumber, initialMessage) {
     headers: { 'xi-api-key': apiKey }
   });
 
-  ws.on('open', () => {
+  ws.on('open', async () => {
     console.log(`🔗 WebSocket connected for ${phoneNumber} (normalized: ${normalized})`);
     activeConversations.set(normalized, ws);
     
-    // Build conversation context from existing history - Use sync version for WebSocket event
-    const conversationContext = buildConversationContextSync(phoneNumber);
+    // ENHANCED: Build conversation context with async loading for better context
+    const conversationContext = await buildConversationContext(phoneNumber);
     
     // Get lead data and build dynamic variables like voice calls do
     const leadId = getActiveLeadForPhone(phoneNumber);
     const leadData = getLeadData(leadId);
     const customerName = leadData?.customerName || `Customer ${phoneNumber}`;
-    const summaryData = getConversationSummarySync(phoneNumber);
-    const history = getConversationHistorySync(phoneNumber);
+    const summaryData = await getConversationSummary(phoneNumber);
+    const history = await getConversationHistory(phoneNumber);
     const leadStatus = summaryData?.summary ? "Returning Customer" : (history.length > 0 ? "Active Lead" : "New Inquiry");
-    const previousSummary = summaryData?.summary || (history.length > 0 ? "Continuing from previous conversation" : "First conversation");
     
-    // For WebSocket SMS conversations, dynamic variables at root level (like voice calls)
-    // Keep conversation_context in client_data where it works
+    // ENHANCED: Use rich summary logic identical to voice call initiation
+    let previousSummary;
+    if (summaryData?.summary && summaryData.summary.length > 20) {
+      // Use the actual ElevenLabs summary - truncate if too long for dynamic variables  
+      previousSummary = summaryData.summary.length > 500 ? summaryData.summary.substring(0, 500) + "..." : summaryData.summary;
+      console.log(`📋 SMS using actual ElevenLabs summary (${summaryData.summary.length} chars): ${summaryData.summary.substring(0, 100)}...`);
+    } else if (history.length > 0) {
+      // Build a rich summary from recent messages if no ElevenLabs summary
+      const recentMessages = history.slice(-6); // Last 6 messages
+      const customerMessages = recentMessages.filter(m => m.sentBy === 'user');
+      const agentMessages = recentMessages.filter(m => m.sentBy === 'agent');
+      
+      previousSummary = `Previous conversation: ${recentMessages.length} messages exchanged across voice/SMS. `;
+      if (customerMessages.length > 0) {
+        const lastCustomerMsg = customerMessages[customerMessages.length - 1];
+        previousSummary += `Customer's last message: "${lastCustomerMsg.content.substring(0, 100)}${lastCustomerMsg.content.length > 100 ? '...' : ''}"`;
+      }
+      console.log(`📋 SMS built rich summary from ${history.length} messages: ${previousSummary.substring(0, 100)}...`);
+    } else {
+      previousSummary = "First conversation - no previous interaction history";
+      console.log(`📋 SMS new conversation - no previous history`);
+    }
+    
+    console.log(`📋 SMS Context preserved: ${history.length} total messages, leadId: ${leadId}, context length: ${conversationContext.length}, using ElevenLabs summary: ${!!(summaryData?.summary && summaryData.summary.length > 20)}`);
+    
+    // ENHANCED: Send comprehensive context including conversation_context AND rich dynamic variables
+    // This ensures agents get both the detailed context and rich summary when reconnecting
     ws.send(JSON.stringify({
       type: 'conversation_initiation_client_data',
         dynamic_variables: {
           customer_name: customerName,
           lead_status: leadStatus,
-          previous_summary: previousSummary
+          previous_summary: previousSummary,
+          // ADDED: Include conversation context in dynamic variables too for redundancy
+          conversation_overview: conversationContext.length > 300 ? conversationContext.substring(0, 300) + "..." : conversationContext
       },
       client_data: {
         conversation_context: conversationContext,
         phone_number: phoneNumber,
+        customer_phone: phoneNumber, // For webhook identification
         channel: 'sms',
-        lead_id: leadId
+        lead_id: leadId,
+        // ADDED: Include metadata about context preservation
+        context_metadata: {
+          total_messages: history.length,
+          has_elevenlabs_summary: !!(summaryData?.summary && summaryData.summary.length > 20),
+          voice_messages: history.filter(m => m.type === 'voice').length,
+          sms_messages: history.filter(m => m.type === 'text').length,
+          last_interaction: history.length > 0 ? history[history.length - 1].timestamp : null
+        }
       }
     }));
   });
@@ -770,6 +839,22 @@ function startConversation(phoneNumber, initialMessage) {
             
             // Get the active lead ID for this phone number
             const leadId = getActiveLeadForPhone(phoneNumber);
+
+            // ENHANCED: Reset timeout on activity to prevent premature closure
+            const normalized = normalizePhoneNumber(phoneNumber);
+            if (activeConversationTimeouts.has(normalized)) {
+              clearTimeout(activeConversationTimeouts.get(normalized));
+              const timeoutId = setTimeout(() => {
+                console.log(`⏰ SMS conversation timeout for ${phoneNumber} - closing to save credits`);
+                if (activeConversations.has(normalized)) {
+                  const ws = activeConversations.get(normalized);
+                  ws.close();
+                  activeConversations.delete(normalized);
+                }
+                activeConversationTimeouts.delete(normalized);
+              }, SMS_CONVERSATION_TIMEOUT);
+              activeConversationTimeouts.set(normalized, timeoutId);
+            }
 
             broadcastConversationUpdate({
                 type: 'sms_sent',
@@ -803,6 +888,12 @@ function startConversation(phoneNumber, initialMessage) {
     console.log(`🔌 [${phoneNumber}] WebSocket closed. Code: ${code}, Reason: ${reason.toString()}`);
     if (activeConversations.has(normalized)) {
         activeConversations.delete(normalized);
+    }
+    
+    // Clean up timeout
+    if (activeConversationTimeouts.has(normalized)) {
+      clearTimeout(activeConversationTimeouts.get(normalized));
+      activeConversationTimeouts.delete(normalized);
     }
   });
 }
@@ -1018,15 +1109,17 @@ app.post('/api/webhooks/twilio/sms/incoming', async (req, res) => {
       addToConversationHistory(From, Body, 'user', 'text');
       ws.send(JSON.stringify({ type: 'user_message', text: Body }));
     } else {
-      // Check if we have conversation history from previous voice calls
-      const existingHistory = getConversationHistory(From);
+      // ENHANCED: Check conversation history BEFORE starting new conversation
+      const existingHistory = await getConversationHistory(From);
+      addToConversationHistory(From, Body, 'user', 'text');
+      
       if (existingHistory.length > 0) {
         console.log(`📞➡️📱 Found ${existingHistory.length} previous messages (voice/SMS history). Starting new SMS conversation with context.`);
+        startConversationWithTimeout(From, Body);
       } else {
         console.log('✨ No existing conversation or history. Creating a new one.');
+        startConversationWithTimeout(From, Body);
       }
-      addToConversationHistory(From, Body, 'user', 'text');
-      startConversation(From, Body);
     }
     
     res.set('Content-Type', 'text/xml');
@@ -1089,7 +1182,29 @@ app.post('/api/elevenlabs/outbound-call', async (req, res) => {
     const leadData = getLeadData(leadId);
     const customerName = leadData?.customerName || `Customer ${phoneNumber}`;
     const leadStatus = summary?.summary ? "Returning Customer" : (messages.length > 0 ? "Active Lead" : "New Inquiry");
-    const previousSummary = summary?.summary || (messages.length > 0 ? "Continuing from SMS conversation" : "First conversation");
+    
+    // ENHANCED: Use actual ElevenLabs summary instead of generic text
+    let previousSummary;
+    if (summary?.summary && summary.summary.length > 20) {
+      // Use the actual ElevenLabs summary - truncate if too long for dynamic variables
+      previousSummary = summary.summary.length > 500 ? summary.summary.substring(0, 500) + "..." : summary.summary;
+      console.log(`📋 Using actual ElevenLabs summary (${summary.summary.length} chars): ${summary.summary.substring(0, 100)}...`);
+    } else if (messages.length > 0) {
+      // Build a rich summary from recent messages if no ElevenLabs summary
+      const recentMessages = messages.slice(-6); // Last 6 messages
+      const customerMessages = recentMessages.filter(m => m.sentBy === 'user');
+      const agentMessages = recentMessages.filter(m => m.sentBy === 'agent');
+      
+      previousSummary = `Previous conversation: ${recentMessages.length} messages exchanged. `;
+      if (customerMessages.length > 0) {
+        const lastCustomerMsg = customerMessages[customerMessages.length - 1];
+        previousSummary += `Customer's last message: "${lastCustomerMsg.content.substring(0, 100)}${lastCustomerMsg.content.length > 100 ? '...' : ''}"`;
+      }
+      console.log(`📋 Built rich summary from ${messages.length} messages: ${previousSummary.substring(0, 100)}...`);
+    } else {
+      previousSummary = "First conversation - no previous interaction history";
+      console.log(`📋 New conversation - no previous history`);
+    }
 
     const callPayload = {
       agent_id: agentId,
@@ -1554,7 +1669,8 @@ app.post('/api/webhooks/elevenlabs/post-call', async (req, res) => {
       // Extract from conversation_initiation_client_data
       if (data.conversation_initiation_client_data) {
         leadId = data.conversation_initiation_client_data.lead_id;
-        phoneNumber = data.conversation_initiation_client_data.customer_phone;
+        phoneNumber = data.conversation_initiation_client_data.customer_phone || 
+                     data.conversation_initiation_client_data.phone_number;
       }
       
       // Extract other fields from data
@@ -1585,6 +1701,7 @@ app.post('/api/webhooks/elevenlabs/post-call', async (req, res) => {
                eventData.summary;
       
       phoneNumber = eventData.conversation_initiation_client_data?.customer_phone ||
+                   eventData.conversation_initiation_client_data?.phone_number ||
                    eventData.conversation?.conversation_initiation_client_data?.customer_phone ||
                    eventData.call?.conversation_initiation_client_data?.customer_phone ||
                    eventData.metadata?.customer_phone ||
@@ -1946,7 +2063,8 @@ app.post('/api/debug/post-call-webhook', (req, res) => {
                eventData.call?.summary ||
                eventData.summary;
   
-  let phoneNumber = eventData.conversation_initiation_client_data?.customer_phone ||
+  let       phoneNumber = eventData.conversation_initiation_client_data?.customer_phone ||
+                   eventData.conversation_initiation_client_data?.phone_number ||
                    eventData.conversation?.conversation_initiation_client_data?.customer_phone ||
                    eventData.call?.conversation_initiation_client_data?.customer_phone ||
                    eventData.metadata?.customer_phone ||
@@ -2123,7 +2241,29 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', async (req, res) =>
     
     const customerName = leadData?.customerName || "Customer";
     const leadStatus = summary?.summary ? "Returning Customer" : (messages.length > 0 ? "Active Lead" : "New Inquiry");
-    const previousSummary = summary?.summary || (messages.length > 0 ? "Continuing from SMS conversation" : "First conversation");
+    
+    // ENHANCED: Use actual ElevenLabs summary instead of generic text
+    let previousSummary;
+    if (summary?.summary && summary.summary.length > 20) {
+      // Use the actual ElevenLabs summary - truncate if too long for dynamic variables
+      previousSummary = summary.summary.length > 500 ? summary.summary.substring(0, 500) + "..." : summary.summary;
+      console.log(`📋 Using actual ElevenLabs summary (${summary.summary.length} chars): ${summary.summary.substring(0, 100)}...`);
+    } else if (messages.length > 0) {
+      // Build a rich summary from recent messages if no ElevenLabs summary
+      const recentMessages = messages.slice(-6); // Last 6 messages
+      const customerMessages = recentMessages.filter(m => m.sentBy === 'user');
+      const agentMessages = recentMessages.filter(m => m.sentBy === 'agent');
+      
+      previousSummary = `Previous conversation: ${recentMessages.length} messages exchanged. `;
+      if (customerMessages.length > 0) {
+        const lastCustomerMsg = customerMessages[customerMessages.length - 1];
+        previousSummary += `Customer's last message: "${lastCustomerMsg.content.substring(0, 100)}${lastCustomerMsg.content.length > 100 ? '...' : ''}"`;
+      }
+      console.log(`📋 Built rich summary from ${messages.length} messages: ${previousSummary.substring(0, 100)}...`);
+    } else {
+      previousSummary = "First conversation - no previous interaction history";
+      console.log(`📋 New conversation - no previous history`);
+    }
 
     // Keep the conversation context simple - don't add extra formatting that might break ElevenLabs
     const finalContext = conversationContext.length > 500 ? conversationContext.substring(0, 500) + "..." : conversationContext;
@@ -2142,7 +2282,9 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', async (req, res) =>
       conversation_context_length: finalContext.length,
       customer_name: customerName,
       lead_status: leadStatus,
-      previous_summary_length: previousSummary.length
+      previous_summary_length: previousSummary.length,
+      previous_summary_preview: previousSummary.substring(0, 150) + "...",
+      using_elevenlabs_summary: !!(summary?.summary && summary.summary.length > 20)
     });
 
     console.log('✅ Returning conversation initiation data:', {
