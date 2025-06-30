@@ -540,6 +540,81 @@ class SupabasePersistenceService {
     }
   }
 
+  // Delete all leads (for complete data clear)
+  async deleteAllLeads() {
+    if (!this.isEnabled || !this.isConnected) return 0;
+    
+    try {
+      // First get count of leads to be deleted
+      const { data: leads, error: countError } = await this.supabase
+        .from('leads')
+        .select('id');
+
+      if (countError) throw countError;
+      const leadCount = leads ? leads.length : 0;
+
+      if (leadCount === 0) {
+        console.log('🗑️ No leads to delete from database');
+        return 0;
+      }
+
+      // Delete all lead activities first (foreign key constraint)
+      const { error: activitiesError } = await this.supabase
+        .from('lead_activities')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all records
+
+      if (activitiesError) {
+        console.warn('⚠️ Failed to delete lead activities:', activitiesError.message);
+      }
+
+      // Delete all conversations
+      const { error: conversationsError } = await this.supabase
+        .from('conversations')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all records
+
+      if (conversationsError) {
+        console.warn('⚠️ Failed to delete conversations:', conversationsError.message);
+      }
+
+      // Delete all call sessions
+      const { error: callSessionsError } = await this.supabase
+        .from('call_sessions')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all records
+
+      if (callSessionsError) {
+        console.warn('⚠️ Failed to delete call sessions:', callSessionsError.message);
+      }
+
+      // Delete all conversation summaries
+      const { error: summariesError } = await this.supabase
+        .from('conversation_summaries')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all records
+
+      if (summariesError) {
+        console.warn('⚠️ Failed to delete conversation summaries:', summariesError.message);
+      }
+
+      // Finally delete all leads
+      const { error: leadsError } = await this.supabase
+        .from('leads')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all records
+
+      if (leadsError) throw leadsError;
+
+      console.log(`✅ Deleted all ${leadCount} leads and related data from database`);
+      return leadCount;
+
+    } catch (error) {
+      console.error('❌ Failed to delete all leads:', error);
+      throw error;
+    }
+  }
+
   // CONVENIENCE METHODS FOR API
   async getAllLeads(limit = 100) {
     if (!this.isEnabled || !this.isConnected) return [];

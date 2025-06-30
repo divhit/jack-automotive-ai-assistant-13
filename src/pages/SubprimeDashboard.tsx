@@ -181,33 +181,41 @@ const SubprimeDashboard = () => {
     setTileDialogOpen(true);
   };
 
-  const handleDeleteLead = (leadId: string) => {
+  const handleDeleteLead = async (leadId: string) => {
     if (!confirm('Are you sure you want to delete this lead? This action cannot be undone.')) {
       return;
     }
 
     try {
-      // Check if lead exists in current state
-      const leadExists = allLeads.some(lead => lead.id === leadId);
+      console.log(`🗑️ Deleting lead ${leadId}...`);
       
-      if (leadExists) {
-        // Update local state immediately
+      // Call backend API to delete persistently
+      const response = await fetch(`/api/subprime/delete-lead?id=${leadId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        // Update local state after successful backend deletion
         setAllLeads(prevLeads => prevLeads.filter(lead => lead.id !== leadId));
         setFilteredLeads(prevLeads => prevLeads.filter(lead => lead.id !== leadId));
         
-        console.log(`🗑️ Deleted lead ${leadId}. ${allLeads.length - 1} leads remaining.`);
+        console.log(`✅ Lead ${leadId} deleted successfully from backend and frontend`);
         toast.success(`Lead deleted successfully`);
       } else {
-        console.warn(`⚠️ Lead ${leadId} not found in current leads`);
-        toast.error('Lead not found in current data');
+        throw new Error(data.error || 'Failed to delete lead');
       }
     } catch (error) {
-      console.error('Error deleting lead:', error);
-      toast.error('Failed to delete lead');
+      console.error('❌ Error deleting lead:', error);
+      toast.error(`Failed to delete lead: ${error.message}`);
     }
   };
 
-  const handleDeleteAllLeads = () => {
+  const handleDeleteAllLeads = async () => {
     const currentLeadCount = allLeads.length;
     
     if (currentLeadCount === 0) {
@@ -220,15 +228,36 @@ const SubprimeDashboard = () => {
     }
 
     try {
-      // Clear local state
+      console.log(`🗑️ Deleting all ${currentLeadCount} leads...`);
+      
+      // Call backend API to clear all data
+      const response = await fetch('/api/subprime/clear-test-data', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        // Clear local state after successful backend deletion
+        setAllLeads([]);
+        setFilteredLeads([]);
+        
+        console.log(`✅ All leads deleted successfully from backend and frontend`);
+        toast.success(`Deleted all ${currentLeadCount} leads successfully`);
+      } else {
+        throw new Error(data.error || 'Failed to delete all leads');
+      }
+    } catch (error) {
+      console.error('❌ Error deleting all leads:', error);
+      
+      // If API fails, still try to clear frontend state
       setAllLeads([]);
       setFilteredLeads([]);
       
-      console.log(`🗑️ Deleted all ${currentLeadCount} leads from dashboard.`);
-      toast.success(`Deleted all ${currentLeadCount} leads successfully`);
-    } catch (error) {
-      console.error('Error deleting all leads:', error);
-      toast.error('Failed to delete all leads');
+      toast.warning(`Cleared ${currentLeadCount} leads from view, but backend deletion may have failed`);
     }
   };
 
