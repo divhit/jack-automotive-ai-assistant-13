@@ -17,7 +17,7 @@ import {
   Mail, 
   CreditCard, 
   Car, 
-  Calendar,
+  Calendar, 
   BarChart3,
   Settings,
   AlertTriangle,
@@ -245,31 +245,31 @@ const SubprimeLeadDetailModal: React.FC<SubprimeLeadDetailModalProps> = ({
         <div className="flex-1 flex flex-col px-6 pb-6 overflow-hidden">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
             <TabsList className="grid w-full grid-cols-4 flex-shrink-0 mb-4">
-              <TabsTrigger value="conversation" className="flex items-center gap-2">
+            <TabsTrigger value="conversation" className="flex items-center gap-2">
                 <Phone className="w-4 h-4" />
                 Telephony
-              </TabsTrigger>
-              <TabsTrigger value="profile" className="flex items-center gap-2">
-                <User className="w-4 h-4" />
-                Profile
-              </TabsTrigger>
-              <TabsTrigger value="analytics" className="flex items-center gap-2">
-                <BarChart3 className="w-4 h-4" />
-                Analytics
-              </TabsTrigger>
-              <TabsTrigger value="settings" className="flex items-center gap-2">
-                <Settings className="w-4 h-4" />
-                Settings
-              </TabsTrigger>
-            </TabsList>
+            </TabsTrigger>
+            <TabsTrigger value="profile" className="flex items-center gap-2">
+              <User className="w-4 h-4" />
+              Profile
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="flex items-center gap-2">
+              <BarChart3 className="w-4 h-4" />
+              Analytics
+            </TabsTrigger>
+            <TabsTrigger value="settings" className="flex items-center gap-2">
+              <Settings className="w-4 h-4" />
+              Settings
+            </TabsTrigger>
+          </TabsList>
 
             <TabsContent value="conversation" className="flex-1 overflow-hidden" style={{ marginTop: 0 }}>
               <TelephonyInterface
                 selectedLead={lead}
                 onLeadUpdate={onLeadUpdate}
                 className="h-full"
-              />
-            </TabsContent>
+            />
+          </TabsContent>
 
           <TabsContent value="profile" className="mt-4 space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -340,18 +340,18 @@ const SubprimeLeadDetailModal: React.FC<SubprimeLeadDetailModalProps> = ({
                 <CardContent className="space-y-3">
                   {lead.vehicleInterest ? (
                     <>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-muted-foreground">Type:</span>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Type:</span>
                         <span className="text-sm font-medium">{lead.vehicleInterest.type}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-muted-foreground">Budget:</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Budget:</span>
                         <span className="text-sm font-medium">
                           {formatCurrency(lead.vehicleInterest.budget.min)} - {formatCurrency(lead.vehicleInterest.budget.max)}
                         </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-muted-foreground">Down Payment:</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Down Payment:</span>
                         <span className="text-sm font-medium">{formatCurrency(lead.vehicleInterest.downPayment)}</span>
                       </div>
                       {lead.vehicleInterest.features && lead.vehicleInterest.features.length > 0 && (
@@ -370,7 +370,7 @@ const SubprimeLeadDetailModal: React.FC<SubprimeLeadDetailModalProps> = ({
                   ) : (
                     <div className="text-sm text-muted-foreground">
                       Vehicle preferences not specified
-                    </div>
+                  </div>
                   )}
                 </CardContent>
               </Card>
@@ -647,7 +647,7 @@ const SubprimeLeadDetailModal: React.FC<SubprimeLeadDetailModalProps> = ({
               </Card>
             </div>
           </TabsContent>
-          </Tabs>
+        </Tabs>
         </div>
       </DialogContent>
     </Dialog>

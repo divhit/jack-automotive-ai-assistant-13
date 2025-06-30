@@ -393,10 +393,10 @@ function startConversation(phoneNumber, initialMessage) {
     // Keep conversation_context in client_data where it works
     ws.send(JSON.stringify({
       type: 'conversation_initiation_client_data',
-      dynamic_variables: {
-        customer_name: customerName,
-        lead_status: leadStatus,
-        previous_summary: previousSummary
+        dynamic_variables: {
+          customer_name: customerName,
+          lead_status: leadStatus,
+          previous_summary: previousSummary
       },
       client_data: {
         conversation_context: conversationContext,
@@ -1719,7 +1719,7 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', (req, res) => {
     // Get the active lead for this phone number
     const activeLead = getActiveLeadForPhone(normalizedPhone);
     console.log(`🔍 Active lead for ${normalizedPhone}:`, activeLead);
-    
+
     // Build conversation context
     const conversationContext = buildConversationContext(caller_id);
     const summary = getConversationSummary(normalizedPhone);

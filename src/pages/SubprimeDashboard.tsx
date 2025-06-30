@@ -22,7 +22,6 @@ import { Button } from "@/components/ui/button";
 import { SubprimeSettingsDialog } from "@/components/subprime/SubprimeSettingsDialog";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
-import supabasePersistence from '../../services/supabasePersistence';
 
 const SubprimeDashboard = () => {
   const [allLeads, setAllLeads] = useState<SubprimeLead[]>(subprimeLeads);
@@ -45,9 +44,6 @@ const SubprimeDashboard = () => {
     return {
       totalLeads: allLeads.length,
       readyForFunding: allLeads.filter(lead => lead.fundingReadiness === 'Ready').length,
-      averageScore: allLeads.length > 0 
-        ? Math.round(allLeads.reduce((sum, lead) => sum + lead.projectedScore, 0) / allLeads.length)
-        : 0,
       activeChases: allLeads.filter(lead => lead.chaseStatus === 'Auto Chase Running').length
     };
   }, [allLeads]);
@@ -187,29 +183,40 @@ const SubprimeDashboard = () => {
     }
 
     try {
-      console.log(`🗑️ Deleting lead ${leadId} from Supabase...`);
+      console.log(`🗑️ Deleting lead ${leadId}...`);
       
-      // Delete from Supabase first
-      await supabasePersistence.deleteLead(leadId);
-      console.log(`✅ Lead ${leadId} deleted from Supabase`);
-      
-      // Update local state after successful database deletion
-      setAllLeads(prevLeads => prevLeads.filter(lead => lead.id !== leadId));
+      // Use API endpoint for consistency with other operations
+      const response = await fetch(`/api/subprime/delete-lead?id=${leadId}`, {
+        method: 'DELETE'
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to delete lead');
+      }
       
       console.log(`✅ Lead ${leadId} deleted successfully`);
-      toast.success(`Lead deleted successfully from database`);
+      
+      // Update local state after successful deletion
+      setAllLeads(prevLeads => prevLeads.filter(lead => lead.id !== leadId));
+      
+      toast.success(`Lead deleted successfully`);
       
     } catch (error) {
-      console.error('❌ Error deleting lead from Supabase:', error);
+      console.error('❌ Error deleting lead:', error);
       
-      // If Supabase deletion fails, still offer to remove from UI
+      // If deletion fails, still offer to remove from UI
       const shouldRemoveFromUI = confirm(
-        'Failed to delete from database. Remove from view only? (Lead will reappear on refresh)'
+        'Failed to delete from server. Remove from view only? (Lead will reappear on refresh)'
       );
       
       if (shouldRemoveFromUI) {
         setAllLeads(prevLeads => prevLeads.filter(lead => lead.id !== leadId));
-        toast.warning('Lead removed from view only (database deletion failed)');
+        toast.warning('Lead removed from view only (server deletion failed)');
       } else {
         toast.error(`Failed to delete lead: ${error.message}`);
       }
@@ -229,29 +236,40 @@ const SubprimeDashboard = () => {
     }
 
     try {
-      console.log(`🗑️ Deleting all leads from Supabase...`);
+      console.log(`🗑️ Deleting all leads...`);
       
-      // Delete all leads from Supabase
-      const deletedCount = await supabasePersistence.deleteAllLeads();
-      console.log(`✅ Deleted ${deletedCount} leads from Supabase`);
+      // Use API endpoint for consistency
+      const response = await fetch('/api/subprime/clear-test-data', {
+        method: 'DELETE'
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to delete all leads');
+      }
       
-      // Clear local state after successful database deletion
+      console.log(`✅ Deleted ${result.deletedCount} leads successfully`);
+      
+      // Clear local state after successful deletion
       setAllLeads([]);
       
-      console.log(`✅ All leads deleted successfully`);
-      toast.success(`Deleted all ${deletedCount} leads from database`);
+      toast.success(`Deleted all ${result.deletedCount} leads successfully`);
       
     } catch (error) {
-      console.error('❌ Error deleting all leads from Supabase:', error);
+      console.error('❌ Error deleting all leads:', error);
       
-      // If Supabase deletion fails, still offer to clear UI
+      // If deletion fails, still offer to clear UI
       const shouldClearUI = confirm(
-        'Failed to delete from database. Clear from view only? (Leads will reappear on refresh)'
+        'Failed to delete from server. Clear from view only? (Leads will reappear on refresh)'
       );
       
       if (shouldClearUI) {
         setAllLeads([]);
-        toast.warning('Leads cleared from view only (database deletion failed)');
+        toast.warning('Leads cleared from view only (server deletion failed)');
       } else {
         toast.error(`Failed to delete all leads: ${error.message}`);
       }
