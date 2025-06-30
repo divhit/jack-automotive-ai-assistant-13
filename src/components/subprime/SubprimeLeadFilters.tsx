@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Toggle } from "@/components/ui/toggle";
@@ -8,49 +7,31 @@ import { Filter } from "lucide-react";
 
 interface SubprimeLeadFiltersProps {
   leads: SubprimeLead[];
-  onFilterChange: (filteredLeads: SubprimeLead[]) => void;
+  chaseStatus: string;
+  setChaseStatus: (value: string) => void;
+  fundingReadiness: string;
+  setFundingReadiness: (value: string) => void;
+  sentiment: string;
+  setSentiment: (value: string) => void;
+  scriptProgress: string;
+  setScriptProgress: (value: string) => void;
+  showOverdueOnly: boolean;
+  setShowOverdueOnly: (value: boolean) => void;
 }
 
-export const SubprimeLeadFilters = ({ leads, onFilterChange }: SubprimeLeadFiltersProps) => {
-  // Filter states
-  const [chaseStatus, setChaseStatus] = useState<SubprimeLead["chaseStatus"] | "all">("all");
-  const [fundingReadiness, setFundingReadiness] = useState<SubprimeLead["fundingReadiness"] | "all">("all");
-  const [sentiment, setSentiment] = useState<SubprimeLead["sentiment"] | "all">("all");
-  const [scriptProgress, setScriptProgress] = useState<SubprimeLead["scriptProgress"]["currentStep"] | "all">("all");
-  const [showOverdueOnly, setShowOverdueOnly] = useState(false);
-  
-  // Apply filters whenever any filter state changes
-  useEffect(() => {
-    let filteredResults = [...leads];
-    
-    // Apply chase status filter
-    if (chaseStatus !== "all") {
-      filteredResults = filteredResults.filter(lead => lead.chaseStatus === chaseStatus);
-    }
-    
-    // Apply funding readiness filter
-    if (fundingReadiness !== "all") {
-      filteredResults = filteredResults.filter(lead => lead.fundingReadiness === fundingReadiness);
-    }
-    
-    // Apply sentiment filter
-    if (sentiment !== "all") {
-      filteredResults = filteredResults.filter(lead => lead.sentiment === sentiment);
-    }
-    
-    // Apply script progress filter
-    if (scriptProgress !== "all") {
-      filteredResults = filteredResults.filter(lead => lead.scriptProgress.currentStep === scriptProgress);
-    }
-    
-    // Apply overdue filter
-    if (showOverdueOnly) {
-      filteredResults = filteredResults.filter(lead => lead.nextAction.isOverdue);
-    }
-    
-    // Update parent component with filtered results
-    onFilterChange(filteredResults);
-  }, [chaseStatus, fundingReadiness, sentiment, scriptProgress, showOverdueOnly, leads, onFilterChange]);
+export const SubprimeLeadFilters = ({ 
+  leads,
+  chaseStatus,
+  setChaseStatus,
+  fundingReadiness,
+  setFundingReadiness,
+  sentiment,
+  setSentiment,
+  scriptProgress,
+  setScriptProgress,
+  showOverdueOnly,
+  setShowOverdueOnly
+}: SubprimeLeadFiltersProps) => {
   
   // Reset all filters
   const resetFilters = () => {

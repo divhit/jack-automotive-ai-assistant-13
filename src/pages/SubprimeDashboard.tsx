@@ -25,7 +25,6 @@ import { toast } from "sonner";
 
 const SubprimeDashboard = () => {
   const [allLeads, setAllLeads] = useState<SubprimeLead[]>(subprimeLeads);
-  // Remove filteredLeads state - we'll use the computed value directly
   const [searchTerm, setSearchTerm] = useState("");
   const [tileDialogOpen, setTileDialogOpen] = useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
@@ -39,6 +38,13 @@ const SubprimeDashboard = () => {
   const [dataSource, setDataSource] = useState<'database' | 'memory'>('memory');
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   
+  // Filter states (moved from SubprimeLeadFilters to parent)
+  const [chaseStatusFilter, setChaseStatusFilter] = useState<string>("all");
+  const [fundingReadinessFilter, setFundingReadinessFilter] = useState<string>("all");
+  const [sentimentFilter, setSentimentFilter] = useState<string>("all");
+  const [scriptProgressFilter, setScriptProgressFilter] = useState<string>("all");
+  const [showOverdueOnly, setShowOverdueOnly] = useState(false);
+
   // Use useMemo to prevent infinite recalculation of metrics
   const metrics = useMemo(() => {
     return {
@@ -53,23 +59,52 @@ const SubprimeDashboard = () => {
     setSearchTerm(term);
   };
 
-  // Filter leads based on search term (direct calculation, no state needed)
+  // Enhanced filtering logic that combines search and filters
   const filteredLeadsCalculation = useMemo(() => {
-    if (searchTerm === "") {
-      return allLeads;
-    } else {
-      return allLeads.filter(lead => 
+    let filtered = [...allLeads];
+    
+    // Apply search filter
+    if (searchTerm !== "") {
+      filtered = filtered.filter(lead => 
         lead.customerName.toLowerCase().includes(searchTerm.toLowerCase()) || 
         lead.phoneNumber.includes(searchTerm)
       );
     }
-  }, [allLeads, searchTerm]);
+    
+    // Apply chase status filter
+    if (chaseStatusFilter !== "all") {
+      filtered = filtered.filter(lead => lead.chaseStatus === chaseStatusFilter);
+    }
+    
+    // Apply funding readiness filter
+    if (fundingReadinessFilter !== "all") {
+      filtered = filtered.filter(lead => lead.fundingReadiness === fundingReadinessFilter);
+    }
+    
+    // Apply sentiment filter
+    if (sentimentFilter !== "all") {
+      filtered = filtered.filter(lead => lead.sentiment === sentimentFilter);
+    }
+    
+    // Apply script progress filter
+    if (scriptProgressFilter !== "all") {
+      filtered = filtered.filter(lead => lead.scriptProgress.currentStep === scriptProgressFilter);
+    }
+    
+    // Apply overdue filter
+    if (showOverdueOnly) {
+      filtered = filtered.filter(lead => lead.nextAction.isOverdue);
+    }
+    
+    return filtered;
+  }, [allLeads, searchTerm, chaseStatusFilter, fundingReadinessFilter, sentimentFilter, scriptProgressFilter, showOverdueOnly]);
 
-  const handleFilterChange = useCallback((filteredLeads: SubprimeLead[]) => {
-    // Note: This function is now used only by filters - consider refactoring
-    // For now, we'll update allLeads to match the filtered result
-    setAllLeads(filteredLeads);
-  }, []);
+  // Simplified filter change handler (no longer modifies allLeads)
+  const handleFilterChange = useCallback(() => {
+    // Filters are now handled by the useMemo above
+    // This function is kept for compatibility but doesn't need to do anything
+    console.log(`🔍 Filters updated: showing ${filteredLeadsCalculation.length} of ${allLeads.length} leads`);
+  }, [filteredLeadsCalculation.length, allLeads.length]);
 
   // Load leads from server on component mount
   useEffect(() => {
@@ -487,12 +522,24 @@ const SubprimeDashboard = () => {
 
       <div className="grid gap-6 grid-cols-1 lg:grid-cols-4">
         <div className="lg:col-span-1">
-          <SubprimeLeadFilters onFilterChange={handleFilterChange} leads={allLeads} />
+          <SubprimeLeadFilters 
+            leads={allLeads}
+            chaseStatus={chaseStatusFilter}
+            setChaseStatus={setChaseStatusFilter}
+            fundingReadiness={fundingReadinessFilter}
+            setFundingReadiness={setFundingReadinessFilter}
+            sentiment={sentimentFilter}
+            setSentiment={setSentimentFilter}
+            scriptProgress={scriptProgressFilter}
+            setScriptProgress={setScriptProgressFilter}
+            showOverdueOnly={showOverdueOnly}
+            setShowOverdueOnly={setShowOverdueOnly}
+          />
         </div>
         
         <div className="lg:col-span-3">
-                          <SubprimeLeadsList 
-                  leads={filteredLeadsCalculation} 
+          <SubprimeLeadsList 
+            leads={filteredLeadsCalculation} 
             onLeadUpdate={handleLeadUpdate}
             onLeadDelete={handleDeleteLead}
           />
