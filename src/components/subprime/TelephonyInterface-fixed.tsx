@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
@@ -74,6 +74,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [activeQuickTab, setActiveQuickTab] = useState<'chat' | 'profile' | 'analytics' | 'settings'>('chat');
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isTabsExpanded, setIsTabsExpanded] = useState(false);
   
   // Smart scrolling state
   const [isNearBottom, setIsNearBottom] = useState(true);
@@ -97,33 +98,83 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
 
   // Check scroll position to determine if user is near bottom
   const checkScrollPosition = useCallback(() => {
-    if (scrollAreaRef.current) {
-      // ScrollArea component wraps content in a viewport div, find the actual scrollable element
-      const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
-      
-      if (scrollContainer) {
-        const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
-        const threshold = 100; // pixels from bottom
-        const nearBottom = scrollHeight - scrollTop - clientHeight < threshold;
-        
-        setIsNearBottom(nearBottom);
-        setShowScrollToBottom(!nearBottom && conversationHistory.length > 0);
+    if (!scrollAreaRef.current) return;
+    
+    // Use the same robust selector approach
+    const possibleSelectors = [
+      '[data-radix-scroll-area-viewport]',
+      '.radix-scroll-area-viewport',
+      '[data-scroll-area-viewport]',
+      '.scroll-area-viewport'
+    ];
+    
+    let scrollContainer = null;
+    for (const selector of possibleSelectors) {
+      scrollContainer = scrollAreaRef.current.querySelector(selector);
+      if (scrollContainer) break;
+    }
+    
+    // Fallback to first scrollable div
+    if (!scrollContainer) {
+      const divs = scrollAreaRef.current.querySelectorAll('div');
+      for (const div of divs) {
+        if (div.scrollHeight > div.clientHeight) {
+          scrollContainer = div;
+          break;
+        }
       }
+    }
+    
+    if (scrollContainer) {
+      const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
+      const threshold = 100; // pixels from bottom
+      const nearBottom = scrollHeight - scrollTop - clientHeight < threshold;
+      
+      setIsNearBottom(nearBottom);
+      setShowScrollToBottom(!nearBottom && conversationHistory.length > 0);
     }
   }, [conversationHistory.length]);
 
   // Scroll to bottom function
   const scrollToBottom = useCallback(() => {
-    const scrollContainer = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]');
+    if (!scrollAreaRef.current) return;
+    
+    // Use the same robust selector approach
+    const possibleSelectors = [
+      '[data-radix-scroll-area-viewport]',
+      '.radix-scroll-area-viewport',
+      '[data-scroll-area-viewport]',
+      '.scroll-area-viewport'
+    ];
+    
+    let scrollContainer = null;
+    for (const selector of possibleSelectors) {
+      scrollContainer = scrollAreaRef.current.querySelector(selector);
+      if (scrollContainer) break;
+    }
+    
+    // Fallback to first scrollable div
+    if (!scrollContainer) {
+      const divs = scrollAreaRef.current.querySelectorAll('div');
+      for (const div of divs) {
+        if (div.scrollHeight > div.clientHeight) {
+          scrollContainer = div;
+          break;
+        }
+      }
+    }
+    
     if (scrollContainer) {
       // Scroll to the bottom of the container
       scrollContainer.scrollTo({
         top: scrollContainer.scrollHeight,
         behavior: 'smooth'
       });
+      console.log('📜 Scrolling to bottom of container');
     } else {
       // Fallback to scrollIntoView
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      console.log('📜 Using fallback scrollIntoView');
     }
     setShowScrollToBottom(false);
     setIsNearBottom(true);
@@ -150,7 +201,32 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
 
   // Setup scroll event listener for better scroll detection
   useEffect(() => {
-    const scrollContainer = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]');
+    if (!scrollAreaRef.current) return;
+    
+    // Try multiple selectors to find the scrollable viewport
+    const possibleSelectors = [
+      '[data-radix-scroll-area-viewport]',
+      '.radix-scroll-area-viewport',
+      '[data-scroll-area-viewport]',
+      '.scroll-area-viewport'
+    ];
+    
+    let scrollContainer = null;
+    for (const selector of possibleSelectors) {
+      scrollContainer = scrollAreaRef.current.querySelector(selector);
+      if (scrollContainer) break;
+    }
+    
+    // Fallback: find the first div that might be scrollable
+    if (!scrollContainer) {
+      const divs = scrollAreaRef.current.querySelectorAll('div');
+      for (const div of divs) {
+        if (div.scrollHeight > div.clientHeight) {
+          scrollContainer = div;
+          break;
+        }
+      }
+    }
     
     if (scrollContainer) {
       const handleScroll = () => {
@@ -159,9 +235,24 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
       
       scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
       
+      // Debug: log scroll container info
+      console.log('📜 ScrollArea container found:', {
+        element: scrollContainer,
+        selector: scrollContainer.getAttribute('data-radix-scroll-area-viewport') ? '[data-radix-scroll-area-viewport]' : 'fallback',
+        height: scrollContainer.clientHeight,
+        scrollHeight: scrollContainer.scrollHeight,
+        canScroll: scrollContainer.scrollHeight > scrollContainer.clientHeight,
+        hasScrollbar: scrollContainer.scrollHeight > scrollContainer.clientHeight,
+        overflow: window.getComputedStyle(scrollContainer).overflow,
+        overflowY: window.getComputedStyle(scrollContainer).overflowY,
+        messagesCount: conversationHistory.length
+      });
+      
       return () => {
         scrollContainer.removeEventListener('scroll', handleScroll);
       };
+    } else {
+      console.warn('⚠️ ScrollArea viewport not found, logging structure:', scrollAreaRef.current);
     }
   }, [checkScrollPosition, conversationHistory.length]);
 
@@ -632,89 +723,16 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
   return (
     <div className={cn("h-full flex flex-col", className)}>
 
-      {/* FIXED LEAD PROFILE HEADER - This stays visible while conversation scrolls */}
-      <Card className="flex-shrink-0 m-4 mb-2 shadow-sm border-2">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Avatar className="h-10 w-10">
-                <AvatarFallback>{selectedLead.customerName.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-              </Avatar>
-              <div>
-                <h3 className="font-semibold text-lg">{selectedLead.customerName}</h3>
-                <p className="text-sm text-muted-foreground flex items-center gap-2">
-                  <Phone className="h-3 w-3" />
-                  {selectedLead.phoneNumber}
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Badge className={getStatusColor(selectedLead.fundingReadiness)}>
-                {selectedLead.fundingReadiness}
-              </Badge>
-              <Badge variant="outline">
-                {getSentimentIcon(selectedLead.sentiment)} {selectedLead.sentiment}
-              </Badge>
-            </div>
+      {/* MINIMAL STATUS BAR - Only show call status if active */}
+      {isCallActive && (
+        <div className="flex-shrink-0 mx-4 mt-1 mb-1 px-3 py-1 bg-green-50 rounded border border-green-200">
+          <div className="flex items-center gap-2 text-sm text-green-700">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span className="font-medium">Call Active</span>
+            <span className="text-xs">({formatDuration(callDuration)})</span>
           </div>
-        </CardHeader>
-        <CardContent className="pt-0">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-blue-500" />
-              <div>
-                <p className="text-muted-foreground">Status</p>
-                <p className="font-medium">{selectedLead.chaseStatus}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-green-500" />
-              <div>
-                <p className="text-muted-foreground">Next Action</p>
-                <p className="font-medium truncate">{selectedLead.nextAction.type}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <User className="h-4 w-4 text-purple-500" />
-              <div>
-                <p className="text-muted-foreground">Specialist</p>
-                <p className="font-medium">{selectedLead.assignedSpecialist || 'Unassigned'}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-orange-500" />
-              <div>
-                <p className="text-muted-foreground">Step</p>
-                <p className="font-medium capitalize">{selectedLead.scriptProgress.currentStep}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Vehicle Interest - if available */}
-          {selectedLead.vehicleInterest && (
-            <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <Car className="h-4 w-4 text-blue-600" />
-                <span className="font-medium text-blue-900">Vehicle Interest</span>
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <span className="text-blue-700">Type: {selectedLead.vehicleInterest.type}</span>
-                <span className="text-blue-700">
-                  Budget: {formatCurrency(selectedLead.vehicleInterest.budget.min)} - {formatCurrency(selectedLead.vehicleInterest.budget.max)}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* Call Status Indicator */}
-          {isCallActive && (
-            <div className="mt-3 bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2 text-sm text-green-700">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span>Voice call active - {formatDuration(callDuration)}</span>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        </div>
+      )}
 
       {/* SCROLLABLE CONVERSATION AREA */}
       <div className="flex-1 flex flex-col mx-4 mb-4 min-h-0">
@@ -726,28 +744,46 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
         )}
 
         {/* Conversation History - Takes up remaining space */}
-        <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          {/* SUBTLE STICKY HEADER - Doesn't scroll with messages */}
-          <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-6 py-2 shadow-sm">
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              <MessageSquare className="h-3.5 w-3.5" />
-              <span className="font-medium">Conversation</span>
-              {conversationHistory.length > 0 && (
-                <span className="text-xs text-gray-400">({conversationHistory.length} messages)</span>
-              )}
-            </div>
-          </div>
-          
-          <CardContent className="flex-1 min-h-0 p-0 relative">
+        <Card className="flex-1 flex flex-col min-h-0">
+          <CardContent className="flex-1 p-0 relative overflow-hidden">
             <ScrollArea 
-              className="h-full px-6 pb-4" 
+              className="w-full h-full"
               ref={scrollAreaRef}
+              style={{ 
+                '--scrollbar-size': '12px',
+                scrollbarWidth: 'thin',
+                scrollbarColor: 'rgba(155, 155, 155, 0.5) transparent'
+              } as React.CSSProperties}
             >
-              <div className="space-y-4 py-4">
+              <div className="space-y-4 py-4 px-6">
                 {conversationHistory.length === 0 ? (
                   <div className="text-center text-muted-foreground py-8">
                     <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
                     <p>No messages yet. Start a conversation!</p>
+                    <Button 
+                      onClick={() => {
+                        // Add some test messages for scrolling test
+                        const testMessages = Array.from({ length: 20 }, (_, i) => ({
+                          id: `test-${i}`,
+                          type: 'sms' as const,
+                          content: i % 2 === 0 
+                            ? `Test customer message ${i + 1}. This is a longer message to test scrolling behavior.`
+                            : `Test agent response ${i + 1}. This is the agent's response to the customer message.`,
+                          timestamp: new Date(Date.now() - (20 - i) * 60000).toISOString(),
+                          sentBy: i % 2 === 0 ? 'user' as const : 'agent' as const
+                        }));
+                        setConversationHistory(testMessages);
+                        // Force check scroll position after messages are added
+                        setTimeout(() => {
+                          checkScrollPosition();
+                        }, 100);
+                      }}
+                      className="mt-4 text-xs"
+                      size="sm"
+                      variant="outline"
+                    >
+                      🔧 Add Test Messages (Debug)
+                    </Button>
                   </div>
                 ) : (
                   conversationHistory.map((message) => (
@@ -801,6 +837,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
                 )}
               </div>
               <div ref={messagesEndRef} />
+              <ScrollBar orientation="vertical" />
             </ScrollArea>
             
             {/* Scroll to Bottom Button - Floating when user scrolls up */}
@@ -867,168 +904,225 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
           </div>
         </div>
 
-        {/* QUICK ACCESS TABS - Fixed under input, subtle and elegant */}
-        <div className="mt-3 border-t border-gray-100 pt-3 flex-shrink-0">
-          <Tabs value={activeQuickTab} onValueChange={(value: any) => setActiveQuickTab(value)} className="w-full">
-            <TabsList className="grid w-full grid-cols-4 h-8 bg-gray-50/80">
-              <TabsTrigger value="chat" className="text-xs data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                <MessageSquare className="w-3 h-3 mr-1" />
-                Chat
-              </TabsTrigger>
-              <TabsTrigger value="profile" className="text-xs data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                <User className="w-3 h-3 mr-1" />
-                Profile
-              </TabsTrigger>
-              <TabsTrigger value="analytics" className="text-xs data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                <BarChart3 className="w-3 h-3 mr-1" />
-                Analytics  
-              </TabsTrigger>
-              <TabsTrigger value="settings" className="text-xs data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                <Settings className="w-3 h-3 mr-1" />
-                Settings
-              </TabsTrigger>
-            </TabsList>
+        {/* COLLAPSIBLE QUICK ACCESS TABS - Save space when not needed */}
+        <div className="mt-3 border-t border-gray-100 pt-2 flex-shrink-0">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-xs text-gray-500 font-medium">Quick Info</div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-xs"
+              onClick={() => setIsTabsExpanded(!isTabsExpanded)}
+            >
+              {isTabsExpanded ? (
+                <>
+                  <ChevronDown className="w-3 h-3 mr-1" />
+                  Hide
+                </>
+              ) : (
+                <>
+                  <User className="w-3 h-3 mr-1" />
+                  Show Details
+                </>
+              )}
+            </Button>
+          </div>
+          
+          {isTabsExpanded && (
+            <Tabs value={activeQuickTab} onValueChange={(value: any) => setActiveQuickTab(value)} className="w-full">
+              <TabsList className="grid w-full grid-cols-4 h-8 bg-gray-50/80">
+                <TabsTrigger value="chat" className="text-xs data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                  <MessageSquare className="w-3 h-3 mr-1" />
+                  Chat
+                </TabsTrigger>
+                <TabsTrigger value="profile" className="text-xs data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                  <User className="w-3 h-3 mr-1" />
+                  Profile
+                </TabsTrigger>
+                <TabsTrigger value="analytics" className="text-xs data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                  <BarChart3 className="w-3 h-3 mr-1" />
+                  Analytics  
+                </TabsTrigger>
+                <TabsTrigger value="settings" className="text-xs data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                  <Settings className="w-3 h-3 mr-1" />
+                  Settings
+                </TabsTrigger>
+              </TabsList>
 
-            <div className="mt-2 max-h-48 overflow-y-auto bg-gray-50/50 rounded border">
-              <TabsContent value="chat" className="m-2 p-2 text-sm text-gray-600">
-                <div className="flex items-center gap-2 mb-1">
-                  <MessageSquare className="w-4 h-4 text-blue-500" />
-                  <span className="font-medium">Conversation Active</span>
-                </div>
-                <p className="text-xs text-gray-500">
-                  {conversationHistory.length} messages • Last activity: {selectedLead ? new Date(selectedLead.lastTouchpoint).toLocaleTimeString() : 'Unknown'}
-                </p>
-              </TabsContent>
+              <div className="mt-2 max-h-48 overflow-y-auto bg-gray-50/50 rounded border">
+                <TabsContent value="chat" className="m-2 p-2 text-sm text-gray-600">
+                  <div className="flex items-center gap-2 mb-1">
+                    <MessageSquare className="w-4 h-4 text-blue-500" />
+                    <span className="font-medium">Conversation Active</span>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    {conversationHistory.length} messages • Last activity: {selectedLead ? new Date(selectedLead.lastTouchpoint).toLocaleTimeString() : 'Unknown'}
+                  </p>
+                </TabsContent>
 
-              <TabsContent value="profile" className="m-2 space-y-3">
-                <div className="grid grid-cols-2 gap-3 text-xs">
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Phone className="w-3 h-3 text-blue-500" />
-                      <span className="font-medium">Contact</span>
+                <TabsContent value="profile" className="m-2 space-y-3">
+                  {/* Key Status Info - Always Accessible */}
+                  <div className="grid grid-cols-2 gap-2 mb-3 p-2 bg-gray-50 rounded">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1">
+                        <TrendingUp className="w-3 h-3 text-blue-500" />
+                        <span className="font-medium text-xs">Status</span>
+                      </div>
+                      <p className="text-xs text-gray-600">{selectedLead?.chaseStatus}</p>
                     </div>
-                    <div className="ml-5 space-y-1 text-gray-600">
-                      <p>{selectedLead?.phoneNumber}</p>
-                      {selectedLead?.email && <p>{selectedLead.email}</p>}
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1">
+                        <Calendar className="w-3 h-3 text-green-500" />
+                        <span className="font-medium text-xs">Next Action</span>
+                      </div>
+                      <p className="text-xs text-gray-600">{selectedLead?.nextAction.type}</p>
                     </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <CreditCard className="w-3 h-3 text-purple-500" />
-                      <span className="font-medium">Credit</span>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1">
+                        <User className="w-3 h-3 text-purple-500" />
+                        <span className="font-medium text-xs">Specialist</span>
+                      </div>
+                      <p className="text-xs text-gray-600">{selectedLead?.assignedSpecialist || 'Unassigned'}</p>
                     </div>
-                    <div className="ml-5 space-y-1 text-gray-600">
-                      <p>{selectedLead?.creditProfile?.scoreRange || 'Unknown'}</p>
-                      <p>{selectedLead?.creditProfile?.knownIssues?.length || 0} issues</p>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Car className="w-3 h-3 text-green-500" />
-                      <span className="font-medium">Vehicle</span>
-                    </div>
-                    <div className="ml-5 space-y-1 text-gray-600">
-                      <p>{selectedLead?.vehicleInterest?.type || 'Not specified'}</p>
-                      {selectedLead?.vehicleInterest && (
-                        <p>{formatCurrency(selectedLead.vehicleInterest.budget.min)}-{formatCurrency(selectedLead.vehicleInterest.budget.max)}</p>
-                      )}
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 text-orange-500" />
+                        <span className="font-medium text-xs">Step</span>
+                      </div>
+                      <p className="text-xs text-gray-600 capitalize">{selectedLead?.scriptProgress.currentStep}</p>
                     </div>
                   </div>
-                  
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <TrendingUp className="w-3 h-3 text-orange-500" />
-                      <span className="font-medium">Status</span>
-                    </div>
-                    <div className="ml-5 space-y-1 text-gray-600">
-                      <Badge className={getStatusColor(selectedLead?.fundingReadiness || '')} variant="outline">
-                        {selectedLead?.fundingReadiness}
-                      </Badge>
-                      <p className="text-xs">{selectedLead?.chaseStatus}</p>
-                    </div>
-                  </div>
-                </div>
-              </TabsContent>
 
-              <TabsContent value="analytics" className="m-2 space-y-3">
-                <div className="grid grid-cols-3 gap-3 text-xs">
-                  <div className="text-center p-2 bg-blue-50 rounded">
-                    <p className="font-medium text-blue-700">{conversationHistory.length}</p>
-                    <p className="text-blue-600">Messages</p>
-                  </div>
-                  <div className="text-center p-2 bg-green-50 rounded">
-                    <p className="font-medium text-green-700">
-                      {selectedLead?.scriptProgress?.completedSteps?.length || 0}/5
-                    </p>
-                    <p className="text-green-600">Steps Done</p>
-                  </div>
-                  <div className="text-center p-2 bg-purple-50 rounded">
-                    <p className="font-medium text-purple-700 flex items-center justify-center gap-1">
-                      {getSentimentIcon(selectedLead?.sentiment || '')}
-                    </p>
-                    <p className="text-purple-600">{selectedLead?.sentiment}</p>
-                  </div>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="settings" className="m-2 space-y-3">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Settings className="w-3 h-3 text-gray-500" />
-                    <span className="font-medium text-xs">Quick Actions</span>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="h-7 text-xs"
-                      onClick={handleReassignSpecialist}
-                      disabled={isUpdating}
-                    >
-                      <User className="w-3 h-3 mr-1" />
-                      Reassign
-                    </Button>
+                  {/* Detailed Profile Info */}
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Phone className="w-3 h-3 text-blue-500" />
+                        <span className="font-medium">Contact</span>
+                      </div>
+                      <div className="ml-5 space-y-1 text-gray-600">
+                        <p>{selectedLead?.phoneNumber}</p>
+                        {selectedLead?.email && <p>{selectedLead.email}</p>}
+                      </div>
+                    </div>
                     
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="h-7 text-xs"
-                      onClick={() => handleContactMethodChange('Voice')}
-                      disabled={isUpdating}
-                    >
-                      <Phone className="w-3 h-3 mr-1" />
-                      Voice Pref
-                    </Button>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <CreditCard className="w-3 h-3 text-purple-500" />
+                        <span className="font-medium">Credit</span>
+                      </div>
+                      <div className="ml-5 space-y-1 text-gray-600">
+                        <p>{selectedLead?.creditProfile?.scoreRange || 'Unknown'}</p>
+                        <p>{selectedLead?.creditProfile?.knownIssues?.length || 0} issues</p>
+                      </div>
+                    </div>
                     
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="h-7 text-xs"
-                      onClick={() => handleContactMethodChange('SMS')}
-                      disabled={isUpdating}
-                    >
-                      <MessageSquare className="w-3 h-3 mr-1" />
-                      SMS Pref
-                    </Button>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Car className="w-3 h-3 text-green-500" />
+                        <span className="font-medium">Vehicle</span>
+                      </div>
+                      <div className="ml-5 space-y-1 text-gray-600">
+                        <p>{selectedLead?.vehicleInterest?.type || 'Not specified'}</p>
+                        {selectedLead?.vehicleInterest && (
+                          <p>{formatCurrency(selectedLead.vehicleInterest.budget.min)}-{formatCurrency(selectedLead.vehicleInterest.budget.max)}</p>
+                        )}
+                      </div>
+                    </div>
                     
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="h-7 text-xs"
-                      onClick={() => handleContactMethodChange('Email')}
-                      disabled={isUpdating}
-                    >
-                      <Mail className="w-3 h-3 mr-1" />
-                      Email Pref
-                    </Button>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <DollarSign className="w-3 h-3 text-green-500" />
+                        <span className="font-medium">Funding</span>
+                      </div>
+                      <div className="ml-5 space-y-1 text-gray-600">
+                        <Badge className={getStatusColor(selectedLead?.fundingReadiness || '')} variant="outline">
+                          {selectedLead?.fundingReadiness}
+                        </Badge>
+                        <p className="text-xs">{selectedLead?.sentiment}</p>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </TabsContent>
-            </div>
-          </Tabs>
+                </TabsContent>
+
+                <TabsContent value="analytics" className="m-2 space-y-3">
+                  <div className="grid grid-cols-3 gap-3 text-xs">
+                    <div className="text-center p-2 bg-blue-50 rounded">
+                      <p className="font-medium text-blue-700">{conversationHistory.length}</p>
+                      <p className="text-blue-600">Messages</p>
+                    </div>
+                    <div className="text-center p-2 bg-green-50 rounded">
+                      <p className="font-medium text-green-700">
+                        {selectedLead?.scriptProgress?.completedSteps?.length || 0}/5
+                      </p>
+                      <p className="text-green-600">Steps Done</p>
+                    </div>
+                    <div className="text-center p-2 bg-purple-50 rounded">
+                      <p className="font-medium text-purple-700 flex items-center justify-center gap-1">
+                        {getSentimentIcon(selectedLead?.sentiment || '')}
+                      </p>
+                      <p className="text-purple-600">{selectedLead?.sentiment}</p>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="settings" className="m-2 space-y-3">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Settings className="w-3 h-3 text-gray-500" />
+                      <span className="font-medium text-xs">Quick Actions</span>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="h-7 text-xs"
+                        onClick={handleReassignSpecialist}
+                        disabled={isUpdating}
+                      >
+                        <User className="w-3 h-3 mr-1" />
+                        Reassign
+                      </Button>
+                      
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="h-7 text-xs"
+                        onClick={() => handleContactMethodChange('Voice')}
+                        disabled={isUpdating}
+                      >
+                        <Phone className="w-3 h-3 mr-1" />
+                        Voice Pref
+                      </Button>
+                      
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="h-7 text-xs"
+                        onClick={() => handleContactMethodChange('SMS')}
+                        disabled={isUpdating}
+                      >
+                        <MessageSquare className="w-3 h-3 mr-1" />
+                        SMS Pref
+                      </Button>
+                      
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="h-7 text-xs"
+                        onClick={() => handleContactMethodChange('Email')}
+                        disabled={isUpdating}
+                      >
+                        <Mail className="w-3 h-3 mr-1" />
+                        Email Pref
+                      </Button>
+                    </div>
+                  </div>
+                </TabsContent>
+              </div>
+            </Tabs>
+          )}
         </div>
       </div>
     </div>
