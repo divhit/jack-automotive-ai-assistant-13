@@ -491,24 +491,4 @@ export const subprimeLeads: SubprimeLead[] = [
   }
 ];
 
-// Utility functions for direct in-memory data manipulation
-export const deleteLeadFromMemory = (leadId: string): boolean => {
-  const index = subprimeLeads.findIndex(lead => lead.id === leadId);
-  if (index !== -1) {
-    subprimeLeads.splice(index, 1);
-    console.log(`🗑️ Deleted lead ${leadId} from memory. ${subprimeLeads.length} leads remaining.`);
-    return true;
-  }
-  return false;
-};
 
-export const deleteAllLeadsFromMemory = (): number => {
-  const deletedCount = subprimeLeads.length;
-  subprimeLeads.splice(0); // Clear the entire array
-  console.log(`🗑️ Deleted all ${deletedCount} leads from memory.`);
-  return deletedCount;
-};
-
-export const getLeadsCount = (): number => {
-  return subprimeLeads.length;
-};

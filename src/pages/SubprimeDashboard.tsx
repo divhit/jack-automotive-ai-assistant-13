@@ -10,7 +10,7 @@ import {
   DialogDescription
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { subprimeLeads, deleteLeadFromMemory, deleteAllLeadsFromMemory } from "@/data";
+import { subprimeLeads } from "@/data";
 import { SubprimeLeadFilters } from "@/components/subprime/SubprimeLeadFilters";
 import { SubprimeAnalytics } from "@/components/subprime/SubprimeAnalytics";
 import { SubprimeLeadsList } from "@/components/subprime/SubprimeLeadsList";
@@ -59,17 +59,20 @@ const SubprimeDashboard = () => {
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     const term = e.target.value.toLowerCase();
     setSearchTerm(term);
-    
-    if (term === "") {
+  };
+
+  // Separate useEffect to handle filtering based on search term and allLeads changes
+  useEffect(() => {
+    if (searchTerm === "") {
       setFilteredLeads(allLeads);
     } else {
       const filtered = allLeads.filter(lead => 
-        lead.customerName.toLowerCase().includes(term) || 
-        lead.phoneNumber.includes(term)
+        lead.customerName.toLowerCase().includes(searchTerm) || 
+        lead.phoneNumber.includes(searchTerm)
       );
       setFilteredLeads(filtered);
     }
-  };
+  }, [allLeads, searchTerm]);
 
   const handleFilterChange = (filteredLeads: SubprimeLead[]) => {
     setFilteredLeads(filteredLeads);
@@ -184,17 +187,19 @@ const SubprimeDashboard = () => {
     }
 
     try {
-      // Delete from memory directly
-      const success = deleteLeadFromMemory(leadId);
+      // Check if lead exists in current state
+      const leadExists = allLeads.some(lead => lead.id === leadId);
       
-      if (success) {
+      if (leadExists) {
         // Update local state immediately
         setAllLeads(prevLeads => prevLeads.filter(lead => lead.id !== leadId));
         setFilteredLeads(prevLeads => prevLeads.filter(lead => lead.id !== leadId));
         
+        console.log(`🗑️ Deleted lead ${leadId}. ${allLeads.length - 1} leads remaining.`);
         toast.success(`Lead deleted successfully`);
       } else {
-        toast.error('Lead not found');
+        console.warn(`⚠️ Lead ${leadId} not found in current leads`);
+        toast.error('Lead not found in current data');
       }
     } catch (error) {
       console.error('Error deleting lead:', error);
@@ -203,18 +208,24 @@ const SubprimeDashboard = () => {
   };
 
   const handleDeleteAllLeads = () => {
-    if (!confirm('Are you sure you want to delete ALL leads? This action cannot be undone and will remove all leads from memory.')) {
+    const currentLeadCount = allLeads.length;
+    
+    if (currentLeadCount === 0) {
+      toast.info('No leads to delete');
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to delete ALL ${currentLeadCount} leads? This action cannot be undone.`)) {
       return;
     }
 
     try {
-      const deletedCount = deleteAllLeadsFromMemory();
-      
       // Clear local state
       setAllLeads([]);
       setFilteredLeads([]);
       
-      toast.success(`Deleted all ${deletedCount} leads successfully`);
+      console.log(`🗑️ Deleted all ${currentLeadCount} leads from dashboard.`);
+      toast.success(`Deleted all ${currentLeadCount} leads successfully`);
     } catch (error) {
       console.error('Error deleting all leads:', error);
       toast.error('Failed to delete all leads');
