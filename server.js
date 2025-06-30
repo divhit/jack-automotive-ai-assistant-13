@@ -2559,6 +2559,28 @@ app.delete('/api/subprime/delete-lead', async (req, res) => {
     if (phoneToRemove) {
       phoneToLeadMapping.delete(phoneToRemove);
       console.log('✅ Removed phone mapping for lead:', leadId);
+      
+      // CRITICAL FIX: Clear conversation caches for this phone number
+      // This prevents stale conversation summaries (like Mercedes data) from being retrieved
+      const normalizedPhone = normalizePhoneNumber(phoneToRemove);
+      
+      if (conversationContexts.has(normalizedPhone)) {
+        conversationContexts.delete(normalizedPhone);
+        console.log('✅ Cleared conversation context cache for:', normalizedPhone);
+      }
+      
+      if (conversationSummaries.has(normalizedPhone)) {
+        conversationSummaries.delete(normalizedPhone);
+        console.log('✅ Cleared conversation summary cache for:', normalizedPhone);
+      }
+      
+      // Also close any active WebSocket connections for this phone
+      if (activeConversations.has(normalizedPhone)) {
+        const ws = activeConversations.get(normalizedPhone);
+        ws.close();
+        activeConversations.delete(normalizedPhone);
+        console.log('✅ Closed active WebSocket connection for:', normalizedPhone);
+      }
     }
 
     res.json({
