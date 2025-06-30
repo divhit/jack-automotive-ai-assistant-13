@@ -99,7 +99,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
   const checkScrollPosition = useCallback(() => {
     if (scrollAreaRef.current) {
       // ScrollArea component wraps content in a viewport div, find the actual scrollable element
-      const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]') || scrollAreaRef.current;
+      const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
       
       if (scrollContainer) {
         const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
@@ -114,7 +114,17 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
 
   // Scroll to bottom function
   const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const scrollContainer = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]');
+    if (scrollContainer) {
+      // Scroll to the bottom of the container
+      scrollContainer.scrollTo({
+        top: scrollContainer.scrollHeight,
+        behavior: 'smooth'
+      });
+    } else {
+      // Fallback to scrollIntoView
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
     setShowScrollToBottom(false);
     setIsNearBottom(true);
   }, []);
@@ -137,6 +147,23 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
       closeEventSource();
     };
   }, [selectedLead?.id]); // Use selectedLead.id for better dependency tracking
+
+  // Setup scroll event listener for better scroll detection
+  useEffect(() => {
+    const scrollContainer = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]');
+    
+    if (scrollContainer) {
+      const handleScroll = () => {
+        checkScrollPosition();
+      };
+      
+      scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
+      
+      return () => {
+        scrollContainer.removeEventListener('scroll', handleScroll);
+      };
+    }
+  }, [checkScrollPosition, conversationHistory.length]);
 
   // Call duration timer with automatic call end detection
   useEffect(() => {
@@ -711,11 +738,10 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
             </div>
           </div>
           
-          <CardContent className="flex-1 min-h-0 overflow-hidden p-0 relative">
+          <CardContent className="flex-1 min-h-0 p-0 relative">
             <ScrollArea 
               className="h-full px-6 pb-4" 
               ref={scrollAreaRef}
-              onScrollCapture={checkScrollPosition}
             >
               <div className="space-y-4 py-4">
                 {conversationHistory.length === 0 ? (
