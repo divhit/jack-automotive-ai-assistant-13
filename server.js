@@ -837,11 +837,18 @@ function startConversation(phoneNumber, initialMessage) {
       console.log(`📨 [${phoneNumber}] Received message type:`, response.type);
 
       if (response.type === 'conversation_initiation_metadata') {
-        console.log(`✅ [${phoneNumber}] Conversation initiated. Sending first message.`);
-        ws.send(JSON.stringify({
-          type: 'user_message',
-          text: initialMessage
-        }));
+        console.log(`✅ [${phoneNumber}] Conversation initiated. Adding delay for dynamic variable processing...`);
+        
+        // CRITICAL FIX: Add delay to allow ElevenLabs to process dynamic variables
+        // Without this delay, the agent responds before processing context on WebSocket reconnection
+        setTimeout(() => {
+          console.log(`📤 [${phoneNumber}] Sending first message after dynamic variable processing delay`);
+          ws.send(JSON.stringify({
+            type: 'user_message',
+            text: initialMessage
+          }));
+        }, 2000); // 2 second delay to ensure dynamic variables are processed
+        
       } else if (response.type === 'agent_response') {
         const agentResponse = response.agent_response_event?.agent_response || '';
         if (agentResponse) {
