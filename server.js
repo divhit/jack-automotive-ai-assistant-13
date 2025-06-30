@@ -298,6 +298,162 @@ function storeConversationSummary(phoneNumber, summary) {
     });
 }
 
+// NEW: Update lead profile from ElevenLabs conversation data
+async function updateLeadFromConversationData(phoneNumber, dataCollectionResults, conversationSummary) {
+  try {
+    const normalized = normalizePhoneNumber(phoneNumber);
+    const leadId = phoneToLeadMapping.get(normalized);
+    
+    if (!leadId) {
+      console.log(`⚠️ No lead found for phone ${phoneNumber} - cannot update profile`);
+      return;
+    }
+
+    const existingLead = dynamicLeads.get(leadId);
+    if (!existingLead) {
+      console.log(`⚠️ Lead ${leadId} not found in memory - cannot update profile`);
+      return;
+    }
+
+    console.log('📋 Updating lead profile from ElevenLabs data:', {
+      leadId,
+      phoneNumber,
+      dataFields: Object.keys(dataCollectionResults)
+    });
+
+    // Extract and map ElevenLabs data to lead fields
+    const updates = {};
+    
+    // Basic profile data
+    if (dataCollectionResults.name && dataCollectionResults.name !== existingLead.customerName) {
+      updates.customerName = dataCollectionResults.name;
+    }
+    
+    if (dataCollectionResults.email && !existingLead.email) {
+      updates.email = dataCollectionResults.email;
+    }
+
+    // Credit profile updates
+    const creditUpdates = { ...existingLead.creditProfile };
+    let creditUpdated = false;
+
+    // Map various credit-related fields
+    if (dataCollectionResults.credit_score || dataCollectionResults.credit_situation) {
+      const creditScore = dataCollectionResults.credit_score || dataCollectionResults.credit_situation;
+      if (creditScore && creditScore !== 'unknown') {
+        creditUpdates.scoreRange = creditScore;
+        creditUpdated = true;
+      }
+    }
+
+    // Employment and income data
+    const knownIssues = creditUpdates.knownIssues || [];
+    if (dataCollectionResults.employment_status) {
+      const empStatus = dataCollectionResults.employment_status.toLowerCase();
+      if (empStatus.includes('unemployed') || empStatus.includes('part time')) {
+        if (!knownIssues.includes('Employment concerns')) {
+          knownIssues.push('Employment concerns');
+          creditUpdated = true;
+        }
+      }
+    }
+
+    if (creditUpdated) {
+      updates.creditProfile = { ...creditUpdates, knownIssues };
+    }
+
+    // Vehicle interest updates
+    let vehicleUpdated = false;
+    const vehicleInterest = { ...existingLead.vehicleInterest };
+
+    // Budget information
+    if (dataCollectionResults.house_payment || dataCollectionResults.budget || dataCollectionResults.monthly_payment) {
+      const monthlyPayment = dataCollectionResults.house_payment || dataCollectionResults.budget || dataCollectionResults.monthly_payment;
+      if (monthlyPayment && typeof monthlyPayment === 'number') {
+        // Estimate car budget based on housing payment (rule of thumb: car payment should be 10-15% of income)
+        const estimatedBudget = {
+          min: Math.max(200, monthlyPayment * 0.3), // Conservative estimate
+          max: Math.max(500, monthlyPayment * 0.8)   // Higher estimate
+        };
+        vehicleInterest.budget = estimatedBudget;
+        vehicleUpdated = true;
+      }
+    }
+
+    // Vehicle type/preference
+    if (dataCollectionResults.vehicle_type || dataCollectionResults.vehicle_preference) {
+      const vehicleType = dataCollectionResults.vehicle_type || dataCollectionResults.vehicle_preference;
+      if (vehicleType) {
+        vehicleInterest.type = vehicleType;
+        updates.vehiclePreference = vehicleType;
+        vehicleUpdated = true;
+      }
+    }
+
+    if (vehicleUpdated && Object.keys(vehicleInterest).length > 0) {
+      updates.vehicleInterest = vehicleInterest;
+    }
+
+    // Update funding readiness based on conversation
+    if (conversationSummary) {
+      const summaryLower = conversationSummary.toLowerCase();
+      if (summaryLower.includes('approved') || summaryLower.includes('qualified') || summaryLower.includes('ready to purchase')) {
+        updates.fundingReadiness = 'Ready';
+        updates.fundingReadinessReason = 'Qualified through conversation';
+      } else if (summaryLower.includes('needs documents') || summaryLower.includes('verification')) {
+        updates.fundingReadiness = 'Partial';
+        updates.fundingReadinessReason = 'Needs documentation';
+      }
+    }
+
+    // Update sentiment based on conversation tone
+    if (conversationSummary) {
+      const summaryLower = conversationSummary.toLowerCase();
+      if (summaryLower.includes('interested') || summaryLower.includes('excited') || summaryLower.includes('want')) {
+        updates.sentiment = 'Warm';
+      } else if (summaryLower.includes('concerned') || summaryLower.includes('worried') || summaryLower.includes('hesitant')) {
+        updates.sentiment = 'Neutral';
+      }
+    }
+
+    // Apply updates to lead
+    if (Object.keys(updates).length > 0) {
+      const updatedLead = { ...existingLead, ...updates, lastTouchpoint: new Date().toISOString() };
+      dynamicLeads.set(leadId, updatedLead);
+
+      console.log('✅ Lead profile updated:', {
+        leadId,
+        updatedFields: Object.keys(updates),
+        customerName: updatedLead.customerName,
+        email: updatedLead.email,
+        creditScore: updatedLead.creditProfile?.scoreRange,
+        vehicleInterest: updatedLead.vehicleInterest?.type,
+        fundingReadiness: updatedLead.fundingReadiness
+      });
+
+      // Persist to Supabase
+      await supabasePersistence.persistLead(updatedLead)
+        .catch(error => {
+          console.log(`🗄️ Lead persistence failed (system continues normally):`, error.message);
+        });
+
+      // Broadcast update to UI
+      broadcastConversationUpdate({
+        type: 'lead_profile_updated',
+        leadId,
+        phoneNumber,
+        updates,
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      console.log('📋 No profile updates needed for lead', leadId);
+    }
+
+  } catch (error) {
+    console.error('❌ Error updating lead from conversation data:', error);
+  }
+}
+
 // Get conversation summary - enhanced with Supabase loading
 async function getConversationSummary(phoneNumber) {
   const normalized = normalizePhoneNumber(phoneNumber);
@@ -400,7 +556,7 @@ async function buildConversationContext(phoneNumber) {
   
   // Add conversation summary if available (this is the key improvement!)
   if (summaryData && summaryData.summary) {
-    contextText += `CALL SUMMARY: ${summaryData.summary}\n\n`;
+    contextText += `CONVERSATION SUMMARY: ${summaryData.summary}\n\n`;
   }
   
   // Add recent voice messages (last 3 only to keep context focused)
@@ -448,7 +604,7 @@ function buildConversationContextSync(phoneNumber) {
   let contextText = `CONVERSATION CONTEXT for customer ${phoneNumber}:\n\n`;
   
   if (summaryData && summaryData.summary) {
-    contextText += `CALL SUMMARY: ${summaryData.summary}\n\n`;
+    contextText += `CONVERSATION SUMMARY: ${summaryData.summary}\n\n`;
   }
   
   if (voiceMessages.length > 0) {
@@ -1495,6 +1651,11 @@ app.post('/api/webhooks/elevenlabs/post-call', async (req, res) => {
     // Store conversation summary if we have one
     if (summary && phoneNumber) {
       storeConversationSummary(phoneNumber, summary);
+    }
+
+    // ENHANCED: Extract and update lead profile from ElevenLabs data collection results
+    if (phoneNumber && eventData.analysis?.data_collection_results) {
+      await updateLeadFromConversationData(phoneNumber, eventData.analysis.data_collection_results, summary);
     }
 
     // CRITICAL FIX: Close existing SMS WebSocket conversation after voice call

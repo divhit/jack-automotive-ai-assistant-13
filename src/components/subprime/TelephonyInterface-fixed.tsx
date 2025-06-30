@@ -313,10 +313,19 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
           addConversationMessage({
             id: `summary-${Date.now()}`,
             type: 'system',
-            content: `📞 Call Summary: ${data.summary}`,
+            content: `📞 Previous Conversation Summary: ${data.summary}`,
             timestamp: new Date().toISOString(),
             sentBy: 'system'
           });
+        }
+        break;
+
+      case 'lead_profile_updated':
+        // Refresh lead data when profile is updated
+        if (data.leadId === selectedLead?.id) {
+          console.log('🔄 Lead profile updated, refreshing UI');
+          // Force refresh of lead data
+          window.location.reload();
         }
         break;
         
