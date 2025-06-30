@@ -35,7 +35,8 @@ import {
   Car,
   DollarSign,
   BarChart3,
-  Mail
+  Mail,
+  ChevronDown
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SubprimeLead } from '@/data/subprime/subprimeLeads';
@@ -73,20 +74,58 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [activeQuickTab, setActiveQuickTab] = useState<'chat' | 'profile' | 'analytics' | 'settings'>('chat');
   const [isUpdating, setIsUpdating] = useState(false);
+  
+  // Smart scrolling state
+  const [isNearBottom, setIsNearBottom] = useState(true);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
   const callTimerRef = useRef<NodeJS.Timeout | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
-  // Auto-scroll to bottom of messages
+  // Smart auto-scroll: only scroll if user is near bottom
   useEffect(() => {
+    if (conversationHistory.length > 0 && isNearBottom) {
+      // Only auto-scroll if user is already near the bottom
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    }
+  }, [conversationHistory, isNearBottom]);
+
+  // Check scroll position to determine if user is near bottom
+  const checkScrollPosition = useCallback(() => {
+    if (scrollAreaRef.current) {
+      // ScrollArea component wraps content in a viewport div, find the actual scrollable element
+      const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]') || scrollAreaRef.current;
+      
+      if (scrollContainer) {
+        const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
+        const threshold = 100; // pixels from bottom
+        const nearBottom = scrollHeight - scrollTop - clientHeight < threshold;
+        
+        setIsNearBottom(nearBottom);
+        setShowScrollToBottom(!nearBottom && conversationHistory.length > 0);
+      }
+    }
+  }, [conversationHistory.length]);
+
+  // Scroll to bottom function
+  const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [conversationHistory]);
+    setShowScrollToBottom(false);
+    setIsNearBottom(true);
+  }, []);
 
   // Load conversation history when lead changes
   useEffect(() => {
     if (selectedLead) {
+      // Reset scroll state when switching leads
+      setIsNearBottom(true);
+      setShowScrollToBottom(false);
+      
       // SSE with load=true will automatically load conversation history
       setupEventSource();
     } else {
@@ -214,6 +253,11 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
               sentBy: 'system'
             });
           }
+          
+          // Auto-scroll to bottom when loading conversation history
+          setTimeout(() => {
+            scrollToBottom();
+          }, 200);
         }
         break;
         
@@ -658,8 +702,12 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
             </div>
           </div>
           
-          <CardContent className="flex-1 min-h-0 overflow-hidden p-0">
-            <ScrollArea className="h-full px-6 pb-4">
+          <CardContent className="flex-1 min-h-0 overflow-hidden p-0 relative">
+            <ScrollArea 
+              className="h-full px-6 pb-4" 
+              ref={scrollAreaRef}
+              onScrollCapture={checkScrollPosition}
+            >
               <div className="space-y-4 py-4">
                 {conversationHistory.length === 0 ? (
                   <div className="text-center text-muted-foreground py-8">
@@ -719,6 +767,21 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
               </div>
               <div ref={messagesEndRef} />
             </ScrollArea>
+            
+            {/* Scroll to Bottom Button - Floating when user scrolls up */}
+            {showScrollToBottom && (
+              <div className="absolute bottom-4 right-4 z-10">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="rounded-full shadow-lg bg-white border border-gray-200 hover:bg-gray-50"
+                  onClick={scrollToBottom}
+                >
+                  <ChevronDown className="h-4 w-4 mr-1" />
+                  <span className="text-xs">New messages</span>
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 

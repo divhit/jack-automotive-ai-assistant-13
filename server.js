@@ -921,14 +921,13 @@ app.post('/api/elevenlabs/outbound-call', async (req, res) => {
     // Get conversation context for seamless SMS ↔ Voice transition
     // Use normalized phone number to ensure consistency with stored history
     const normalizedPhoneNumber = normalizePhoneNumber(phoneNumber);
-    // PERFORMANCE FIX: Use sync versions to avoid DB latency during voice call initiation
-    const conversationContext = buildConversationContextSync(normalizedPhoneNumber);
+    const conversationContext = await buildConversationContext(normalizedPhoneNumber);
     
     // Generate a unique conversation ID for tracking
     const tempConversationId = `temp_${Date.now()}_${phoneNumber}`;
     
-    const summary = getConversationSummarySync(normalizedPhoneNumber);
-    const messages = getConversationHistorySync(normalizedPhoneNumber);
+    const summary = await getConversationSummary(normalizedPhoneNumber);
+    const messages = await getConversationHistory(normalizedPhoneNumber);
     
     // Get actual lead data instead of placeholders
     const leadData = getLeadData(leadId);
@@ -1949,10 +1948,10 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', async (req, res) =>
     const activeLead = getActiveLeadForPhone(normalizedPhone);
     console.log(`🔍 Active lead for ${normalizedPhone}:`, activeLead);
 
-    // Build conversation context - PERFORMANCE FIX: Use sync versions to avoid DB latency during inbound call setup
-    const conversationContext = buildConversationContextSync(caller_id);
-    const summary = getConversationSummarySync(normalizedPhone);
-    const messages = getConversationHistorySync(caller_id);
+    // Build conversation context - ENHANCED with Supabase loading
+    const conversationContext = await buildConversationContext(caller_id);
+    const summary = await getConversationSummary(normalizedPhone);
+    const messages = await getConversationHistory(caller_id);
     
     console.log(`🧪 DEBUG: conversationContext length: ${conversationContext.length}`);
     console.log(`🧪 DEBUG: activeLead:`, activeLead);
