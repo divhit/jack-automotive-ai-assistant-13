@@ -22,10 +22,25 @@ async function loadExistingLeadsIntoMemory() {
     console.log('🔄 Loading existing leads from Supabase into memory...');
     
     if (supabasePersistence.isEnabled) {
-      // Wait for connection if not already connected
+      // Wait for connection with retries
       if (!supabasePersistence.isConnected) {
         console.log('⏳ Waiting for Supabase connection...');
-        await supabasePersistence.testConnection();
+        
+        // Try up to 3 times with delays
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          console.log(`🔄 Connection attempt ${attempt}/3...`);
+          
+          const connected = await supabasePersistence.testConnection();
+          if (connected) {
+            console.log('✅ Supabase connection established');
+            break;
+          }
+          
+          if (attempt < 3) {
+            console.log(`⏳ Waiting 2 seconds before retry...`);
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+        }
       }
       
       if (supabasePersistence.isConnected) {
@@ -1925,17 +1940,76 @@ app.post('/api/subprime/create-lead', async (req, res) => {
   }
 });
 
-// API endpoint to get all dynamic leads (for testing/debugging)
-app.get('/api/subprime/leads', (req, res) => {
+// API endpoint to get all dynamic leads (smart: tries Supabase first, then memory)
+app.get('/api/subprime/leads', async (req, res) => {
   try {
+    // Try Supabase first (in case initialization failed but Supabase is working)
+    if (supabasePersistence.isEnabled) {
+      try {
+        const dbLeads = await supabasePersistence.getAllLeads(500);
+        if (dbLeads && dbLeads.length > 0) {
+          // Convert to frontend format
+          const formattedLeads = dbLeads.map(dbLead => ({
+            id: dbLead.id,
+            customerName: dbLead.customer_name,
+            phoneNumber: dbLead.phone_number,
+            email: dbLead.email,
+            chaseStatus: dbLead.chase_status,
+            fundingReadiness: dbLead.funding_readiness,
+            fundingReadinessReason: dbLead.funding_readiness_reason,
+            sentiment: dbLead.sentiment,
+            creditProfile: {
+              scoreRange: dbLead.credit_score_range,
+              knownIssues: dbLead.credit_known_issues ? JSON.parse(dbLead.credit_known_issues) : []
+            },
+            vehiclePreference: dbLead.vehicle_preference,
+            assignedAgent: dbLead.assigned_agent,
+            assignedSpecialist: dbLead.assigned_specialist,
+            lastTouchpoint: dbLead.last_touchpoint,
+            conversations: [], // Will be loaded separately if needed
+            nextAction: {
+              type: dbLead.next_action_type,
+              dueDate: dbLead.next_action_due_date,
+              isAutomated: dbLead.next_action_is_automated,
+              isOverdue: dbLead.next_action_is_overdue
+            },
+            scriptProgress: {
+              currentStep: dbLead.script_progress_current_step || 'contacted',
+              completedSteps: dbLead.script_progress_completed_steps ? JSON.parse(dbLead.script_progress_completed_steps) : ['contacted']
+            }
+          }));
+          
+          // Also sync to memory for faster future access
+          formattedLeads.forEach(lead => {
+            dynamicLeads.set(lead.id, lead);
+            // Set up phone mapping
+            const normalizedPhone = normalizePhoneNumber(lead.phoneNumber);
+            phoneToLeadMapping.set(normalizedPhone, lead.id);
+          });
+          
+          console.log(`📋 Retrieved ${formattedLeads.length} leads from Supabase (synced to memory)`);
+          
+          return res.json({
+            success: true,
+            leads: formattedLeads,
+            count: formattedLeads.length,
+            source: 'database'
+          });
+        }
+      } catch (dbError) {
+        console.warn('⚠️ Supabase retrieval failed, falling back to memory:', dbError.message);
+      }
+    }
+    
+    // Fallback to memory
     const leads = Array.from(dynamicLeads.values());
-    console.log(`📋 Retrieved ${leads.length} dynamic leads`);
+    console.log(`📋 Retrieved ${leads.length} dynamic leads from memory`);
     
     res.json({
       success: true,
       leads: leads,
       count: leads.length,
-      source: 'memory'  // Fix: Add missing source field
+      source: 'memory'
     });
   } catch (error) {
     console.error('❌ Error retrieving leads:', error);
