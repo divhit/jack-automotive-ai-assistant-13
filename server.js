@@ -790,17 +790,29 @@ function startConversation(phoneNumber, initialMessage) {
     
     console.log(`📋 SMS Context preserved: ${history.length} total messages, leadId: ${leadId}, context length: ${conversationContext.length}, using ElevenLabs summary: ${!!(summaryData?.summary && summaryData.summary.length > 20)}`);
     
+    // DEBUG: Log the actual dynamic variables being sent
+    const dynamicVars = {
+      customer_name: customerName,
+      lead_status: leadStatus,
+      previous_summary: previousSummary,
+      // FIXED: Include conversation_context (not conversation_overview) to match system prompt
+      conversation_context: conversationContext.length > 1000 ? conversationContext.substring(0, 1000) + "..." : conversationContext
+    };
+    
+    console.log(`🧪 DEBUG: SMS Dynamic variables being sent:`, {
+      customer_name: dynamicVars.customer_name,
+      lead_status: dynamicVars.lead_status,
+      previous_summary_length: dynamicVars.previous_summary?.length || 0,
+      previous_summary_preview: dynamicVars.previous_summary?.substring(0, 100) + "...",
+      conversation_context_length: dynamicVars.conversation_context?.length || 0,
+      conversation_context_preview: dynamicVars.conversation_context?.substring(0, 150) + "..."
+    });
+    
     // ENHANCED: Send comprehensive context including conversation_context AND rich dynamic variables
     // This ensures agents get both the detailed context and rich summary when reconnecting
     ws.send(JSON.stringify({
       type: 'conversation_initiation_client_data',
-        dynamic_variables: {
-          customer_name: customerName,
-          lead_status: leadStatus,
-          previous_summary: previousSummary,
-          // ADDED: Include conversation context in dynamic variables too for redundancy
-          conversation_overview: conversationContext.length > 300 ? conversationContext.substring(0, 300) + "..." : conversationContext
-      },
+        dynamic_variables: dynamicVars,
       client_data: {
         conversation_context: conversationContext,
         phone_number: phoneNumber,
