@@ -1974,6 +1974,51 @@ app.delete('/api/subprime/delete-lead', async (req, res) => {
   }
 });
 
+// API endpoint to delete all leads (clear test data)
+app.delete('/api/subprime/clear-test-data', async (req, res) => {
+  try {
+    console.log('🗑️ Clearing all test data...');
+
+    // Count current leads
+    const currentCount = dynamicLeads.size;
+
+    // Try to delete all from database first
+    let deletedFromDb = 0;
+    try {
+      deletedFromDb = await supabasePersistence.deleteAllLeads();
+      console.log(`✅ Deleted ${deletedFromDb} leads from database`);
+    } catch (dbError) {
+      console.warn('⚠️ Database clear failed, continuing with memory clear:', dbError.message);
+    }
+
+    // Clear in-memory storage
+    dynamicLeads.clear();
+    console.log(`✅ Cleared ${currentCount} leads from memory`);
+
+    // Clear phone mappings
+    phoneToLeadMapping.clear();
+    console.log('✅ Cleared phone mappings');
+
+    // Clear conversation contexts
+    conversationContexts.clear();
+    conversationSummaries.clear();
+    console.log('✅ Cleared conversation contexts');
+
+    res.json({
+      success: true,
+      message: 'All test data cleared successfully',
+      deletedCount: Math.max(currentCount, deletedFromDb)
+    });
+
+  } catch (error) {
+    console.error('❌ Error clearing test data:', error);
+    res.status(500).json({ 
+      success: false,
+      error: error.message || 'Failed to clear test data' 
+    });
+  }
+});
+
 // NEW CRM ENDPOINTS (don't affect existing functionality)
 
 // Get lead analytics

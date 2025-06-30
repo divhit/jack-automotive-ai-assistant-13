@@ -11,6 +11,7 @@ import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Phone, 
   PhoneOff, 
@@ -32,7 +33,9 @@ import {
   PhoneCall,
   CreditCard,
   Car,
-  DollarSign
+  DollarSign,
+  BarChart3,
+  Mail
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SubprimeLead } from '@/data/subprime/subprimeLeads';
@@ -68,6 +71,8 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
   const [callDuration, setCallDuration] = useState(0);
   const [currentMode, setCurrentMode] = useState<'text' | 'voice'>('text');
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [activeQuickTab, setActiveQuickTab] = useState<'chat' | 'profile' | 'analytics' | 'settings'>('chat');
+  const [isUpdating, setIsUpdating] = useState(false);
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -433,10 +438,10 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'delivered': return 'text-green-600';
-      case 'sent': return 'text-blue-600';
-      case 'failed': return 'text-red-600';
-      default: return 'text-gray-600';
+      case 'Ready': return 'bg-green-100 text-green-700 border-green-200';
+      case 'Partial': return 'bg-yellow-100 text-yellow-700 border-yellow-200';
+      case 'Not Ready': return 'bg-red-100 text-red-700 border-red-200';
+      default: return 'bg-gray-100 text-gray-700 border-gray-200';
     }
   };
 
@@ -449,23 +454,31 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
 
   const getSentimentIcon = (sentiment: string) => {
     switch (sentiment) {
-      case 'Warm': return '😊';
+      case 'Positive': return '😊';
       case 'Neutral': return '😐';
       case 'Negative': return '😕';
       case 'Frustrated': return '😤';
       case 'Ghosted': return '👻';
-      case 'Cold': return '🥶';
-      case 'Needs Human': return '🙋';
       default: return '🤔';
     }
   };
 
-  const getStatusColor2 = (status: string) => {
-    switch (status) {
-      case 'Ready': return 'bg-green-100 text-green-700 border-green-200';
-      case 'Partial': return 'bg-yellow-100 text-yellow-700 border-yellow-200';
-      case 'Not Ready': return 'bg-red-100 text-red-700 border-red-200';
-      default: return 'bg-gray-100 text-gray-700 border-gray-200';
+  const handleReassignSpecialist = async () => {
+    if (!selectedLead) return;
+    setIsUpdating(true);
+    
+    // Cycle through specialists
+    const specialists = ['Andrea', 'Ian', 'Kayam'] as const;
+    const currentIndex = specialists.indexOf(selectedLead.assignedSpecialist || 'Andrea');
+    const nextSpecialist = specialists[(currentIndex + 1) % specialists.length];
+    
+    try {
+      await onLeadUpdate?.(selectedLead.id, { assignedSpecialist: nextSpecialist });
+      toast.success(`Reassigned to ${nextSpecialist}`);
+    } catch (error) {
+      toast.error('Failed to reassign specialist');
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -476,6 +489,29 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
     }).format(amount);
+  };
+
+  const handleContactMethodChange = async (method: 'Voice' | 'SMS' | 'Email') => {
+    if (!selectedLead) return;
+    setIsUpdating(true);
+    
+    try {
+      const newConversation = {
+        type: 'system',
+        content: `Preferred contact method updated to ${method}`,
+        timestamp: new Date().toISOString(),
+        sentBy: 'system' as const
+      };
+      
+      await onLeadUpdate?.(selectedLead.id, {
+        conversations: [...selectedLead.conversations, newConversation]
+      });
+      toast.success(`Contact method set to ${method}`);
+    } catch (error) {
+      toast.error('Failed to update contact method');
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
   if (!selectedLead) {
@@ -509,7 +545,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
               </div>
             </div>
             <div className="flex gap-2">
-              <Badge className={getStatusColor2(selectedLead.fundingReadiness)}>
+              <Badge className={getStatusColor(selectedLead.fundingReadiness)}>
                 {selectedLead.fundingReadiness}
               </Badge>
               <Badge variant="outline">
@@ -707,6 +743,170 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
               <Send className="h-4 w-4" />
             </Button>
           </div>
+        </div>
+
+        {/* QUICK ACCESS TABS - Fixed under input, subtle and elegant */}
+        <div className="mt-3 border-t border-gray-100 pt-3 flex-shrink-0">
+          <Tabs value={activeQuickTab} onValueChange={(value: any) => setActiveQuickTab(value)} className="w-full">
+            <TabsList className="grid w-full grid-cols-4 h-8 bg-gray-50/80">
+              <TabsTrigger value="chat" className="text-xs data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                <MessageSquare className="w-3 h-3 mr-1" />
+                Chat
+              </TabsTrigger>
+              <TabsTrigger value="profile" className="text-xs data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                <User className="w-3 h-3 mr-1" />
+                Profile
+              </TabsTrigger>
+              <TabsTrigger value="analytics" className="text-xs data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                <BarChart3 className="w-3 h-3 mr-1" />
+                Analytics  
+              </TabsTrigger>
+              <TabsTrigger value="settings" className="text-xs data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                <Settings className="w-3 h-3 mr-1" />
+                Settings
+              </TabsTrigger>
+            </TabsList>
+
+            <div className="mt-2 max-h-48 overflow-y-auto bg-gray-50/50 rounded border">
+              <TabsContent value="chat" className="m-2 p-2 text-sm text-gray-600">
+                <div className="flex items-center gap-2 mb-1">
+                  <MessageSquare className="w-4 h-4 text-blue-500" />
+                  <span className="font-medium">Conversation Active</span>
+                </div>
+                <p className="text-xs text-gray-500">
+                  {conversationHistory.length} messages • Last activity: {selectedLead ? new Date(selectedLead.lastTouchpoint).toLocaleTimeString() : 'Unknown'}
+                </p>
+              </TabsContent>
+
+              <TabsContent value="profile" className="m-2 space-y-3">
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Phone className="w-3 h-3 text-blue-500" />
+                      <span className="font-medium">Contact</span>
+                    </div>
+                    <div className="ml-5 space-y-1 text-gray-600">
+                      <p>{selectedLead?.phoneNumber}</p>
+                      {selectedLead?.email && <p>{selectedLead.email}</p>}
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <CreditCard className="w-3 h-3 text-purple-500" />
+                      <span className="font-medium">Credit</span>
+                    </div>
+                    <div className="ml-5 space-y-1 text-gray-600">
+                      <p>{selectedLead?.creditProfile?.scoreRange || 'Unknown'}</p>
+                      <p>{selectedLead?.creditProfile?.knownIssues?.length || 0} issues</p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Car className="w-3 h-3 text-green-500" />
+                      <span className="font-medium">Vehicle</span>
+                    </div>
+                    <div className="ml-5 space-y-1 text-gray-600">
+                      <p>{selectedLead?.vehicleInterest?.type || 'Not specified'}</p>
+                      {selectedLead?.vehicleInterest && (
+                        <p>{formatCurrency(selectedLead.vehicleInterest.budget.min)}-{formatCurrency(selectedLead.vehicleInterest.budget.max)}</p>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <TrendingUp className="w-3 h-3 text-orange-500" />
+                      <span className="font-medium">Status</span>
+                    </div>
+                    <div className="ml-5 space-y-1 text-gray-600">
+                      <Badge className={getStatusColor(selectedLead?.fundingReadiness || '')} variant="outline">
+                        {selectedLead?.fundingReadiness}
+                      </Badge>
+                      <p className="text-xs">{selectedLead?.chaseStatus}</p>
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="analytics" className="m-2 space-y-3">
+                <div className="grid grid-cols-3 gap-3 text-xs">
+                  <div className="text-center p-2 bg-blue-50 rounded">
+                    <p className="font-medium text-blue-700">{conversationHistory.length}</p>
+                    <p className="text-blue-600">Messages</p>
+                  </div>
+                  <div className="text-center p-2 bg-green-50 rounded">
+                    <p className="font-medium text-green-700">
+                      {selectedLead?.scriptProgress?.completedSteps?.length || 0}/5
+                    </p>
+                    <p className="text-green-600">Steps Done</p>
+                  </div>
+                  <div className="text-center p-2 bg-purple-50 rounded">
+                    <p className="font-medium text-purple-700 flex items-center justify-center gap-1">
+                      {getSentimentIcon(selectedLead?.sentiment || '')}
+                    </p>
+                    <p className="text-purple-600">{selectedLead?.sentiment}</p>
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="settings" className="m-2 space-y-3">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Settings className="w-3 h-3 text-gray-500" />
+                    <span className="font-medium text-xs">Quick Actions</span>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="h-7 text-xs"
+                      onClick={handleReassignSpecialist}
+                      disabled={isUpdating}
+                    >
+                      <User className="w-3 h-3 mr-1" />
+                      Reassign
+                    </Button>
+                    
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="h-7 text-xs"
+                      onClick={() => handleContactMethodChange('Voice')}
+                      disabled={isUpdating}
+                    >
+                      <Phone className="w-3 h-3 mr-1" />
+                      Voice Pref
+                    </Button>
+                    
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="h-7 text-xs"
+                      onClick={() => handleContactMethodChange('SMS')}
+                      disabled={isUpdating}
+                    >
+                      <MessageSquare className="w-3 h-3 mr-1" />
+                      SMS Pref
+                    </Button>
+                    
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="h-7 text-xs"
+                      onClick={() => handleContactMethodChange('Email')}
+                      disabled={isUpdating}
+                    >
+                      <Mail className="w-3 h-3 mr-1" />
+                      Email Pref
+                    </Button>
+                  </div>
+                </div>
+              </TabsContent>
+            </div>
+          </Tabs>
         </div>
       </div>
     </div>
