@@ -20,6 +20,75 @@ let app;
 try {
   app = express();
   console.log('✅ Express app initialized successfully');
+
+// Function to load existing leads from Supabase into memory
+async function loadExistingLeadsIntoMemory() {
+  try {
+    console.log('🔄 Loading existing leads from Supabase into memory...');
+    
+    if (supabasePersistence.isEnabled) {
+      // Wait for connection if not already connected
+      if (!supabasePersistence.isConnected) {
+        console.log('⏳ Waiting for Supabase connection...');
+        await supabasePersistence.testConnection();
+      }
+      
+      if (supabasePersistence.isConnected) {
+        const existingLeads = await supabasePersistence.getAllLeads(500); // Load up to 500 leads
+        
+        for (const dbLead of existingLeads) {
+          // Convert Supabase format back to dynamicLeads format
+          const memoryLead = {
+            id: dbLead.id,
+            customerName: dbLead.customer_name,
+            phoneNumber: dbLead.phone_number,
+            email: dbLead.email,
+            chaseStatus: dbLead.chase_status,
+            fundingReadiness: dbLead.funding_readiness,
+            fundingReadinessReason: dbLead.funding_readiness_reason,
+            sentiment: dbLead.sentiment,
+            creditProfile: {
+              scoreRange: dbLead.credit_score_range,
+              knownIssues: dbLead.credit_known_issues ? JSON.parse(dbLead.credit_known_issues) : []
+            },
+            vehiclePreference: dbLead.vehicle_preference,
+            assignedAgent: dbLead.assigned_agent,
+            assignedSpecialist: dbLead.assigned_specialist,
+            lastTouchpoint: dbLead.last_touchpoint,
+            conversations: [], // Will be loaded separately if needed
+            nextAction: {
+              type: dbLead.next_action_type,
+              dueDate: dbLead.next_action_due_date,
+              isAutomated: dbLead.next_action_is_automated,
+              isOverdue: dbLead.next_action_is_overdue
+            },
+            scriptProgress: {
+              currentStep: dbLead.script_progress_current_step || 'contacted',
+              completedSteps: dbLead.script_progress_completed_steps ? JSON.parse(dbLead.script_progress_completed_steps) : ['contacted']
+            }
+          };
+          
+          // Store in memory
+          dynamicLeads.set(dbLead.id, memoryLead);
+          
+          // Set up phone mapping
+          const normalizedPhone = normalizePhoneNumber(dbLead.phone_number);
+          phoneToLeadMapping.set(normalizedPhone, dbLead.id);
+        }
+        
+        console.log(`✅ Loaded ${existingLeads.length} existing leads into memory`);
+        console.log(`🔗 Set up ${phoneToLeadMapping.size} phone mappings`);
+      } else {
+        console.log('📋 Supabase connection failed, starting with empty lead storage');
+      }
+    } else {
+      console.log('📋 Supabase disabled, starting with empty lead storage');
+    }
+  } catch (error) {
+    console.error('❌ Failed to load existing leads:', error);
+    console.log('📋 Starting with empty lead storage (system will work normally)');
+  }
+}
 } catch (error) {
   console.error('❌ Error initializing Express app:', error);
   process.exit(1);
@@ -2267,8 +2336,11 @@ if (process.env.NODE_ENV === 'production') {
 // --- SERVER STARTUP ---
 
 try {
-  app.listen(PORT, () => {
+  app.listen(PORT, async () => {
     console.log(`🚀 Webhook server running on port ${PORT}`);
+    
+    // Initialize leads from Supabase after server starts
+    await loadExistingLeadsIntoMemory();
   });
 } catch (error) {
   console.error('❌ Error starting server:', error);
