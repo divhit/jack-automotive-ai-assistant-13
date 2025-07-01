@@ -23,5 +23,25 @@ dist-ssr
 *.sln
 *.sw?
 
+# Environment variables and sensitive files
+.env
+.env.*
+*.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# MCP configuration files with API keys
+.cursor/mcp.json
+**/mcp.json
+mcp.json
+cursor-settings.json
+
+# API keys and secrets
+*secret*
+*key.json
+*credentials.json
+
 # Technical documentation (contains implementation details)
 TWILIO_ELEVENLABS_IMPLEMENTATION_GUIDE.md
