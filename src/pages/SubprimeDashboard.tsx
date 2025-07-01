@@ -10,6 +10,7 @@ import {
   DialogDescription
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Separator } from "@/components/ui/separator";
 import { subprimeLeads } from "@/data";
 import { SubprimeLeadFilters } from "@/components/subprime/SubprimeLeadFilters";
 import { SubprimeAnalytics } from "@/components/subprime/SubprimeAnalytics";

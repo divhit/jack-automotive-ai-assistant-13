@@ -595,132 +595,153 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
         </CardContent>
       </Card>
 
-      {/* SCROLLABLE CONVERSATION AREA */}
-      <div className="flex-1 flex flex-col mx-4 mb-4 min-h-0">
-        {error && (
-          <Alert variant="destructive" className="mb-4 flex-shrink-0">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
+      {/* Main content area - Conversation with Analytics */}
+      <div className={`flex-1 flex ${showAnalytics ? 'flex-row' : 'flex-col'} mx-4 mb-4 min-h-0 gap-4`}>
+        {/* Conversation Area */}
+        <div className={showAnalytics ? 'flex-1' : 'w-full'}>
+          <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
+            <CardHeader className="flex-shrink-0 py-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <MessageSquare className="h-5 w-5" />
+                Conversation
+                {selectedLead && (
+                  <Badge variant="outline" className="ml-2">
+                    {selectedLead.name}
+                  </Badge>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex-1 min-h-0 overflow-hidden p-0">
+              {error && (
+                <Alert variant="destructive" className="mb-4 flex-shrink-0">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
 
-        {/* Conversation History - Takes up remaining space */}
-        <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          <CardHeader className="flex-shrink-0 py-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <MessageSquare className="h-4 w-4" />
-              Conversation History
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex-1 min-h-0 overflow-hidden p-0">
-            <ScrollArea className="h-full px-6 pb-4">
-              <div className="space-y-4 py-2">
-                {conversationHistory.length === 0 ? (
-                  <div className="text-center text-muted-foreground py-8">
-                    <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p>No messages yet. Start a conversation!</p>
-                  </div>
-                ) : (
-                  conversationHistory.map((message) => (
-                    <div
-                      key={message.id}
-                      className={cn(
-                        "flex gap-3",
-                        message.sentBy === 'agent' ? "justify-end" : "justify-start"
-                      )}
-                    >
+              <ScrollArea className="h-full px-6 pb-4">
+                <div className="space-y-4 py-2">
+                  {conversationHistory.length === 0 ? (
+                    <div className="text-center text-muted-foreground py-8">
+                      <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                      <p>No messages yet. Start a conversation!</p>
+                    </div>
+                  ) : (
+                    conversationHistory.map((message) => (
                       <div
+                        key={message.id}
                         className={cn(
-                          "flex gap-2 max-w-[80%]",
-                          message.sentBy === 'agent' ? "flex-row-reverse" : "flex-row"
+                          "flex gap-3",
+                          message.sentBy === 'agent' ? "justify-end" : "justify-start"
                         )}
                       >
-                        <Avatar className="h-8 w-8 flex-shrink-0">
-                          <AvatarFallback className="text-xs">
-                            {message.sentBy === 'user' ? (
-                              <User className="h-4 w-4" />
-                            ) : message.sentBy === 'agent' ? (
-                              <Bot className="h-4 w-4" />
-                            ) : (
-                              <Settings className="h-4 w-4" />
-                            )}
-                          </AvatarFallback>
-                        </Avatar>
                         <div
                           className={cn(
-                            "rounded-lg px-3 py-2 text-sm",
-                            message.sentBy === 'agent'
-                              ? "bg-blue-500 text-white"
-                              : message.sentBy === 'user'
-                              ? "bg-gray-100 text-gray-900"
-                              : "bg-yellow-50 text-yellow-800 border border-yellow-200"
+                            "flex gap-2 max-w-[80%]",
+                            message.sentBy === 'agent' ? "flex-row-reverse" : "flex-row"
                           )}
                         >
-                          <p className="whitespace-pre-wrap">{message.content}</p>
-                          <div className="flex items-center justify-between mt-1 text-xs opacity-70">
-                            <span>{formatMessageTime(message.timestamp)}</span>
-                            {message.status && (
-                              <span className={getStatusColor(message.status)}>
-                                {message.status}
-                              </span>
+                          <Avatar className="h-8 w-8 flex-shrink-0">
+                            <AvatarFallback className="text-xs">
+                              {message.sentBy === 'user' ? (
+                                <User className="h-4 w-4" />
+                              ) : message.sentBy === 'agent' ? (
+                                <Bot className="h-4 w-4" />
+                              ) : (
+                                <Settings className="h-4 w-4" />
+                              )}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div
+                            className={cn(
+                              "rounded-lg px-3 py-2 text-sm",
+                              message.sentBy === 'agent'
+                                ? "bg-blue-500 text-white"
+                                : message.sentBy === 'user'
+                                ? "bg-gray-100 text-gray-900"
+                                : "bg-yellow-50 text-yellow-800 border border-yellow-200"
                             )}
+                          >
+                            <p className="whitespace-pre-wrap">{message.content}</p>
+                            <div className="flex items-center justify-between mt-1 text-xs opacity-70">
+                              <span>{formatMessageTime(message.timestamp)}</span>
+                              {message.status && (
+                                <span className={getStatusColor(message.status)}>
+                                  {message.status}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))
-                )}
-              </div>
-              <div ref={messagesEndRef} />
-            </ScrollArea>
-          </CardContent>
-        </Card>
+                    ))
+                  )}
+                </div>
+                <div ref={messagesEndRef} />
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </div>
 
-        {/* INPUT AREA - Fixed at bottom */}
-        <div className="flex gap-2 mt-4 flex-shrink-0">
-          <Textarea
-            value={textInput}
-            onChange={(e) => setTextInput(e.target.value)}
-            placeholder="Type your message..."
-            className="flex-1 min-h-[60px] max-h-[120px] resize-none"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSendTextMessage();
-              }
-            }}
-          />
-          <div className="flex flex-col gap-2">
-            {/* Call Button */}
-            {!isCallActive ? (
-              <Button 
-                onClick={handleStartVoiceCall}
-                disabled={isLoading}
-                size="sm"
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                <PhoneCall className="h-4 w-4 mr-1" />
-                Call
-              </Button>
-            ) : (
-              <Button 
-                onClick={handleEndCall}
-                variant="destructive"
-                size="sm"
-              >
-                <PhoneOff className="h-4 w-4 mr-1" />
-                End ({formatDuration(callDuration)})
-              </Button>
-            )}
-            {/* Send Button */}
-            <Button 
-              onClick={handleSendTextMessage}
-              disabled={isLoading || !textInput.trim()}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              <Send className="h-4 w-4" />
-            </Button>
+        {/* Analytics Panel */}
+        {showAnalytics && (
+          <div className="w-80 flex-shrink-0">
+            <ElevenLabsAnalyticsPanel
+              selectedLead={selectedLead}
+              conversationHistory={conversationHistory}
+              isCallActive={isCallActive}
+              callDuration={callDuration}
+              conversationId={conversationId}
+              className="h-full"
+            />
           </div>
+        )}
+      </div>
+
+      {/* INPUT AREA - Fixed at bottom */}
+      <div className="flex gap-2 mt-4 flex-shrink-0">
+        <Textarea
+          value={textInput}
+          onChange={(e) => setTextInput(e.target.value)}
+          placeholder="Type your message..."
+          className="flex-1 min-h-[60px] max-h-[120px] resize-none"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              handleSendTextMessage();
+            }
+          }}
+        />
+        <div className="flex flex-col gap-2">
+          {/* Call Button */}
+          {!isCallActive ? (
+            <Button 
+              onClick={handleStartVoiceCall}
+              disabled={isLoading}
+              size="sm"
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              <PhoneCall className="h-4 w-4 mr-1" />
+              Call
+            </Button>
+          ) : (
+            <Button 
+              onClick={handleEndCall}
+              variant="destructive"
+              size="sm"
+            >
+              <PhoneOff className="h-4 w-4 mr-1" />
+              End ({formatDuration(callDuration)})
+            </Button>
+          )}
+          {/* Send Button */}
+          <Button 
+            onClick={handleSendTextMessage}
+            disabled={isLoading || !textInput.trim()}
+            className="bg-green-600 hover:bg-green-700"
+          >
+            <Send className="h-4 w-4" />
+          </Button>
         </div>
       </div>
     </div>

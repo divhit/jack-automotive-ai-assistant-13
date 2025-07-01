@@ -22,23 +22,39 @@ import {
   Shield,
   CheckCircle2,
   XCircle,
-  Activity
+  Activity,
+  BarChart3,
+  Heart
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { elevenLabsAnalytics, ConversationAnalytics, LiveCoachingUpdate } from '@/services/elevenLabsMcpAnalytics';
+import { SubprimeLead } from '@/data/subprime/subprimeLeads';
+
+interface ConversationMessage {
+  id: string;
+  type: 'sms' | 'call' | 'system' | 'voice';
+  content: string;
+  timestamp: string;
+  sentBy: 'user' | 'agent' | 'system';
+  status?: 'sent' | 'delivered' | 'failed';
+}
 
 interface ElevenLabsAnalyticsPanelProps {
-  conversationId: string | null;
+  selectedLead: SubprimeLead | null;
+  conversationHistory: ConversationMessage[];
   isCallActive: boolean;
-  selectedLeadId: string | null;
+  callDuration: number;
+  conversationId: string | null;
   className?: string;
 }
 
 export const ElevenLabsAnalyticsPanel: React.FC<ElevenLabsAnalyticsPanelProps> = ({
-  conversationId,
+  selectedLead,
+  conversationHistory,
   isCallActive,
-  selectedLeadId,
+  callDuration,
+  conversationId,
   className
 }) => {
   // State management
@@ -57,11 +73,11 @@ export const ElevenLabsAnalyticsPanel: React.FC<ElevenLabsAnalyticsPanelProps> =
 
   // Load lead insights when lead changes
   useEffect(() => {
-    if (selectedLeadId) {
+    if (selectedLead) {
       loadLeadInsights();
       loadEnhancedScore();
     }
-  }, [selectedLeadId]);
+  }, [selectedLead]);
 
   // Real-time coaching during active calls
   useEffect(() => {
@@ -116,10 +132,10 @@ export const ElevenLabsAnalyticsPanel: React.FC<ElevenLabsAnalyticsPanelProps> =
   };
 
   const loadLeadInsights = async () => {
-    if (!selectedLeadId) return;
+    if (!selectedLead) return;
     
     try {
-      const insights = await elevenLabsAnalytics.generateConversationInsights(selectedLeadId);
+      const insights = await elevenLabsAnalytics.generateConversationInsights(selectedLead.id);
       setLeadInsights(insights);
     } catch (error) {
       console.error('Error loading lead insights:', error);
@@ -127,10 +143,10 @@ export const ElevenLabsAnalyticsPanel: React.FC<ElevenLabsAnalyticsPanelProps> =
   };
 
   const loadEnhancedScore = async () => {
-    if (!selectedLeadId) return;
+    if (!selectedLead) return;
     
     try {
-      const score = await elevenLabsAnalytics.calculateEnhancedLeadScore(selectedLeadId);
+      const score = await elevenLabsAnalytics.calculateEnhancedLeadScore(selectedLead.id);
       setEnhancedScore(score);
     } catch (error) {
       console.error('Error loading enhanced score:', error);
@@ -147,10 +163,10 @@ export const ElevenLabsAnalyticsPanel: React.FC<ElevenLabsAnalyticsPanelProps> =
 
   const getEngagementColor = (level: string) => {
     switch (level) {
-      case 'high': return 'text-green-600';
-      case 'medium': return 'text-yellow-600';
-      case 'low': return 'text-red-600';
-      default: return 'text-gray-600';
+      case 'high': return 'text-green-700 bg-green-100 border-green-200';
+      case 'medium': return 'text-yellow-700 bg-yellow-100 border-yellow-200';
+      case 'low': return 'text-red-700 bg-red-100 border-red-200';
+      default: return 'text-gray-700 bg-gray-100 border-gray-200';
     }
   };
 
@@ -160,8 +176,208 @@ export const ElevenLabsAnalyticsPanel: React.FC<ElevenLabsAnalyticsPanelProps> =
     return 'text-red-600';
   };
 
+  // Calculate basic analytics from conversation history
+  const basicAnalytics = {
+    messageCount: conversationHistory.length,
+    sentimentScore: 0.75, // Mock sentiment
+    qualityScore: 0.82, // Mock quality
+    buyingSignals: ['interested in pricing', 'asked about timeline'],
+    engagementLevel: 'high' as const
+  };
+
+  // Calculate analytics from conversation history
+  const analyticsMemo = React.useMemo(() => {
+    const messageCount = conversationHistory.length;
+    const userMessages = conversationHistory.filter(m => m.sentBy === 'user');
+    const agentMessages = conversationHistory.filter(m => m.sentBy === 'agent');
+    
+    // Mock sentiment analysis based on message content
+    const positiveKeywords = ['interested', 'yes', 'great', 'good', 'perfect', 'love', 'want'];
+    const negativeKeywords = ['no', 'not interested', 'maybe later', 'busy', 'expensive'];
+    
+    let positiveScore = 0;
+    let negativeScore = 0;
+    
+    userMessages.forEach(msg => {
+      const content = msg.content.toLowerCase();
+      positiveKeywords.forEach(keyword => {
+        if (content.includes(keyword)) positiveScore++;
+      });
+      negativeKeywords.forEach(keyword => {
+        if (content.includes(keyword)) negativeScore++;
+      });
+    });
+    
+    const sentimentScore = Math.max(0.3, Math.min(0.95, (positiveScore + 1) / (positiveScore + negativeScore + 2)));
+    
+    // Mock buying signals detection
+    const buyingSignals = [];
+    userMessages.forEach(msg => {
+      const content = msg.content.toLowerCase();
+      if (content.includes('price') || content.includes('cost')) {
+        buyingSignals.push('Asked about pricing');
+      }
+      if (content.includes('when') || content.includes('timeline')) {
+        buyingSignals.push('Inquired about timeline');
+      }
+      if (content.includes('financing') || content.includes('payment')) {
+        buyingSignals.push('Interested in financing');
+      }
+      if (content.includes('see') || content.includes('visit') || content.includes('test drive')) {
+        buyingSignals.push('Wants to see vehicle');
+      }
+    });
+    
+    // Remove duplicates
+    const uniqueBuyingSignals = [...new Set(buyingSignals)];
+    
+    // Calculate engagement level
+    const avgResponseTime = userMessages.length > 0 ? 5 : 0; // Mock response time
+    const engagementLevel = 
+      uniqueBuyingSignals.length > 2 ? 'high' :
+      uniqueBuyingSignals.length > 0 ? 'medium' : 'low';
+    
+    // Quality score based on conversation flow
+    const qualityScore = Math.min(0.95, (messageCount * 0.1 + sentimentScore * 0.7 + uniqueBuyingSignals.length * 0.2));
+    
+    return {
+      messageCount,
+      sentimentScore,
+      qualityScore,
+      buyingSignals: uniqueBuyingSignals.slice(0, 4), // Show max 4
+      engagementLevel,
+      avgResponseTime,
+      userMessages: userMessages.length,
+      agentMessages: agentMessages.length
+    };
+  }, [conversationHistory]);
+
+  const getSentimentEmoji = (score: number) => {
+    if (score > 0.7) return '😊';
+    if (score > 0.5) return '😐';
+    return '😕';
+  };
+
   return (
-    <div className={cn("space-y-4", className)}>
+    <div className={`space-y-4 ${className}`}>
+      {/* Real-time Analytics Header */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Brain className="h-5 w-5 text-purple-600" />
+            Live Analytics
+            {isCallActive && (
+              <Badge variant="outline" className="ml-auto animate-pulse">
+                🔴 Recording
+              </Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-blue-600">
+                {Math.round(basicAnalytics.qualityScore * 100)}%
+              </div>
+              <div className="text-xs text-muted-foreground">Quality Score</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-green-600">
+                {Math.round(basicAnalytics.sentimentScore * 100)}%
+              </div>
+              <div className="text-xs text-muted-foreground">Sentiment</div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Engagement Level */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <TrendingUp className="h-4 w-4" />
+            Engagement
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Badge className={getEngagementColor(basicAnalytics.engagementLevel)}>
+            {basicAnalytics.engagementLevel.toUpperCase()} ENGAGEMENT
+          </Badge>
+          <Progress value={basicAnalytics.engagementLevel === 'high' ? 85 : 50} className="mt-2" />
+        </CardContent>
+      </Card>
+
+      {/* Buying Signals */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Target className="h-4 w-4 text-green-600" />
+            Buying Signals
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            {basicAnalytics.buyingSignals.map((signal, index) => (
+              <div key={index} className="flex items-center gap-2 text-sm">
+                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                <span>{signal}</span>
+              </div>
+            ))}
+            {basicAnalytics.buyingSignals.length === 0 && (
+              <div className="text-sm text-muted-foreground">
+                No buying signals detected yet
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Live Coaching */}
+      {isCallActive && (
+        <Card className="border-orange-200 bg-orange-50">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2 text-orange-800">
+              <AlertTriangle className="h-4 w-4" />
+              Live Coaching
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 text-sm">
+              <div className="p-2 bg-white rounded border border-orange-200">
+                💡 <strong>Suggestion:</strong> Customer is showing interest - ask about their timeline
+              </div>
+              <div className="p-2 bg-white rounded border border-orange-200">
+                🎯 <strong>Opportunity:</strong> Mention financing options based on their credit profile
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Message Count */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" />
+            Conversation Stats
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center">
+            <div className="text-xl font-bold">{basicAnalytics.messageCount}</div>
+            <div className="text-xs text-muted-foreground">Total Messages</div>
+          </div>
+          {isCallActive && (
+            <div className="mt-2 text-center">
+              <div className="text-lg font-semibold text-blue-600">
+                {Math.floor(callDuration / 60)}:{(callDuration % 60).toString().padStart(2, '0')}
+              </div>
+              <div className="text-xs text-muted-foreground">Call Duration</div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Enhanced Lead Score */}
       {enhancedScore !== null && (
         <Card>
@@ -186,43 +402,6 @@ export const ElevenLabsAnalyticsPanel: React.FC<ElevenLabsAnalyticsPanelProps> =
             {analytics && (
               <div className="mt-3 text-sm text-muted-foreground">
                 Conversion Probability: {(analytics.conversionProbability * 100).toFixed(1)}%
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Live Coaching Panel (Active Calls Only) */}
-      {isCallActive && (
-        <Card className="border-orange-200 bg-orange-50">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg text-orange-800">
-              <Activity className="h-5 w-5 animate-pulse" />
-              Live Coaching
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {liveUpdates.length > 0 ? (
-              <ScrollArea className="h-32">
-                <div className="space-y-2">
-                  {liveUpdates.map((update, index) => (
-                    <Alert key={index} className="py-2">
-                      <div className="flex items-center gap-2">
-                        {update.type === 'buying_signal' && <Target className="h-4 w-4 text-green-600" />}
-                        {update.type === 'objection' && <AlertTriangle className="h-4 w-4 text-red-600" />}
-                        {update.type === 'sentiment_change' && <TrendingUp className="h-4 w-4 text-blue-600" />}
-                        <AlertDescription className="text-sm">
-                          {update.recommendation}
-                        </AlertDescription>
-                      </div>
-                    </Alert>
-                  ))}
-                </div>
-              </ScrollArea>
-            ) : (
-              <div className="text-center text-muted-foreground py-4">
-                <Mic className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">Listening for coaching opportunities...</p>
               </div>
             )}
           </CardContent>
@@ -389,7 +568,7 @@ export const ElevenLabsAnalyticsPanel: React.FC<ElevenLabsAnalyticsPanelProps> =
           variant="outline" 
           size="sm" 
           onClick={loadEnhancedScore}
-          disabled={!selectedLeadId}
+          disabled={!selectedLead}
           className="flex-1"
         >
           <TrendingUp className="h-3 w-3 mr-2" />
