@@ -42,6 +42,7 @@ import { cn } from '@/lib/utils';
 import { SubprimeLead } from '@/data/subprime/subprimeLeads';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
+import { ConversationAnalyticsPanel } from './ConversationAnalyticsPanel';
 
 interface ConversationMessage {
   id: string;
@@ -1045,25 +1046,12 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
                   </div>
                 </TabsContent>
 
-                <TabsContent value="analytics" className="m-2 space-y-3">
-                  <div className="grid grid-cols-3 gap-3 text-xs">
-                    <div className="text-center p-2 bg-blue-50 rounded">
-                      <p className="font-medium text-blue-700">{conversationHistory.length}</p>
-                      <p className="text-blue-600">Messages</p>
-                    </div>
-                    <div className="text-center p-2 bg-green-50 rounded">
-                      <p className="font-medium text-green-700">
-                        {selectedLead?.scriptProgress?.completedSteps?.length || 0}/5
-                      </p>
-                      <p className="text-green-600">Steps Done</p>
-                    </div>
-                    <div className="text-center p-2 bg-purple-50 rounded">
-                      <p className="font-medium text-purple-700 flex items-center justify-center gap-1">
-                        {getSentimentIcon(selectedLead?.sentiment || '')}
-                      </p>
-                      <p className="text-purple-600">{selectedLead?.sentiment}</p>
-                    </div>
-                  </div>
+                <TabsContent value="analytics" className="m-2">
+                  <ConversationAnalyticsPanel 
+                    selectedLead={selectedLead}
+                    conversationHistory={conversationHistory}
+                    isCallActive={isCallActive}
+                  />
                 </TabsContent>
 
                 <TabsContent value="settings" className="m-2 space-y-3">
