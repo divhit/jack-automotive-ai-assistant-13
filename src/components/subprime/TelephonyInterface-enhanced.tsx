@@ -1,5 +1,5 @@
-// Enhanced Telephony Interface for Subprime Dashboard
-// Uses the working API endpoints we just tested
+// Enhanced Telephony Interface for Subprime Dashboard with ElevenLabs MCP Analytics
+// Integrates real-time conversation analytics and coaching
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
@@ -77,7 +77,6 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
   const [currentMode, setCurrentMode] = useState<'text' | 'voice'>('text');
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [showAnalytics, setShowAnalytics] = useState(true);
-  const [activeAnalyticsTab, setActiveAnalyticsTab] = useState('live');
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -102,7 +101,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
     return () => {
       closeEventSource();
     };
-  }, [selectedLead?.id]); // Use selectedLead.id for better dependency tracking
+  }, [selectedLead?.id]);
 
   // Call duration timer with automatic call end detection
   useEffect(() => {
@@ -111,8 +110,6 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
         setCallDuration(prev => {
           const newDuration = prev + 1;
           
-          // Auto-end call if it's been active for more than 30 minutes without proper end event
-          // This is a safety fallback for calls that don't properly end via webhooks
           if (newDuration > 1800) { // 30 minutes
             console.log('⚠️ Call automatically ended due to timeout (30+ minutes)');
             setIsCallActive(false);
@@ -147,13 +144,11 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
     };
   }, [isCallActive]);
 
-  // Setup Server-Sent Events for real-time conversation updates
   const setupEventSource = () => {
     if (!selectedLead) return;
     
-    closeEventSource(); // Close existing connection
+    closeEventSource();
     
-    // Include phone number in query params for proper lead-to-phone mapping
     const eventSource = new EventSource(`/api/stream/conversation/${selectedLead.id}?phoneNumber=${encodeURIComponent(selectedLead.phoneNumber)}`);
     eventSourceRef.current = eventSource;
     
@@ -174,8 +169,6 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
     eventSource.onerror = (error) => {
       console.error('SSE connection error for lead:', selectedLead.id, error);
       
-      // Only attempt to reconnect if the connection is in a failed state
-      // and we still have a selected lead
       if (eventSource.readyState === EventSource.CLOSED && selectedLead && selectedLead.id) {
         console.log('📡 SSE connection closed, attempting reconnection for lead:', selectedLead.id);
         setTimeout(() => {
@@ -208,30 +201,27 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
           id: `sms-${data.messageSid || Date.now()}`,
           type: 'sms',
           content: data.message,
-          timestamp: data.timestamp,
+          timestamp: data.timestamp || new Date().toISOString(),
           sentBy: 'user',
           status: 'delivered'
         });
+        
+        if (onLeadUpdate) {
+          onLeadUpdate(selectedLead!.id, {
+            lastTouchpoint: data.timestamp || new Date().toISOString(),
+            sentiment: data.sentiment || undefined
+          });
+        }
         break;
         
-      case 'sms_sent':
-        addConversationMessage({
-          id: `sms-sent-${data.messageSid || Date.now()}`,
-          type: 'sms',
-          content: data.message,
-          timestamp: data.timestamp,
-          sentBy: 'agent',
-          status: 'sent'
-        });
-        break;
-        
-      case 'call_initiated':
+      case 'call_started':
         setIsCallActive(true);
         setCurrentMode('voice');
+        setConversationId(data.callId);
         addConversationMessage({
           id: `call-start-${Date.now()}`,
           type: 'system',
-          content: 'Voice call initiated',
+          content: `Voice call started with ${selectedLead?.customerName}`,
           timestamp: new Date().toISOString(),
           sentBy: 'system'
         });
@@ -240,26 +230,24 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
       case 'call_ended':
         setIsCallActive(false);
         setCurrentMode('text');
-        setConversationId(null);
         addConversationMessage({
           id: `call-end-${Date.now()}`,
           type: 'system',
-          content: data.summary ? `Call ended. ${data.summary}` : 'Call ended',
+          content: `Voice call ended. Duration: ${formatDuration(callDuration)}`,
           timestamp: new Date().toISOString(),
           sentBy: 'system'
         });
+        setConversationId(null);
         break;
         
-      case 'post_call_summary':
-        if (data.summary) {
-          addConversationMessage({
-            id: `summary-${Date.now()}`,
-            type: 'system',
-            content: `📞 Call Summary: ${data.summary}`,
-            timestamp: new Date().toISOString(),
-            sentBy: 'system'
-          });
-        }
+      case 'voice_message':
+        addConversationMessage({
+          id: `voice-${Date.now()}`,
+          type: 'voice',
+          content: data.transcription || 'Voice message',
+          timestamp: data.timestamp || new Date().toISOString(),
+          sentBy: data.speaker === 'agent' ? 'agent' : 'user'
+        });
         break;
         
       default:
@@ -269,12 +257,8 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
 
   const addConversationMessage = (message: ConversationMessage) => {
     setConversationHistory(prev => {
-      // Avoid duplicates based on content and timestamp
-      const exists = prev.some(msg => 
-        msg.content === message.content && 
-        Math.abs(new Date(msg.timestamp).getTime() - new Date(message.timestamp).getTime()) < 1000
-      );
-      return exists ? prev : [...prev, message];
+      if (prev.some(m => m.id === message.id)) return prev; // Prevent duplicates
+      return [...prev, message];
     });
   };
 
@@ -285,151 +269,161 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
     setError(null);
     
     try {
-      console.log('📋 Loading conversation history for lead:', selectedLead.id, '(phone:', selectedLead.phoneNumber, ')');
-      
-      const response = await fetch(`/api/stream/conversation/${selectedLead.id}?phoneNumber=${encodeURIComponent(selectedLead.phoneNumber)}&load=true`);
-      
-      if (!response.ok) {
-        throw new Error(`Failed to load conversation history: ${response.status}`);
-      }
-      
+      const response = await fetch(`/api/conversations/${selectedLead.id}`);
       const data = await response.json();
-      console.log('📋 Loaded conversation history:', data);
       
-      if (data.messages && Array.isArray(data.messages)) {
-        const formattedMessages: ConversationMessage[] = data.messages.map((msg: any, index: number) => ({
-          id: msg.id || `msg-${index}-${Date.now()}`,
-          type: msg.type || 'sms',
-          content: msg.content || msg.message || '',
-          timestamp: msg.timestamp || new Date().toISOString(),
-          sentBy: msg.sentBy || (msg.direction === 'outbound' ? 'agent' : 'user'),
-          status: msg.status || 'delivered'
-        }));
-        
-        setConversationHistory(formattedMessages);
-        console.log('✅ Formatted', formattedMessages.length, 'conversation messages');
+      if (data.success && data.messages) {
+        setConversationHistory(data.messages);
+        console.log(`📱 Loaded ${data.messages.length} conversation messages for ${selectedLead.customerName}`);
+      } else {
+        console.log(`📱 No conversation history found for ${selectedLead.customerName}`);
+        setConversationHistory([]);
       }
-      
     } catch (error) {
-      console.error('❌ Error loading conversation history:', error);
-      setError(error.message || 'Failed to load conversation history');
+      console.error('Error loading conversation history:', error);
+      setError('Failed to load conversation history');
+      setConversationHistory([]);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleStartVoiceCall = async () => {
-    if (!selectedLead) return;
+    if (!selectedLead || isLoading) return;
     
     setIsLoading(true);
     setError(null);
     
     try {
-      console.log('📞 Starting voice call to:', selectedLead.phoneNumber);
-      
-      const response = await fetch('/api/elevenlabs/outbound-call/', {
+      const response = await fetch('/api/elevenlabs/outbound-call', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           phoneNumber: selectedLead.phoneNumber,
-          leadId: selectedLead.id
+          leadId: selectedLead.id,
+          customerName: selectedLead.customerName,
+          conversationContext: {
+            leadId: selectedLead.id,
+            customerName: selectedLead.customerName,
+            fundingReadiness: selectedLead.fundingReadiness,
+            sentiment: selectedLead.sentiment,
+            scriptProgress: selectedLead.scriptProgress,
+            vehicleInterest: selectedLead.vehicleInterest,
+            previousTouchpoints: selectedLead.touchpointHistory?.slice(-3) || []
+          }
         })
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to initiate call');
-      }
-
-      const result = await response.json();
+      const data = await response.json();
       
-      if (result.success) {
+      if (data.success) {
         setIsCallActive(true);
         setCurrentMode('voice');
-        if (result.conversation_id) {
-          setConversationId(result.conversation_id);
-        }
+        setConversationId(data.callId);
         
         addConversationMessage({
-          id: `call-init-${Date.now()}`,
+          id: `call-initiated-${Date.now()}`,
           type: 'system',
-          content: `Voice call initiated to ${selectedLead.phoneNumber}`,
+          content: `Initiating voice call to ${selectedLead.customerName} (${selectedLead.phoneNumber})...`,
           timestamp: new Date().toISOString(),
           sentBy: 'system'
         });
         
-        toast.success(`Call initiated to ${selectedLead.phoneNumber}`);
+        toast.success(`Voice call initiated to ${selectedLead.customerName}`);
       } else {
-        throw new Error(result.message || 'Failed to initiate call');
+        throw new Error(data.error || 'Failed to start call');
       }
-      
     } catch (error) {
       console.error('Error starting voice call:', error);
-      setError(error.message || 'Failed to start voice call. Please try again.');
-      toast.error(error.message || 'Failed to start call');
+      setError(`Failed to start voice call: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error('Failed to start voice call');
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleEndCall = async () => {
-    if (!isCallActive) return;
+    if (!conversationId) return;
     
-    console.log('📞 Ending voice call');
-    setIsCallActive(false);
-    setCurrentMode('text');
-    setConversationId(null);
-    
-    addConversationMessage({
-      id: `call-end-manual-${Date.now()}`,
-      type: 'system',
-      content: `Call ended manually. Duration: ${formatDuration(callDuration)}`,
-      timestamp: new Date().toISOString(),
-      sentBy: 'system'
-    });
-    
-    toast.success('Call ended');
+    try {
+      const response = await fetch(`/api/elevenlabs/end-call/${conversationId}`, {
+        method: 'POST'
+      });
+      
+      if (response.ok) {
+        setIsCallActive(false);
+        setCurrentMode('text');
+        setConversationId(null);
+        toast.success('Call ended successfully');
+      }
+    } catch (error) {
+      console.error('Error ending call:', error);
+      toast.error('Failed to end call properly');
+    }
   };
 
   const handleSendTextMessage = async () => {
-    if (!selectedLead || !textInput.trim()) return;
+    if (!selectedLead || !textInput.trim() || isLoading) return;
     
+    const messageContent = textInput.trim();
+    setTextInput('');
     setIsLoading(true);
-    const messageText = textInput.trim();
-    setTextInput(''); // Clear input immediately for better UX
+    setError(null);
+    
+    const tempMessage: ConversationMessage = {
+      id: `temp-${Date.now()}`,
+      type: 'sms',
+      content: messageContent,
+      timestamp: new Date().toISOString(),
+      sentBy: 'agent',
+      status: 'sent'
+    };
+    
+    addConversationMessage(tempMessage);
     
     try {
-      console.log('📱 Sending SMS to:', selectedLead.phoneNumber, 'Message:', messageText);
-      
-      const response = await fetch('/api/twilio/send-sms/', {
+      const response = await fetch('/api/twilio/send-sms', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           to: selectedLead.phoneNumber,
-          message: messageText,
-          leadId: selectedLead.id,
-          agentId: 'telephony-interface'
+          message: messageContent,
+          leadId: selectedLead.id
         })
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to send SMS');
+      const data = await response.json();
+      
+      if (data.success) {
+        setConversationHistory(prev => 
+          prev.map(msg => 
+            msg.id === tempMessage.id 
+              ? { ...msg, id: data.messageSid, status: 'delivered' }
+              : msg
+          )
+        );
+        
+        toast.success(`Message sent to ${selectedLead.customerName}`);
+      } else {
+        throw new Error(data.error || 'Failed to send message');
       }
-
-      const result = await response.json();
-      toast.success(`SMS sent to ${selectedLead.phoneNumber}`);
-      console.log('✅ SMS sent successfully - message will appear via SSE stream');
-
     } catch (error) {
       console.error('Error sending SMS:', error);
-      setError(error.message || 'Failed to send SMS. Please try again.');
-      toast.error(error.message || 'Failed to send SMS');
-      setTextInput(messageText); // Restore message on error
+      setError(`Failed to send message: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      
+      setConversationHistory(prev => 
+        prev.map(msg => 
+          msg.id === tempMessage.id 
+            ? { ...msg, status: 'failed' }
+            : msg
+        )
+      );
+      
+      toast.error('Failed to send message');
     } finally {
       setIsLoading(false);
     }
@@ -443,29 +437,24 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'delivered': return 'text-green-600';
       case 'sent': return 'text-blue-600';
+      case 'delivered': return 'text-green-600';
       case 'failed': return 'text-red-600';
       default: return 'text-gray-600';
     }
   };
 
   const formatMessageTime = (timestamp: string) => {
-    return new Date(timestamp).toLocaleTimeString([], { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
+    return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   const getSentimentIcon = (sentiment: string) => {
     switch (sentiment) {
-      case 'Warm': return '😊';
+      case 'Positive': return '😊';
       case 'Neutral': return '😐';
       case 'Negative': return '😕';
       case 'Frustrated': return '😤';
       case 'Ghosted': return '👻';
-      case 'Cold': return '🥶';
-      case 'Needs Human': return '🙋';
       default: return '🤔';
     }
   };
@@ -501,8 +490,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
 
   return (
     <div className={cn("h-full flex flex-col", className)}>
-
-      {/* FIXED LEAD PROFILE HEADER - This stays visible while conversation scrolls */}
+      {/* FIXED LEAD PROFILE HEADER */}
       <Card className="flex-shrink-0 m-4 mb-2 shadow-sm border-2">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
@@ -569,7 +557,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
             </div>
           </div>
 
-          {/* Vehicle Interest - if available */}
+          {/* Vehicle Interest */}
           {selectedLead.vehicleInterest && (
             <div className="mt-4 p-3 bg-blue-50 rounded-lg">
               <div className="flex items-center gap-2 mb-2">
@@ -595,133 +583,148 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
         </CardContent>
       </Card>
 
-      {/* SCROLLABLE CONVERSATION AREA */}
-      <div className="flex-1 flex flex-col mx-4 mb-4 min-h-0">
-        {error && (
-          <Alert variant="destructive" className="mb-4 flex-shrink-0">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
+      {/* MAIN CONTENT AREA - Split between conversation and analytics */}
+      <div className="flex-1 flex mx-4 mb-4 gap-4 min-h-0">
+        {/* CONVERSATION COLUMN */}
+        <div className={cn("flex flex-col min-h-0", showAnalytics ? "w-2/3" : "w-full")}>
+          {error && (
+            <Alert variant="destructive" className="mb-4 flex-shrink-0">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
-        {/* Conversation History - Takes up remaining space */}
-        <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          <CardHeader className="flex-shrink-0 py-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <MessageSquare className="h-4 w-4" />
-              Conversation History
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex-1 min-h-0 overflow-hidden p-0">
-            <ScrollArea className="h-full px-6 pb-4">
-              <div className="space-y-4 py-2">
-                {conversationHistory.length === 0 ? (
-                  <div className="text-center text-muted-foreground py-8">
-                    <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p>No messages yet. Start a conversation!</p>
-                  </div>
-                ) : (
-                  conversationHistory.map((message) => (
-                    <div
-                      key={message.id}
-                      className={cn(
-                        "flex gap-3",
-                        message.sentBy === 'agent' ? "justify-end" : "justify-start"
-                      )}
-                    >
+          {/* Conversation History */}
+          <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
+            <CardHeader className="flex-shrink-0 py-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <MessageSquare className="h-4 w-4" />
+                Conversation History
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex-1 min-h-0 overflow-hidden p-0">
+              <ScrollArea className="h-full px-6 pb-4">
+                <div className="space-y-4 py-2">
+                  {conversationHistory.length === 0 ? (
+                    <div className="text-center text-muted-foreground py-8">
+                      <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                      <p>No messages yet. Start a conversation!</p>
+                    </div>
+                  ) : (
+                    conversationHistory.map((message) => (
                       <div
+                        key={message.id}
                         className={cn(
-                          "flex gap-2 max-w-[80%]",
-                          message.sentBy === 'agent' ? "flex-row-reverse" : "flex-row"
+                          "flex gap-3",
+                          message.sentBy === 'agent' ? "justify-end" : "justify-start"
                         )}
                       >
-                        <Avatar className="h-8 w-8 flex-shrink-0">
-                          <AvatarFallback className="text-xs">
-                            {message.sentBy === 'user' ? (
-                              <User className="h-4 w-4" />
-                            ) : message.sentBy === 'agent' ? (
-                              <Bot className="h-4 w-4" />
-                            ) : (
-                              <Settings className="h-4 w-4" />
-                            )}
-                          </AvatarFallback>
-                        </Avatar>
                         <div
                           className={cn(
-                            "rounded-lg px-3 py-2 text-sm",
-                            message.sentBy === 'agent'
-                              ? "bg-blue-500 text-white"
-                              : message.sentBy === 'user'
-                              ? "bg-gray-100 text-gray-900"
-                              : "bg-yellow-50 text-yellow-800 border border-yellow-200"
+                            "flex gap-2 max-w-[80%]",
+                            message.sentBy === 'agent' ? "flex-row-reverse" : "flex-row"
                           )}
                         >
-                          <p className="whitespace-pre-wrap">{message.content}</p>
-                          <div className="flex items-center justify-between mt-1 text-xs opacity-70">
-                            <span>{formatMessageTime(message.timestamp)}</span>
-                            {message.status && (
-                              <span className={getStatusColor(message.status)}>
-                                {message.status}
-                              </span>
+                          <Avatar className="h-8 w-8 flex-shrink-0">
+                            <AvatarFallback className="text-xs">
+                              {message.sentBy === 'user' ? (
+                                <User className="h-4 w-4" />
+                              ) : message.sentBy === 'agent' ? (
+                                <Bot className="h-4 w-4" />
+                              ) : (
+                                <Settings className="h-4 w-4" />
+                              )}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div
+                            className={cn(
+                              "rounded-lg px-3 py-2 text-sm",
+                              message.sentBy === 'agent'
+                                ? "bg-blue-500 text-white"
+                                : message.sentBy === 'user'
+                                ? "bg-gray-100 text-gray-900"
+                                : "bg-yellow-50 text-yellow-800 border border-yellow-200"
                             )}
+                          >
+                            <p className="whitespace-pre-wrap">{message.content}</p>
+                            <div className="flex items-center justify-between mt-1 text-xs opacity-70">
+                              <span>{formatMessageTime(message.timestamp)}</span>
+                              {message.status && (
+                                <span className={getStatusColor(message.status)}>
+                                  {message.status}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))
-                )}
-              </div>
-              <div ref={messagesEndRef} />
-            </ScrollArea>
-          </CardContent>
-        </Card>
+                    ))
+                  )}
+                </div>
+                <div ref={messagesEndRef} />
+              </ScrollArea>
+            </CardContent>
+          </Card>
 
-        {/* INPUT AREA - Fixed at bottom */}
-        <div className="flex gap-2 mt-4 flex-shrink-0">
-          <Textarea
-            value={textInput}
-            onChange={(e) => setTextInput(e.target.value)}
-            placeholder="Type your message..."
-            className="flex-1 min-h-[60px] max-h-[120px] resize-none"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSendTextMessage();
-              }
-            }}
-          />
-          <div className="flex flex-col gap-2">
-            {/* Call Button */}
-            {!isCallActive ? (
+          {/* INPUT AREA */}
+          <div className="flex gap-2 mt-4 flex-shrink-0">
+            <Textarea
+              value={textInput}
+              onChange={(e) => setTextInput(e.target.value)}
+              placeholder="Type your message..."
+              className="flex-1 min-h-[60px] max-h-[120px] resize-none"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSendTextMessage();
+                }
+              }}
+            />
+            <div className="flex flex-col gap-2">
+              {!isCallActive ? (
+                <Button 
+                  onClick={handleStartVoiceCall}
+                  disabled={isLoading}
+                  size="sm"
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  <PhoneCall className="h-4 w-4 mr-1" />
+                  Call
+                </Button>
+              ) : (
+                <Button 
+                  onClick={handleEndCall}
+                  variant="destructive"
+                  size="sm"
+                >
+                  <PhoneOff className="h-4 w-4 mr-1" />
+                  End ({formatDuration(callDuration)})
+                </Button>
+              )}
               <Button 
-                onClick={handleStartVoiceCall}
-                disabled={isLoading}
-                size="sm"
-                className="bg-blue-600 hover:bg-blue-700 text-white"
+                onClick={handleSendTextMessage}
+                disabled={isLoading || !textInput.trim()}
+                className="bg-green-600 hover:bg-green-700"
               >
-                <PhoneCall className="h-4 w-4 mr-1" />
-                Call
+                <Send className="h-4 w-4" />
               </Button>
-            ) : (
-              <Button 
-                onClick={handleEndCall}
-                variant="destructive"
-                size="sm"
-              >
-                <PhoneOff className="h-4 w-4 mr-1" />
-                End ({formatDuration(callDuration)})
-              </Button>
-            )}
-            {/* Send Button */}
-            <Button 
-              onClick={handleSendTextMessage}
-              disabled={isLoading || !textInput.trim()}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              <Send className="h-4 w-4" />
-            </Button>
+            </div>
           </div>
         </div>
+
+        {/* ANALYTICS PANEL */}
+        {showAnalytics && (
+          <div className="w-1/3 flex flex-col min-h-0">
+            <ElevenLabsAnalyticsPanel
+              selectedLead={selectedLead}
+              conversationHistory={conversationHistory}
+              isCallActive={isCallActive}
+              callDuration={callDuration}
+              conversationId={conversationId}
+              className="flex-1"
+            />
+          </div>
+        )}
       </div>
     </div>
   );
