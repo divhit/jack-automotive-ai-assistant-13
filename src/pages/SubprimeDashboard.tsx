@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,7 @@ import { SubprimeAnalytics } from "@/components/subprime/SubprimeAnalytics";
 import { SubprimeLeadsList } from "@/components/subprime/SubprimeLeadsList";
 import { SubprimeAddLeadDialog } from "@/components/subprime/SubprimeAddLeadDialog";
 import { LeadAnalyticsDashboard } from "@/components/subprime/analytics/LeadAnalyticsDashboard";
+import { RealTimeAnalyticsPanel } from "@/components/subprime/analytics/RealTimeAnalyticsPanel";
 import { SubprimeLead } from "@/data/subprime/subprimeLeads";
 import { BarChart3, Users, MessageSquare, Clock, Info, Settings, Sliders, UserPlus, Database, RefreshCw, Trash2, Brain, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -569,64 +570,7 @@ const SubprimeDashboard = () => {
             <div className="lg:col-span-2">
               <LeadAnalyticsDashboard />
             </div>
-            <div>
-              <Card className="h-full">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Brain className="h-5 w-5 text-purple-600" />
-                    ElevenLabs Analytics
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 gap-3">
-                      <div className="p-3 bg-blue-50 rounded-lg">
-                        <div className="flex items-center gap-2 mb-1">
-                          <BarChart3 className="h-4 w-4 text-blue-600" />
-                          <span className="font-medium text-sm">Conversation Quality</span>
-                        </div>
-                        <div className="text-xl font-bold text-blue-700">87%</div>
-                        <div className="text-xs text-blue-600">Average across all leads</div>
-                      </div>
-                      
-                      <div className="p-3 bg-green-50 rounded-lg">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Target className="h-4 w-4 text-green-600" />
-                          <span className="font-medium text-sm">Buying Signals</span>
-                        </div>
-                        <div className="text-xl font-bold text-green-700">23</div>
-                        <div className="text-xs text-green-600">Detected this week</div>
-                      </div>
-
-                      <div className="p-3 bg-purple-50 rounded-lg">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Brain className="h-4 w-4 text-purple-600" />
-                          <span className="font-medium text-sm">Conversion Rate</span>
-                        </div>
-                        <div className="text-xl font-bold text-purple-700">34%</div>
-                        <div className="text-xs text-purple-600">With ElevenLabs MCP</div>
-                      </div>
-                    </div>
-                    
-                    <Separator />
-                    
-                    <div>
-                      <h4 className="font-medium mb-2 text-sm">Recent Insights</h4>
-                      <div className="space-y-2 text-xs">
-                        <div className="p-2 bg-yellow-50 border border-yellow-200 rounded">
-                          <div className="font-medium text-yellow-800">🎯 High Intent Detected</div>
-                          <div className="text-yellow-700">3 leads showing strong buying signals</div>
-                        </div>
-                        <div className="p-2 bg-red-50 border border-red-200 rounded">
-                          <div className="font-medium text-red-800">⚠️ Coaching Alert</div>
-                          <div className="text-red-700">2 conversations need attention</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+            <RealTimeAnalyticsPanel />
           </div>
         </TabsContent>
       </Tabs>

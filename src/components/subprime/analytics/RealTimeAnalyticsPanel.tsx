@@ -1,0 +1,194 @@
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { Button } from '@/components/ui/button';
+import { BarChart3, Target, Brain, RefreshCw, AlertTriangle, CheckCircle2 } from 'lucide-react';
+
+interface AnalyticsData {
+  conversationQuality: number;
+  buyingSignalsCount: number;
+  conversionRate: number;
+  highValueLeads: number;
+  totalConversations: number;
+  dataSource: string;
+  error?: string;
+}
+
+export const RealTimeAnalyticsPanel: React.FC = () => {
+  const [analytics, setAnalytics] = useState<AnalyticsData>({
+    conversationQuality: 0,
+    buyingSignalsCount: 0,
+    conversionRate: 0,
+    highValueLeads: 0,
+    totalConversations: 0,
+    dataSource: 'loading'
+  });
+  const [loading, setLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+
+  const fetchAnalytics = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch('/api/analytics/global');
+      if (response.ok) {
+        const data = await response.json();
+        setAnalytics({
+          conversationQuality: data.conversationQuality,
+          buyingSignalsCount: data.buyingSignalsCount,
+          conversionRate: data.conversionRate,
+          highValueLeads: data.highValueLeads,
+          totalConversations: data.totalConversations,
+          dataSource: data.dataSource,
+          error: data.error
+        });
+        setLastUpdated(new Date());
+      }
+    } catch (error) {
+      console.error('Error fetching analytics:', error);
+      setAnalytics(prev => ({ ...prev, error: 'Connection failed' }));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAnalytics();
+    // Auto-refresh every 2 minutes
+    const interval = setInterval(fetchAnalytics, 2 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const getStatusColor = () => {
+    if (analytics.error) return 'text-red-600';
+    if (analytics.dataSource === 'supabase') return 'text-green-600';
+    return 'text-yellow-600';
+  };
+
+  const getStatusText = () => {
+    if (analytics.error) return 'Connection Error';
+    if (analytics.dataSource === 'supabase') return 'Live Data';
+    return 'Fallback Data';
+  };
+
+  return (
+    <div>
+      <Card className="h-full">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Brain className="h-5 w-5 text-purple-600" />
+              ElevenLabs Analytics
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className={getStatusColor()}>
+                {getStatusText()}
+              </Badge>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={fetchAnalytics}
+                disabled={loading}
+                className="h-8 w-8 p-0"
+              >
+                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              </Button>
+            </div>
+          </div>
+          <div className="text-xs text-muted-foreground">
+            Last updated: {lastUpdated.toLocaleTimeString()}
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-3">
+              <div className="p-3 bg-blue-50 rounded-lg">
+                <div className="flex items-center gap-2 mb-1">
+                  <BarChart3 className="h-4 w-4 text-blue-600" />
+                  <span className="font-medium text-sm">Conversation Quality</span>
+                </div>
+                <div className="text-xl font-bold text-blue-700">
+                  {loading ? '...' : `${analytics.conversationQuality}%`}
+                </div>
+                <div className="text-xs text-blue-600">
+                  {analytics.dataSource === 'supabase' ? 'From database conversations' : 'Average across all leads'}
+                </div>
+              </div>
+              
+              <div className="p-3 bg-green-50 rounded-lg">
+                <div className="flex items-center gap-2 mb-1">
+                  <Target className="h-4 w-4 text-green-600" />
+                  <span className="font-medium text-sm">Buying Signals</span>
+                </div>
+                <div className="text-xl font-bold text-green-700">
+                  {loading ? '...' : analytics.buyingSignalsCount}
+                </div>
+                <div className="text-xs text-green-600">
+                  {analytics.dataSource === 'supabase' ? 'From real conversations' : 'Detected this week'}
+                </div>
+              </div>
+
+              <div className="p-3 bg-purple-50 rounded-lg">
+                <div className="flex items-center gap-2 mb-1">
+                  <Brain className="h-4 w-4 text-purple-600" />
+                  <span className="font-medium text-sm">Conversion Rate</span>
+                </div>
+                <div className="text-xl font-bold text-purple-700">
+                  {loading ? '...' : `${analytics.conversionRate}%`}
+                </div>
+                <div className="text-xs text-purple-600">
+                  {analytics.dataSource === 'supabase' ? 'Real conversion data' : 'With ElevenLabs MCP'}
+                </div>
+              </div>
+            </div>
+            
+            <Separator />
+            
+            <div>
+              <h4 className="font-medium mb-2 text-sm">Recent Insights</h4>
+              <div className="space-y-2 text-xs">
+                <div className="p-2 bg-yellow-50 border border-yellow-200 rounded">
+                  <div className="flex items-center gap-1">
+                    <CheckCircle2 className="h-3 w-3 text-yellow-600" />
+                    <div className="font-medium text-yellow-800">🎯 High Intent Detected</div>
+                  </div>
+                  <div className="text-yellow-700">
+                    {loading ? 'Loading...' : `${analytics.highValueLeads} leads showing strong buying signals`}
+                  </div>
+                </div>
+                
+                <div className="p-2 bg-blue-50 border border-blue-200 rounded">
+                  <div className="flex items-center gap-1">
+                    <BarChart3 className="h-3 w-3 text-blue-600" />
+                    <div className="font-medium text-blue-800">📊 System Status</div>
+                  </div>
+                  <div className="text-blue-700">
+                    {analytics.error ? (
+                      'Database connection issues - using fallback data'
+                    ) : loading ? (
+                      'Loading system status...'
+                    ) : (
+                      `${analytics.totalConversations} conversations being analyzed`
+                    )}
+                  </div>
+                </div>
+
+                {analytics.error && (
+                  <div className="p-2 bg-red-50 border border-red-200 rounded">
+                    <div className="flex items-center gap-1">
+                      <AlertTriangle className="h-3 w-3 text-red-600" />
+                      <div className="font-medium text-red-800">⚠️ Connection Alert</div>
+                    </div>
+                    <div className="text-red-700">
+                      Check server logs for Supabase connection status
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}; 
