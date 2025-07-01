@@ -667,9 +667,9 @@ function setActiveLeadForPhone(phoneNumber, leadId) {
 
 /**
  * Get the current active lead ID for a phone number
- * Prioritizes active SSE connections over stored metadata
+ * Prioritizes active SSE connections over stored metadata, with Supabase fallback
  */
-function getActiveLeadForPhone(phoneNumber) {
+async function getActiveLeadForPhone(phoneNumber) {
   const normalized = normalizePhoneNumber(phoneNumber);
   
   // First check if we have an active mapping from SSE connections
@@ -684,6 +684,60 @@ function getActiveLeadForPhone(phoneNumber) {
     if (normalizePhoneNumber(metadata.phoneNumber) === normalized) {
       console.log(`📋 Found metadata lead ${metadata.leadId} for phone ${normalized}`);
       return metadata.leadId;
+    }
+  }
+  
+  // CRITICAL FIX: Third fallback - Supabase lookup by phone number
+  // This handles cases where SSE connection closed but lead exists in database
+  if (supabasePersistence.isConnected) {
+    try {
+      const leadData = await supabasePersistence.getLeadByPhone(phoneNumber);
+      if (leadData) {
+        console.log(`🗄️ Found Supabase lead ${leadData.id} for phone ${normalized}`);
+        
+        // Restore the phone-to-lead mapping for future lookups
+        phoneToLeadMapping.set(normalized, leadData.id);
+        
+        // Also restore lead data to memory for getLeadData() calls
+        if (!dynamicLeads.has(leadData.id)) {
+          const memoryLead = {
+            id: leadData.id,
+            customerName: leadData.customer_name,
+            phoneNumber: leadData.phone_number,
+            email: leadData.email,
+            chaseStatus: leadData.chase_status,
+            fundingReadiness: leadData.funding_readiness,
+            fundingReadinessReason: leadData.funding_readiness_reason,
+            sentiment: leadData.sentiment,
+            creditProfile: {
+              scoreRange: leadData.credit_score_range,
+              knownIssues: leadData.credit_known_issues ? JSON.parse(leadData.credit_known_issues) : []
+            },
+            vehiclePreference: leadData.vehicle_preference,
+            assignedAgent: leadData.assigned_agent,
+            assignedSpecialist: leadData.assigned_specialist,
+            lastTouchpoint: leadData.last_touchpoint,
+            conversations: [],
+            nextAction: {
+              type: leadData.next_action_type,
+              dueDate: leadData.next_action_due_date,
+              isAutomated: leadData.next_action_is_automated,
+              isOverdue: leadData.next_action_is_overdue
+            },
+            scriptProgress: {
+              currentStep: leadData.script_progress_current_step || 'contacted',
+              completedSteps: leadData.script_progress_completed_steps ? JSON.parse(leadData.script_progress_completed_steps) : ['contacted']
+            }
+          };
+          
+          dynamicLeads.set(leadData.id, memoryLead);
+          console.log(`💾 Restored lead ${leadData.id} to memory: ${leadData.customer_name}`);
+        }
+        
+        return leadData.id;
+      }
+    } catch (error) {
+      console.error(`❌ Failed to lookup lead by phone ${normalized}:`, error);
     }
   }
   
@@ -758,7 +812,7 @@ function startConversation(phoneNumber, initialMessage) {
     const conversationContext = await buildConversationContext(phoneNumber);
     
     // Get lead data and build dynamic variables like voice calls do
-    const leadId = getActiveLeadForPhone(phoneNumber);
+    const leadId = await getActiveLeadForPhone(phoneNumber);
     const leadData = getLeadData(leadId);
     const customerName = leadData?.customerName || `Customer ${phoneNumber}`;
     const summaryData = await getConversationSummary(phoneNumber);
@@ -831,7 +885,7 @@ function startConversation(phoneNumber, initialMessage) {
     }));
   });
 
-  ws.on('message', (data) => {
+  ws.on('message', async (data) => {
     try {
       const response = JSON.parse(data.toString());
       console.log(`📨 [${phoneNumber}] Received message type:`, response.type);
@@ -857,7 +911,7 @@ function startConversation(phoneNumber, initialMessage) {
             sendSMSReply(phoneNumber, agentResponse);
             
             // Get the active lead ID for this phone number
-            const leadId = getActiveLeadForPhone(phoneNumber);
+            const leadId = await getActiveLeadForPhone(phoneNumber);
 
             // ENHANCED: Reset timeout on activity to prevent premature closure
             const normalized = normalizePhoneNumber(phoneNumber);
@@ -1110,7 +1164,7 @@ app.post('/api/webhooks/twilio/sms/incoming', async (req, res) => {
     const normalizedFrom = normalizePhoneNumber(From);
 
     // Get the active lead ID for this phone number (prioritizes SSE connections)
-    const leadId = getActiveLeadForPhone(From);
+    const leadId = await getActiveLeadForPhone(From);
 
     broadcastConversationUpdate({
       type: 'sms_received',
