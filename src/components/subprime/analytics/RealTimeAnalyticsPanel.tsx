@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import { BarChart3, Target, Brain, RefreshCw, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface AnalyticsData {
   conversationQuality: number;
@@ -16,6 +17,7 @@ interface AnalyticsData {
 }
 
 export const RealTimeAnalyticsPanel: React.FC = () => {
+  const { organization } = useAuth(); // ADD THIS LINE
   const [analytics, setAnalytics] = useState<AnalyticsData>({
     conversationQuality: 0,
     buyingSignalsCount: 0,
@@ -28,9 +30,13 @@ export const RealTimeAnalyticsPanel: React.FC = () => {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
   const fetchAnalytics = async () => {
+    if (!organization?.id) {
+      console.warn('No organization context for analytics');
+      return;
+    }
     setLoading(true);
     try {
-      const response = await fetch('/api/analytics/global');
+      const response = await fetch(`/api/analytics/global?organization_id=${organization?.id}`);
       if (response.ok) {
         const data = await response.json();
         setAnalytics({

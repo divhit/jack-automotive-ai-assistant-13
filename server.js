@@ -198,14 +198,49 @@ function findConversationByPhone(phoneNumber) {
 
 // --- CONVERSATION CONTEXT MANAGEMENT ---
 
-async function getConversationHistory(phoneNumber) {
+// Helper function to get organizationId from phone number
+async function getOrganizationIdFromPhone(phoneNumber) {
+  try {
+    const normalized = normalizePhoneNumber(phoneNumber);
+    
+    // First try to get from active lead mapping
+    const leadId = await getActiveLeadForPhone(phoneNumber);
+    if (leadId) {
+      const leadData = getLeadData(leadId);
+      if (leadData && leadData.organizationId) {
+        return leadData.organizationId;
+      }
+    }
+    
+    // Fallback: try to get from Supabase
+    if (supabasePersistence.isConnected) {
+      const dbLead = await supabasePersistence.getLeadByPhone(phoneNumber);
+      if (dbLead && dbLead.organization_id) {
+        return dbLead.organization_id;
+      }
+    }
+    
+    console.log(`⚠️ Could not determine organizationId for phone ${phoneNumber}`);
+    return null;
+  } catch (error) {
+    console.error(`❌ Error getting organizationId for phone ${phoneNumber}:`, error);
+    return null;
+  }
+}
+
+async function getConversationHistory(phoneNumber, organizationId = null) {
   const normalized = normalizePhoneNumber(phoneNumber);
+  
+  // If organizationId not provided, try to get it from phone number
+  if (!organizationId) {
+    organizationId = await getOrganizationIdFromPhone(phoneNumber);
+  }
   
   // ENHANCED: Try to load from Supabase first, then fallback to memory
   try {
     if (supabasePersistence.isEnabled && supabasePersistence.isConnected) {
       console.log(`🗄️ Loading conversation history from Supabase for ${normalized}`);
-      const supabaseHistory = await supabasePersistence.getConversationHistory(phoneNumber);
+      const supabaseHistory = await supabasePersistence.getConversationHistory(phoneNumber, organizationId);
       
       if (supabaseHistory && supabaseHistory.length > 0) {
         // Count message types from Supabase
@@ -992,7 +1027,7 @@ app.post('/api/debug/clear-history', (req, res) => {
     }
     
     const normalized = normalizePhoneNumber(phoneNumber);
-    const existingHistory = getConversationHistory(phoneNumber);
+    const existingHistory = getConversationHistorySync(phoneNumber);
     
     if (existingHistory.length === 0) {
       return res.json({ 
@@ -1028,7 +1063,7 @@ app.post('/api/debug/get-history', (req, res) => {
     }
     
     const normalized = normalizePhoneNumber(phoneNumber);
-    const history = getConversationHistory(phoneNumber);
+    const history = getConversationHistorySync(phoneNumber);
     console.log(`📋 Retrieved ${history.length} messages for ${phoneNumber} (normalized: ${normalized})`);
     
     res.json({ 
@@ -2830,7 +2865,7 @@ app.get('/api/conversations/:leadId', async (req, res) => {
       });
     } else {
       // Fallback to memory
-      const memoryHistory = getConversationHistory(lead.phoneNumber);
+      const memoryHistory = getConversationHistorySync(lead.phoneNumber);
       res.json({
         success: true,
         conversations: memoryHistory,
@@ -2882,7 +2917,16 @@ app.post('/api/notes/:leadId', async (req, res) => {
 // 📊 ANALYTICS ENDPOINTS FOR ELEVENLABS PANEL
 app.get('/api/analytics/global', async (req, res) => {
   try {
-    console.log('📊 Global analytics requested');
+    const { organization_id } = req.query;
+    console.log('📊 Global analytics requested for organization:', organization_id);
+    
+    // SECURITY: Require organization_id for analytics
+    if (!organization_id) {
+      return res.status(400).json({
+        success: false,
+        error: 'organization_id parameter is required for analytics data'
+      });
+    }
     
     // FIXED: Use property access instead of function call
     if (!supabasePersistence.isEnabled || !supabasePersistence.isConnected) {

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { BarChart3, Target, TrendingUp, Brain, AlertTriangle, CheckCircle2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface GlobalAnalytics {
   totalLeads: number;
@@ -13,11 +14,11 @@ interface GlobalAnalytics {
   buyingSignalsCount: number;
   conversionRate: number;
   dataSource: string;
-  lastUpdated?: string;
   error?: string;
 }
 
 export const ElevenLabsAnalyticsOverview: React.FC = () => {
+  const { organization } = useAuth();
   const [analytics, setAnalytics] = useState<GlobalAnalytics>({
     totalLeads: 0,
     avgLeadScore: 0,
@@ -32,9 +33,20 @@ export const ElevenLabsAnalyticsOverview: React.FC = () => {
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
   const fetchAnalytics = async () => {
+    if (!organization?.id) {
+      console.warn('No organization context for analytics');
+      setAnalytics(prev => ({
+        ...prev,
+        error: 'No organization context',
+        dataSource: 'error'
+      }));
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
-      const response = await fetch('/api/analytics/global');
+      const response = await fetch(`/api/analytics/global?organization_id=${organization.id}`);
       if (response.ok) {
         const data = await response.json();
         setAnalytics(data);
@@ -52,17 +64,20 @@ export const ElevenLabsAnalyticsOverview: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchAnalytics();
-    // Auto-refresh every 5 minutes
-    const interval = setInterval(fetchAnalytics, 5 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, []);
+    if (organization?.id) {
+      fetchAnalytics();
+      // Auto-refresh every 5 minutes
+      const interval = setInterval(fetchAnalytics, 5 * 60 * 1000);
+      return () => clearInterval(interval);
+    }
+  }, [organization?.id]);
 
   const getDataSourceColor = (source: string) => {
     switch (source) {
       case 'supabase': return 'bg-green-100 text-green-800 border-green-200';
       case 'default': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
       case 'loading': return 'bg-gray-100 text-gray-800 border-gray-200';
+      case 'error': return 'bg-red-100 text-red-800 border-red-200';
       default: return 'bg-blue-100 text-blue-800 border-blue-200';
     }
   };
@@ -72,6 +87,7 @@ export const ElevenLabsAnalyticsOverview: React.FC = () => {
       case 'supabase': return 'Database + Memory';
       case 'default': return 'Database + Memory';
       case 'loading': return 'Loading...';
+      case 'error': return 'Security Error';
       default: return 'Real-time Data';
     }
   };
@@ -90,6 +106,11 @@ export const ElevenLabsAnalyticsOverview: React.FC = () => {
               <Badge className={getDataSourceColor(analytics.dataSource)}>
                 {getDataSourceText(analytics.dataSource)}
               </Badge>
+              {organization && (
+                <Badge variant="outline" className="text-xs">
+                  {organization.name}
+                </Badge>
+              )}
             </div>
           </div>
         </div>
@@ -101,13 +122,22 @@ export const ElevenLabsAnalyticsOverview: React.FC = () => {
             variant="outline"
             size="sm"
             onClick={fetchAnalytics}
-            disabled={loading}
+            disabled={loading || !organization?.id}
             className="h-8 w-8 p-0"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           </Button>
         </div>
       </div>
+      
+      {!organization?.id && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-center gap-2 text-sm text-red-800">
+            <AlertTriangle className="h-4 w-4" />
+            <strong>Security Error:</strong> No organization context available. Please refresh the page.
+          </div>
+        </div>
+      )}
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
@@ -180,7 +210,7 @@ export const ElevenLabsAnalyticsOverview: React.FC = () => {
           </div>
           <div className="text-sm text-orange-700">
             {analytics.error ? (
-              `Database connection issues detected`
+              `Security issue: ${analytics.error}`
             ) : loading ? (
               'Loading system status...'
             ) : (
@@ -191,12 +221,11 @@ export const ElevenLabsAnalyticsOverview: React.FC = () => {
       </div>
 
       {/* Debug Information */}
-      {analytics.dataSource === 'default' && (
-        <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-          <div className="flex items-center gap-2 text-sm text-yellow-800">
+      {analytics.error && (
+        <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-center gap-2 text-sm text-red-800">
             <AlertTriangle className="h-4 w-4" />
-            <strong>Note:</strong> Using fallback data due to database connection issues. 
-            Check server logs for Supabase connection status.
+            <strong>Error:</strong> {analytics.error}
           </div>
         </div>
       )}

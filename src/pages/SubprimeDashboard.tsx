@@ -37,6 +37,29 @@ import {
 
 const SubprimeDashboard = () => {
   const { user, profile, organization, signOut, hasRole, hasPermission } = useAuth();
+  
+  // Debug permissions for button visibility
+  useEffect(() => {
+    console.log('🔍 DEBUG: Button visibility check:', {
+      user: user?.email,
+      profile: profile ? {
+        role: profile.role,
+        id: profile.id,
+        organization_id: profile.organization_id
+      } : null,
+      organization: organization ? {
+        name: organization.name,
+        id: organization.id
+      } : null,
+      permissions: {
+        hasCreatePermission: hasPermission('lead:create'),
+        hasAdminRole: hasRole('admin'),
+        hasManagerRole: hasRole('manager'),
+        hasAdminOrManager: hasRole(['admin', 'manager'])
+      }
+    });
+  }, [user, profile, organization, hasPermission, hasRole]);
+  
   const [allLeads, setAllLeads] = useState<SubprimeLead[]>(subprimeLeads);
   const [searchTerm, setSearchTerm] = useState("");
   const [tileDialogOpen, setTileDialogOpen] = useState(false);
@@ -416,6 +439,31 @@ const SubprimeDashboard = () => {
     }
     return "User";
   };
+
+  // Debug logging for permissions
+  useEffect(() => {
+    console.log('🔍 DEBUG: SubprimeDashboard permissions check:', {
+      user: user?.email,
+      profile: profile?.role,
+      organization: organization?.name,
+      hasCreatePermission: hasPermission('lead:create'),
+      hasAdminRole: hasRole('admin'),
+      hasManagerRole: hasRole('manager'),
+      hasAdminOrManager: hasRole(['admin', 'manager']),
+      allPermissions: profile ? {
+        role: profile.role,
+        // Test all permissions
+        read: hasPermission('read'),
+        write: hasPermission('write'),
+        delete: hasPermission('delete'),
+        leadCreate: hasPermission('lead:create'),
+        leadUpdate: hasPermission('lead:update'),
+        leadDelete: hasPermission('lead:delete'),
+        manageUsers: hasPermission('manage_users'),
+        manageSettings: hasPermission('manage_settings')
+      } : 'No profile loaded'
+    });
+  }, [user, profile, organization, hasPermission, hasRole]);
 
   return (
     <div className="space-y-6">

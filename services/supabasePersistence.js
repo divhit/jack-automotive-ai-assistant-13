@@ -411,18 +411,26 @@ class SupabasePersistenceService {
     }
   }
 
-  async getConversationHistory(phoneNumber, limit = 50) {
+  async getConversationHistory(phoneNumber, organizationId = null, limit = 50) {
     if (!this.isEnabled || !this.isConnected) return [];
     
     try {
       const normalizedPhone = this.normalizePhoneNumber(phoneNumber);
       
-      const { data, error } = await this.supabase
+      let query = this.supabase
         .from('conversations')
         .select('*')
         .eq('phone_number_normalized', normalizedPhone)
         .order('timestamp', { ascending: true })
         .limit(limit);
+
+      // Add organization filtering if organizationId is provided
+      if (organizationId) {
+        query = query.eq('organization_id', organizationId);
+        console.log(`🔒 Filtering conversations for organization: ${organizationId}`);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       
