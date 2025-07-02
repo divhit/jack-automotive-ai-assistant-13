@@ -19,13 +19,24 @@ import { SubprimeAddLeadDialog } from "@/components/subprime/SubprimeAddLeadDial
 import { LeadAnalyticsDashboard } from "@/components/subprime/analytics/LeadAnalyticsDashboard";
 import { RealTimeAnalyticsPanel } from "@/components/subprime/analytics/RealTimeAnalyticsPanel";
 import { SubprimeLead } from "@/data/subprime/subprimeLeads";
-import { BarChart3, Users, MessageSquare, Clock, Info, Settings, Sliders, UserPlus, Database, RefreshCw, Trash2, Brain, Target } from "lucide-react";
+import { BarChart3, Users, MessageSquare, Clock, Info, Settings, Sliders, UserPlus, Database, RefreshCw, Trash2, Brain, Target, Building2, User, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SubprimeSettingsDialog } from "@/components/subprime/SubprimeSettingsDialog";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const SubprimeDashboard = () => {
+  const { user, profile, organization, signOut, hasRole, hasPermission } = useAuth();
   const [allLeads, setAllLeads] = useState<SubprimeLead[]>(subprimeLeads);
   const [searchTerm, setSearchTerm] = useState("");
   const [tileDialogOpen, setTileDialogOpen] = useState(false);
@@ -110,20 +121,28 @@ const SubprimeDashboard = () => {
 
   // Load leads from server on component mount
   useEffect(() => {
-    loadLeadsFromServer();
-  }, []);
+    if (organization?.id) {
+      loadLeadsFromServer();
+    }
+  }, [organization?.id]);
 
   const loadLeadsFromServer = async () => {
+    if (!organization?.id) {
+      console.warn('No organization context available for loading leads');
+      return;
+    }
+
     setIsLoading(true);
     try {
-      const response = await fetch('/api/subprime/leads?limit=100');
+      // Include organization context in the API call
+      const response = await fetch(`/api/subprime/leads?limit=100&organization_id=${organization.id}`);
       const data = await response.json();
       
       if (data.success) {
         setAllLeads(data.leads);
         setDataSource(data.source);
         setLastRefresh(new Date());
-        console.log(`📊 Loaded ${data.leads.length} leads from ${data.source}`);
+        console.log(`📊 Loaded ${data.leads.length} leads from ${data.source} for org: ${organization.name}`);
         
         if (data.source === 'database') {
           toast.success(`Loaded ${data.leads.length} leads from database`);
@@ -149,14 +168,19 @@ const SubprimeDashboard = () => {
 
     // Note: filteredLeads will automatically update via useMemo
 
-    // Persist changes to server
+    // Persist changes to server with organization context
     try {
       const response = await fetch('/api/subprime/update-lead', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ leadId, updates })
+        body: JSON.stringify({ 
+          leadId, 
+          updates,
+          organization_id: organization?.id,
+          updated_by: user?.id
+        })
       });
 
       if (response.ok) {
@@ -177,7 +201,8 @@ const SubprimeDashboard = () => {
       customerName: newLead.customerName,
       phoneNumber: newLead.phoneNumber,
       fundingReadiness: newLead.fundingReadiness,
-      sentiment: newLead.sentiment
+      sentiment: newLead.sentiment,
+      organization: organization?.name
     });
 
     // Add to main leads array
@@ -362,17 +387,104 @@ const SubprimeDashboard = () => {
     };
   };
 
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      toast.success("Successfully signed out");
+    } catch (error) {
+      console.error('Sign out error:', error);
+      toast.error("Failed to sign out");
+    }
+  };
+
+  const getUserInitials = () => {
+    if (profile?.first_name && profile?.last_name) {
+      return `${profile.first_name[0]}${profile.last_name[0]}`.toUpperCase();
+    }
+    if (profile?.email) {
+      return profile.email.substring(0, 2).toUpperCase();
+    }
+    return "U";
+  };
+
+  const getUserDisplayName = () => {
+    if (profile?.first_name && profile?.last_name) {
+      return `${profile.first_name} ${profile.last_name}`;
+    }
+    if (profile?.email) {
+      return profile.email;
+    }
+    return "User";
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      {/* Organization & User Header */}
+      <div className="flex justify-between items-center border-b border-gray-200 pb-4">
         <div className="flex items-center gap-4">
-          <h1 className="text-2xl font-bold">Subprime Dashboard</h1>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+              <Building2 className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold">{organization?.name || 'Subprime Dashboard'}</h1>
+              <p className="text-sm text-muted-foreground">
+                {profile?.role ? profile.role.charAt(0).toUpperCase() + profile.role.slice(1).replace('_', ' ') : 'Agent'} Dashboard
+              </p>
+            </div>
+          </div>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Database className="h-4 w-4" />
             <span>Data: {dataSource}</span>
             <span>•</span>
             <span>Updated: {lastRefresh.toLocaleTimeString()}</span>
           </div>
+        </div>
+        
+        {/* User Profile Dropdown */}
+        <div className="flex items-center gap-3">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+                <Avatar className="h-10 w-10">
+                  <AvatarImage src={profile?.avatar_url} alt={getUserDisplayName()} />
+                  <AvatarFallback className="bg-blue-600 text-white">
+                    {getUserInitials()}
+                  </AvatarFallback>
+                </Avatar>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-56" align="end" forceMount>
+              <DropdownMenuLabel className="font-normal">
+                <div className="flex flex-col space-y-1">
+                  <p className="text-sm font-medium leading-none">{getUserDisplayName()}</p>
+                  <p className="text-xs leading-none text-muted-foreground">
+                    {profile?.email}
+                  </p>
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setSettingsDialogOpen(true)}>
+                <Settings className="mr-2 h-4 w-4" />
+                <span>Settings</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleSignOut}>
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>Log out</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+
+      {/* Action Bar */}
+      <div className="flex justify-between items-center">
+        <div className="flex items-center gap-4">
+          <h2 className="text-lg font-semibold">Lead Management</h2>
+          <Badge variant="outline" className="text-xs">
+            {hasRole('admin') ? 'Admin Access' : hasRole('manager') ? 'Manager Access' : 'Agent Access'}
+          </Badge>
         </div>
         <div className="flex items-center gap-3">
           <div className="w-64">
@@ -395,32 +507,27 @@ const SubprimeDashboard = () => {
             Refresh
           </Button>
 
-          <Button
-            onClick={() => setAddLeadDialogOpen(true)}
-            className="gap-2"
-          >
-            <UserPlus className="h-4 w-4" />
-            Add Lead
-          </Button>
+          {hasPermission('lead:create') && (
+            <Button
+              onClick={() => setAddLeadDialogOpen(true)}
+              className="gap-2"
+            >
+              <UserPlus className="h-4 w-4" />
+              Add Lead
+            </Button>
+          )}
 
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={handleDeleteAllLeads}
-            className="gap-2"
-          >
-            <Trash2 className="h-4 w-4" />
-            Delete All Leads
-          </Button>
-
-          <Button 
-            variant="outline" 
-            size="icon" 
-            className="h-9 w-9"
-            onClick={() => setSettingsDialogOpen(true)}
-          >
-            <Sliders className="h-5 w-5" />
-          </Button>
+          {hasRole(['admin', 'manager']) && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleDeleteAllLeads}
+              className="gap-2"
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete All Leads
+            </Button>
+          )}
         </div>
       </div>
 
