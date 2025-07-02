@@ -135,6 +135,7 @@ const activeConversations = new Map(); // phoneNumber -> websocket
 const phoneToLeadMapping = new Map(); // phoneNumber -> leadId
 const leadToPhoneMapping = new Map(); // leadId -> phoneNumber
 const dynamicLeads = new Map(); // leadId -> lead object
+const sseConnections = new Map(); // leadId -> response object (for Server-Sent Events)
 
 // ORGANIZATION-SCOPED MEMORY UTILITIES
 function createOrgMemoryKey(organizationId, phoneNumber) {
@@ -240,7 +241,7 @@ async function findConversationByPhone(phoneNumber, organizationId = null) {
   if (organizationId) {
     const orgMemoryKey = createOrgMemoryKey(organizationId, phoneNumber);
     if (conversationContexts.has(orgMemoryKey)) {
-      console.log(`📋 Found conversation history for org-scoped key: ${orgMemoryKey}`);
+      console.log(`�� Found conversation history for org-scoped key: ${orgMemoryKey}`);
       return { phoneNumber: normalized, history: conversationContexts.get(orgMemoryKey) };
     }
   }
