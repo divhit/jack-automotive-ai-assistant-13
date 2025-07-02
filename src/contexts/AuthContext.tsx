@@ -419,9 +419,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     
     // Add your permission logic here based on role and custom permissions
     const rolePermissions: Record<string, string[]> = {
-      admin: ['read', 'write', 'delete', 'manage_users', 'manage_settings'],
-      manager: ['read', 'write', 'manage_leads'],
-      agent: ['read', 'write'],
+      admin: ['read', 'write', 'delete', 'manage_users', 'manage_settings', 'lead:create', 'lead:update', 'lead:delete'],
+      manager: ['read', 'write', 'manage_leads', 'lead:create', 'lead:update', 'lead:delete'],
+      agent: ['read', 'write', 'lead:create', 'lead:update'],
       viewer: ['read'],
     };
 

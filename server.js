@@ -2754,35 +2754,46 @@ app.get('/api/analytics/lead/:leadId', async (req, res) => {
 // Get all leads with analytics (CRM dashboard)
 app.get('/api/analytics/leads', async (req, res) => {
   try {
-    const { limit = 100 } = req.query;
+    const { limit = 100, organization_id } = req.query;
     
-    const analyticsData = await supabasePersistence.getAllLeadsWithAnalytics(parseInt(limit));
+    if (!organization_id) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'organization_id is required for analytics data' 
+      });
+    }
+    
+    const analyticsData = await supabasePersistence.getAllLeadsWithAnalytics(parseInt(limit), organization_id);
     
     if (analyticsData && analyticsData.length > 0) {
       res.json({
         success: true,
         leads: analyticsData,
         count: analyticsData.length,
-        source: 'database'
+        source: 'database',
+        organization_id
       });
     } else {
-      // Fallback to memory data
-      const memoryLeads = Array.from(dynamicLeads.values()).map(lead => ({
-        id: lead.id,
-        customer_name: lead.customerName,
-        phone_number: lead.phoneNumber,
-        sentiment: lead.sentiment,
-        funding_readiness: lead.fundingReadiness,
-        total_conversations: lead.conversations?.length || 0,
-        last_activity: lead.lastTouchpoint,
-        lead_score: 50
-      }));
+      // Fallback to memory data (filtered by organization if possible)
+      const memoryLeads = Array.from(dynamicLeads.values())
+        .filter(lead => !organization_id || lead.organization_id === organization_id)
+        .map(lead => ({
+          id: lead.id,
+          customer_name: lead.customerName,
+          phone_number: lead.phoneNumber,
+          sentiment: lead.sentiment,
+          funding_readiness: lead.fundingReadiness,
+          total_conversations: lead.conversations?.length || 0,
+          last_activity: lead.lastTouchpoint,
+          lead_score: 50
+        }));
       
       res.json({
         success: true,
         leads: memoryLeads,
         count: memoryLeads.length,
-        source: 'memory'
+        source: 'memory',
+        organization_id
       });
     }
     

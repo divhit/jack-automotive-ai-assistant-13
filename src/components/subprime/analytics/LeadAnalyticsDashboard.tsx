@@ -18,6 +18,7 @@ import {
   Activity
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface LeadAnalytics {
   id: string;
@@ -56,6 +57,7 @@ interface SystemStatus {
 }
 
 export const LeadAnalyticsDashboard: React.FC = () => {
+  const { organization } = useAuth();
   const [leadsAnalytics, setLeadsAnalytics] = useState<LeadAnalytics[]>([]);
   const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -63,10 +65,17 @@ export const LeadAnalyticsDashboard: React.FC = () => {
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
   useEffect(() => {
-    fetchAllData();
-  }, []);
+    if (organization?.id) {
+      fetchAllData();
+    }
+  }, [organization?.id]);
 
   const fetchAllData = async () => {
+    if (!organization?.id) {
+      console.warn('No organization context available for analytics');
+      return;
+    }
+
     setIsLoading(true);
     try {
       await Promise.all([
@@ -83,14 +92,16 @@ export const LeadAnalyticsDashboard: React.FC = () => {
   };
 
   const fetchLeadsAnalytics = async () => {
+    if (!organization?.id) return;
+    
     try {
-      const response = await fetch('/api/analytics/leads?limit=100');
+      const response = await fetch(`/api/analytics/leads?limit=100&organization_id=${organization.id}`);
       const data = await response.json();
       
       if (data.success) {
         setLeadsAnalytics(data.leads);
         setDataSource(data.source);
-        console.log(`📊 Loaded ${data.leads.length} leads from ${data.source}`);
+        console.log(`📊 Loaded ${data.leads.length} leads from ${data.source} for org: ${organization.name}`);
       }
     } catch (error) {
       console.error('Error fetching leads analytics:', error);
