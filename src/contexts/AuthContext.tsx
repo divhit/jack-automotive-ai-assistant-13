@@ -106,6 +106,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     let mounted = true;
 
+    // Failsafe: Force loading to false after 15 seconds to prevent infinite loading
+    const failsafeTimeout = setTimeout(() => {
+      if (mounted) {
+        console.warn('Auth loading timeout - forcing loading to false');
+        setLoading(false);
+      }
+    }, 15000);
+
     const initializeAuth = async () => {
       try {
         // Get initial session
@@ -129,6 +137,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       } finally {
         if (mounted) {
           setLoading(false);
+          clearTimeout(failsafeTimeout); // Clear the failsafe since we completed normally
         }
       }
     };
@@ -145,8 +154,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setUser(currentSession?.user ?? null);
           
           if (event === 'SIGNED_IN' && currentSession?.user) {
-            await loadUserData(currentSession.user.id);
-            await updateLastLogin(currentSession.user.id);
+            try {
+              // Add timeout to prevent hanging
+              await Promise.race([
+                loadUserData(currentSession.user.id),
+                new Promise((_, reject) => 
+                  setTimeout(() => reject(new Error('loadUserData timeout')), 10000)
+                )
+              ]);
+              await updateLastLogin(currentSession.user.id);
+            } catch (error) {
+              console.error('Error in auth state change handler:', error);
+              // Continue without profile - don't block the app
+            }
           } else if (event === 'SIGNED_OUT') {
             setProfile(null);
             setOrganization(null);
@@ -157,6 +177,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     return () => {
       mounted = false;
+      clearTimeout(failsafeTimeout);
       subscription.unsubscribe();
     };
   }, []);
@@ -175,8 +196,43 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         .single();
 
       if (profileError) {
-        // If profile doesn't exist, this might be a new user - that's ok
-        if (profileError.code !== 'PGRST116') {
+        // Handle different error types gracefully
+        if (profileError.code === 'PGRST116') {
+          // Profile doesn't exist - this might be a race condition with the trigger
+          console.log('No profile found for user - waiting for auto-creation...');
+          
+          // Wait a moment and try again (trigger might still be running)
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          const { data: retryData, error: retryError } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('id', userId)
+            .single();
+            
+          if (!retryError && retryData) {
+            setProfile(retryData);
+            
+            // Load organization data if user has an organization
+            if (retryData.organization_id) {
+              const { data: orgData, error: orgError } = await supabase
+                .from('organizations')
+                .select('*')
+                .eq('id', retryData.organization_id)
+                .single();
+
+              if (!orgError && orgData) {
+                setOrganization(orgData);
+              }
+            }
+          } else {
+            console.warn('Profile still not found after retry - user can continue without profile');
+          }
+        } else if (profileError.message?.includes('406') || profileError.status === 406) {
+          // Table doesn't exist or permission issue - warn but don't break
+          console.warn('User profiles table may not exist yet. Please run the database schema.');
+          console.warn('Error details:', profileError);
+        } else {
           console.error('Error loading user profile:', profileError);
         }
       } else {
@@ -199,6 +255,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     } catch (error) {
       console.error('Error loading user data:', error);
+      // Don't throw - allow the app to continue working without profile
     } finally {
       setProfileLoading(false);
       setOrganizationLoading(false);
@@ -246,10 +303,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     orgData?: OrganizationSignupData
   ) => {
     try {
+      // Get the site URL - use production URL in production, localhost in dev
+      const siteUrl = import.meta.env.VITE_SITE_URL || 
+                     import.meta.env.REACT_APP_SITE_URL || 
+                     (import.meta.env.PROD ? 'https://jack-automotive-ai-assistant-13.onrender.com' : 'http://localhost:8080');
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
+          emailRedirectTo: siteUrl,
           data: {
             first_name: orgData?.firstName,
             last_name: orgData?.lastName,
