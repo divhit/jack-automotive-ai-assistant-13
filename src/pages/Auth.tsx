@@ -33,7 +33,7 @@ const Auth: React.FC = () => {
               </div>
             </div>
             <Badge variant="secondary" className="hidden sm:inline-flex">
-              Multi-Tenant Ready
+              Enterprise Ready
             </Badge>
           </div>
         </div>
@@ -136,17 +136,17 @@ const Auth: React.FC = () => {
               </TabsContent>
             </Tabs>
 
-            {/* Demo Note */}
-            <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+            {/* Production Ready */}
+            <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
               <div className="flex items-start space-x-3">
-                <div className="w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <span className="text-xs font-bold text-white">!</span>
+                <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <span className="text-xs font-bold text-white">✓</span>
                 </div>
                 <div>
-                  <p className="text-sm text-amber-800 font-medium">Demo Environment</p>
-                  <p className="text-xs text-amber-700 mt-1">
-                    This is a demo system. Your data is secure and isolated per dealership.
-                    Contact sales for production deployment.
+                  <p className="text-sm text-green-800 font-medium">Production Environment</p>
+                  <p className="text-xs text-green-700 mt-1">
+                    Secure multi-tenant platform with enterprise-grade data isolation.
+                    Each dealership has complete data privacy and security.
                   </p>
                 </div>
               </div>

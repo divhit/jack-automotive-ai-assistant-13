@@ -16,15 +16,14 @@ class SupabasePersistenceService {
 
   initialize() {
     try {
-      // Support both Node.js and browser environments
-      const supabaseUrl = process.env.SUPABASE_URL || process.env.REACT_APP_SUPABASE_URL || 'https://dgzadilmtuqvimolzxms.supabase.co';
-      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.REACT_APP_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRnejFkaWxtdHVxdmltb2x6eG1zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzM5MDEyMzMsImV4cCI6MjA0OTQ3NzIzM30.e80AhUU44MNlXZpJR4LPcQB8sWhRn-kNLjFDFPuwCx4';
+      // Support both Node.js and browser environments - REQUIRE environment variables
+      const supabaseUrl = process.env.SUPABASE_URL || process.env.REACT_APP_SUPABASE_URL;
+      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.REACT_APP_SUPABASE_ANON_KEY;
       const enablePersistence = process.env.ENABLE_SUPABASE_PERSISTENCE !== 'false'; // Default to enabled
 
       console.log('🗄️ Supabase initialization:', {
         hasUrl: !!supabaseUrl,
         hasKey: !!supabaseKey,
-        url: supabaseUrl ? supabaseUrl.substring(0, 30) + '...' : 'MISSING',
         enabled: enablePersistence
       });
 
