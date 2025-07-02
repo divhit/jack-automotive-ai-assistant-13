@@ -188,8 +188,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setOrganizationLoading(true);
 
     try {
-      // Load user profile
-      const { data: profileData, error: profileError } = await supabase
+      // Load user profile - using type assertion for tables not in generated types
+      const { data: profileData, error: profileError } = await (supabase as any)
         .from('user_profiles')
         .select('*')
         .eq('id', userId)
@@ -204,31 +204,31 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           // Wait a moment and try again (trigger might still be running)
           await new Promise(resolve => setTimeout(resolve, 2000));
           
-          const { data: retryData, error: retryError } = await supabase
+          const { data: retryData, error: retryError } = await (supabase as any)
             .from('user_profiles')
             .select('*')
             .eq('id', userId)
             .single();
             
           if (!retryError && retryData) {
-            setProfile(retryData);
+            setProfile(retryData as UserProfile);
             
             // Load organization data if user has an organization
             if (retryData.organization_id) {
-              const { data: orgData, error: orgError } = await supabase
+              const { data: orgData, error: orgError } = await (supabase as any)
                 .from('organizations')
                 .select('*')
                 .eq('id', retryData.organization_id)
                 .single();
 
               if (!orgError && orgData) {
-                setOrganization(orgData);
+                setOrganization(orgData as Organization);
               }
             }
           } else {
             console.warn('Profile still not found after retry - user can continue without profile');
           }
-        } else if (profileError.message?.includes('406') || profileError.status === 406) {
+        } else if (profileError.message?.includes('406') || (profileError as any).status === 406) {
           // Table doesn't exist or permission issue - warn but don't break
           console.warn('User profiles table may not exist yet. Please run the database schema.');
           console.warn('Error details:', profileError);
@@ -236,11 +236,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           console.error('Error loading user profile:', profileError);
         }
       } else {
-        setProfile(profileData);
+        setProfile(profileData as UserProfile);
 
         // Load organization data if user has an organization
         if (profileData.organization_id) {
-          const { data: orgData, error: orgError } = await supabase
+          const { data: orgData, error: orgError } = await (supabase as any)
             .from('organizations')
             .select('*')
             .eq('id', profileData.organization_id)
@@ -249,7 +249,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           if (orgError) {
             console.error('Error loading organization:', orgError);
           } else {
-            setOrganization(orgData);
+            setOrganization(orgData as Organization);
           }
         }
       }
@@ -265,7 +265,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Update last login timestamp
   const updateLastLogin = async (userId: string) => {
     try {
-      await supabase
+      await (supabase as any)
         .from('user_profiles')
         .update({ last_login_at: new Date().toISOString() })
         .eq('id', userId);
@@ -362,7 +362,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Create organization (for admin users)
   const createOrganization = async (data: OrganizationCreateData) => {
     try {
-      const { data: orgData, error } = await supabase
+      const { data: orgData, error } = await (supabase as any)
         .from('organizations')
         .insert([{
           name: data.name,
@@ -379,7 +379,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       toast.success('Organization created successfully');
-      return { data: orgData };
+      return { data: orgData as Organization };
     } catch (error) {
       return { error: error as Error };
     }
@@ -392,7 +392,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
 
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('user_profiles')
         .update(updates)
         .eq('id', user.id);

@@ -490,17 +490,22 @@ async function updateLeadFromConversationData(phoneNumber, dataCollectionResults
 }
 
 // Get conversation summary - enhanced with Supabase loading
-async function getConversationSummary(phoneNumber) {
+async function getConversationSummary(phoneNumber, organizationId = null) {
   const normalized = normalizePhoneNumber(phoneNumber);
+  
+  // If organizationId not provided, try to get it from phone number
+  if (!organizationId) {
+    organizationId = await getOrganizationIdFromPhone(phoneNumber);
+  }
   
   // ENHANCED: Try to load from Supabase first, then fallback to memory
   try {
     if (supabasePersistence.isEnabled && supabasePersistence.isConnected) {
       console.log(`🗄️ Loading conversation summary from Supabase for ${normalized}`);
-      const supabaseSummary = await supabasePersistence.getConversationSummary(phoneNumber);
+      const supabaseSummary = await supabasePersistence.getConversationSummary(phoneNumber, organizationId);
       
       if (supabaseSummary) {
-        console.log(`📋 Loaded summary from Supabase for ${phoneNumber}`);
+        console.log(`📋 Loaded summary from Supabase for ${phoneNumber} in organization ${organizationId}`);
         
         // Sync to memory for faster access
         conversationSummaries.set(normalized, supabaseSummary);
@@ -512,7 +517,7 @@ async function getConversationSummary(phoneNumber) {
     console.log(`⚠️ Failed to load summary from Supabase, falling back to memory:`, error.message);
   }
   
-  // Fallback to memory
+  // Fallback to memory (NOTE: Memory doesn't have organization filtering)
   return conversationSummaries.get(normalized);
 }
 
@@ -575,8 +580,11 @@ function getLeadData(leadId) {
 }
 
 async function buildConversationContext(phoneNumber) {
-  const history = await getConversationHistory(phoneNumber);
-  const summaryData = await getConversationSummary(phoneNumber);
+  // Get organizationId to prevent cross-organization data leakage
+  const organizationId = await getOrganizationIdFromPhone(phoneNumber);
+  
+  const history = await getConversationHistory(phoneNumber, organizationId);
+  const summaryData = await getConversationSummary(phoneNumber, organizationId);
   
   if (history.length === 0 && !summaryData) {
     console.log(`📋 No conversation history or summary found for ${phoneNumber} (normalized: ${normalizePhoneNumber(phoneNumber)})`);
@@ -850,8 +858,12 @@ function startConversation(phoneNumber, initialMessage) {
     const leadId = await getActiveLeadForPhone(phoneNumber);
     const leadData = getLeadData(leadId);
     const customerName = leadData?.customerName || `Customer ${phoneNumber}`;
-    const summaryData = await getConversationSummary(phoneNumber);
-    const history = await getConversationHistory(phoneNumber);
+    
+    // SECURITY FIX: Get organizationId to prevent cross-organization data leakage
+    const organizationId = await getOrganizationIdFromPhone(phoneNumber);
+    
+    const summaryData = await getConversationSummary(phoneNumber, organizationId);
+    const history = await getConversationHistory(phoneNumber, organizationId);
     const leadStatus = summaryData?.summary ? "Returning Customer" : (history.length > 0 ? "Active Lead" : "New Inquiry");
     
     // ENHANCED: Use rich summary logic identical to voice call initiation
@@ -1217,8 +1229,10 @@ app.post('/api/webhooks/twilio/sms/incoming', async (req, res) => {
       addToConversationHistory(From, Body, 'user', 'text');
       ws.send(JSON.stringify({ type: 'user_message', text: Body }));
     } else {
-      // ENHANCED: Check conversation history BEFORE starting new conversation
-      const existingHistory = await getConversationHistory(From);
+      // ENHANCED: Check conversation history BEFORE starting new conversation  
+      // SECURITY FIX: Get organizationId to prevent cross-organization data leakage
+      const organizationId = await getOrganizationIdFromPhone(From);
+      const existingHistory = await getConversationHistory(From, organizationId);
       addToConversationHistory(From, Body, 'user', 'text');
       
       if (existingHistory.length > 0) {
@@ -1283,8 +1297,10 @@ app.post('/api/elevenlabs/outbound-call', async (req, res) => {
     // Generate a unique conversation ID for tracking
     const tempConversationId = `temp_${Date.now()}_${phoneNumber}`;
     
-    const summary = await getConversationSummary(normalizedPhoneNumber);
-    const messages = await getConversationHistory(normalizedPhoneNumber);
+    // SECURITY FIX: Get organizationId to prevent cross-organization data leakage
+    const organizationId = await getOrganizationIdFromPhone(normalizedPhoneNumber);
+    const summary = await getConversationSummary(normalizedPhoneNumber, organizationId);
+    const messages = await getConversationHistory(normalizedPhoneNumber, organizationId);
     
     // Get actual lead data instead of placeholders
     const leadData = getLeadData(leadId);
@@ -2054,8 +2070,11 @@ app.get('/api/stream/conversation/:leadId', async (req, res) => {
     try {
       console.log(`📋 Loading conversation history for SSE connection: ${leadId} (phone: ${phoneNumber})`);
       
-      const messages = await getConversationHistory(phoneNumber);
-      const summary = await getConversationSummary(phoneNumber);
+      // ENHANCED: Use async function to load from Supabase
+      // SECURITY FIX: Get organizationId to prevent cross-organization data leakage
+      const organizationId = await getOrganizationIdFromPhone(phoneNumber);
+      const messages = await getConversationHistory(phoneNumber, organizationId);
+      const summary = await getConversationSummary(phoneNumber, organizationId);
       
       // Format messages for frontend
       const formattedMessages = messages.map((msg, index) => ({
@@ -2280,8 +2299,10 @@ app.get('/api/conversation-history/:leadId', async (req, res) => {
     }
     
     // ENHANCED: Use async function to load from Supabase
-    const messages = await getConversationHistory(phoneToUse);
-    const summary = await getConversationSummary(phoneToUse);
+    // SECURITY FIX: Get organizationId to prevent cross-organization data leakage
+    const organizationId = await getOrganizationIdFromPhone(phoneToUse);
+    const messages = await getConversationHistory(phoneToUse, organizationId);
+    const summary = await getConversationSummary(phoneToUse, organizationId);
     
     console.log(`📋 API: Retrieved ${messages.length} messages for lead ${leadId} (${phoneToUse})`);
     
@@ -2337,8 +2358,10 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', async (req, res) =>
 
     // Build conversation context - ENHANCED with Supabase loading
     const conversationContext = await buildConversationContext(caller_id);
-    const summary = await getConversationSummary(normalizedPhone);
-    const messages = await getConversationHistory(caller_id);
+    // SECURITY FIX: Get organizationId to prevent cross-organization data leakage
+    const organizationId = await getOrganizationIdFromPhone(caller_id);
+    const summary = await getConversationSummary(normalizedPhone, organizationId);
+    const messages = await getConversationHistory(caller_id, organizationId);
     
     console.log(`🧪 DEBUG: conversationContext length: ${conversationContext.length}`);
     console.log(`🧪 DEBUG: activeLead:`, activeLead);

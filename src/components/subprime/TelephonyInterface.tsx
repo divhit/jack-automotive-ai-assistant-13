@@ -606,7 +606,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
                 Conversation
                 {selectedLead && (
                   <Badge variant="outline" className="ml-2">
-                    {selectedLead.name}
+                    {selectedLead.customerName}
                   </Badge>
                 )}
               </CardTitle>

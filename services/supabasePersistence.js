@@ -417,18 +417,22 @@ class SupabasePersistenceService {
     try {
       const normalizedPhone = this.normalizePhoneNumber(phoneNumber);
       
+      // SECURITY FIX: NEVER return cross-organization data
+      // If no organizationId provided, return empty results to prevent data leakage
+      if (!organizationId) {
+        console.log(`🔒 SECURITY: No organizationId provided for ${normalizedPhone} - returning empty history to prevent cross-organization data leakage`);
+        return [];
+      }
+      
       let query = this.supabase
         .from('conversations')
         .select('*')
         .eq('phone_number_normalized', normalizedPhone)
+        .eq('organization_id', organizationId) // ALWAYS filter by organization
         .order('timestamp', { ascending: true })
         .limit(limit);
 
-      // Add organization filtering if organizationId is provided
-      if (organizationId) {
-        query = query.eq('organization_id', organizationId);
-        console.log(`🔒 Filtering conversations for organization: ${organizationId}`);
-      }
+      console.log(`🔒 Loading conversations for phone ${normalizedPhone} in organization: ${organizationId}`);
 
       const { data, error } = await query;
 
@@ -448,21 +452,38 @@ class SupabasePersistenceService {
     }
   }
 
-  async getConversationSummary(phoneNumber) {
+  async getConversationSummary(phoneNumber, organizationId = null) {
     if (!this.isEnabled || !this.isConnected) return null;
     
     try {
       const normalizedPhone = this.normalizePhoneNumber(phoneNumber);
       
+      // SECURITY FIX: NEVER return cross-organization summaries
+      // If no organizationId provided, return null to prevent data leakage
+      if (!organizationId) {
+        console.log(`🔒 SECURITY: No organizationId provided for ${normalizedPhone} - returning null summary to prevent cross-organization data leakage`);
+        return null;
+      }
+      
       const { data, error } = await this.supabase
         .from('conversation_summaries')
         .select('*')
         .eq('phone_number_normalized', normalizedPhone)
+        .eq('organization_id', organizationId) // ALWAYS filter by organization
         .order('timestamp', { ascending: false })
         .limit(1)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // No summary found - this is normal
+          console.log(`📋 No conversation summary found for ${normalizedPhone} in organization ${organizationId}`);
+          return null;
+        }
+        throw error;
+      }
+      
+      console.log(`🔒 Loading conversation summary for phone ${normalizedPhone} in organization: ${organizationId}`);
       
       return {
         summary: data.summary,
