@@ -135,6 +135,8 @@ class SupabasePersistenceService {
         vehicle_preference: leadData.vehiclePreference,
         assigned_agent: leadData.assignedAgent,
         assigned_specialist: leadData.assignedSpecialist,
+        // Organization
+        organization_id: leadData.organizationId,
         
         // Initialize analytics
         total_conversations: leadData.conversations?.length || 0,
@@ -143,7 +145,7 @@ class SupabasePersistenceService {
 
       const { error } = await this.supabase
         .from('leads')
-        .upsert(dbLead);
+        .upsert(dbLead, { onConflict: 'organization_id,phone_number_normalized' });
 
       if (error) throw error;
       
@@ -168,11 +170,17 @@ class SupabasePersistenceService {
       const normalizedPhone = this.normalizePhoneNumber(phoneNumber);
       
       // Find lead ID by phone number
-      const { data: leads, error: leadError } = await this.supabase
+      let leadQuery = this.supabase
         .from('leads')
         .select('id')
-        .eq('phone_number_normalized', normalizedPhone)
-        .limit(1);
+        .eq('phone_number_normalized', normalizedPhone);
+
+      // If organizationId provided in metadata, scope the lookup
+      if (metadata.organizationId) {
+        leadQuery = leadQuery.eq('organization_id', metadata.organizationId);
+      }
+
+      const { data: leads, error: leadError } = await leadQuery.limit(1);
 
       if (leadError) throw leadError;
       if (!leads || leads.length === 0) {

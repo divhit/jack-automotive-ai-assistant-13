@@ -308,7 +308,8 @@ function addToConversationHistory(phoneNumber, message, sentBy, messageType = 't
   
   // ENHANCED: Async persistence to Supabase (non-blocking)
   // This doesn't affect existing functionality at all
-  supabasePersistence.persistConversationMessage(phoneNumber, message, sentBy, messageType)
+  const organizationId = await getOrganizationIdFromPhone(phoneNumber);
+  supabasePersistence.persistConversationMessage(phoneNumber, message, sentBy, messageType, { organizationId })
     .catch(error => {
       // Silent fail - system continues working normally
       console.log(`🗄️ Persistence failed for message (system continues normally):`, error.message);
@@ -2466,6 +2467,7 @@ app.post('/api/subprime/create-lead', async (req, res) => {
       phoneNumber: leadData.phoneNumber,
       email: leadData.email,
       chaseStatus: leadData.chaseStatus || "Auto Chase Running",
+      organizationId: leadData.organizationId, // Store organization context
       fundingReadiness: leadData.fundingReadiness || "Not Ready",
       fundingReadinessReason: leadData.fundingReadinessReason,
       sentiment: leadData.sentiment || "Neutral",
