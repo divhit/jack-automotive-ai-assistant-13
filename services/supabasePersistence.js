@@ -398,20 +398,61 @@ class SupabasePersistenceService {
   }
 
   // RETRIEVAL METHODS (for loading data back into memory if needed)
-  async getLeadByPhone(phoneNumber) {
+  async getLeadByPhone(phoneNumber, organizationId = null) {
     if (!this.isEnabled || !this.isConnected) return null;
     
     try {
       const normalizedPhone = this.normalizePhoneNumber(phoneNumber);
       
-      const { data, error } = await this.supabase
-        .from('leads')
-        .select('*')
-        .eq('phone_number_normalized', normalizedPhone)
-        .single();
+      // If organizationId provided, use it for scoped lookup
+      if (organizationId) {
+        const { data, error } = await this.supabase
+          .from('leads')
+          .select('*')
+          .eq('phone_number_normalized', normalizedPhone)
+          .eq('organization_id', organizationId)
+          .single();
 
-      if (error) throw error;
-      return data;
+        if (error) {
+          if (error.code === 'PGRST116') {
+            // No lead found for this org - normal case
+            return null;
+          }
+          throw error;
+        }
+        return data;
+      }
+      
+      // Without organizationId, check if phone number is ambiguous
+      const { data: allMatches, error: countError } = await this.supabase
+        .from('leads')
+        .select('organization_id, id, customer_name')
+        .eq('phone_number_normalized', normalizedPhone);
+
+      if (countError) throw countError;
+      
+      if (!allMatches || allMatches.length === 0) {
+        return null; // No leads found
+      }
+      
+      if (allMatches.length === 1) {
+        // Unambiguous - single organization has this phone
+        const { data, error } = await this.supabase
+          .from('leads')
+          .select('*')
+          .eq('phone_number_normalized', normalizedPhone)
+          .single();
+          
+        if (error) throw error;
+        return data;
+      }
+      
+      // Multiple organizations have this phone - this is ambiguous
+      console.warn(`⚠️ Phone ${normalizedPhone} exists in ${allMatches.length} organizations - cannot resolve without organizationId`);
+      console.warn(`📋 Organizations with this phone:`, allMatches.map(l => ({ org: l.organization_id, lead: l.id, name: l.customer_name })));
+      
+      // Return null to indicate ambiguous lookup that requires organizationId
+      return null;
       
     } catch (error) {
       console.error(`❌ Failed to retrieve lead by phone:`, error);

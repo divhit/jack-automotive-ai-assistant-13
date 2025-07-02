@@ -128,20 +128,70 @@ if (process.env.NODE_ENV === 'production') {
   }
 }
 
-// In-memory store for active conversations (phoneNumber -> WebSocket connection)
-const activeConversations = new Map();
+// Memory storage - globally accessible
+const conversationContexts = new Map(); // orgId:phoneNumber -> messages array
+const conversationSummaries = new Map(); // orgId:phoneNumber -> summary object
+const activeConversations = new Map(); // phoneNumber -> websocket
+const phoneToLeadMapping = new Map(); // phoneNumber -> leadId
+const leadToPhoneMapping = new Map(); // leadId -> phoneNumber
+const dynamicLeads = new Map(); // leadId -> lead object
 
-// Enhanced conversation context storage for SMS ↔ Voice continuity
-const conversationContexts = new Map(); // phoneNumber -> messages array
-const conversationMetadata = new Map(); // conversationId -> { phoneNumber, leadId, startTime }
-const conversationSummaries = new Map(); // phoneNumber -> { summary, timestamp }
+// ORGANIZATION-SCOPED MEMORY UTILITIES
+function createOrgMemoryKey(organizationId, phoneNumber) {
+  const normalized = normalizePhoneNumber(phoneNumber);
+  return organizationId ? `${organizationId}:${normalized}` : normalized;
+}
 
-// Lead ID routing management
-const phoneToLeadMapping = new Map(); // normalizedPhoneNumber -> current active leadId
-const sseConnections = new Map(); // leadId -> response object
+function getOrganizationMemoryKeys(organizationId) {
+  const prefix = `${organizationId}:`;
+  return {
+    conversations: Array.from(conversationContexts.keys()).filter(key => key.startsWith(prefix)),
+    summaries: Array.from(conversationSummaries.keys()).filter(key => key.startsWith(prefix))
+  };
+}
 
-// In-memory storage for dynamically added leads (in production, use a database)
-let dynamicLeads = new Map();
+function clearMemoryForPhone(phoneNumber, keepOrganizationId = null) {
+  const normalized = normalizePhoneNumber(phoneNumber);
+  
+  // Find all memory keys for this phone across organizations
+  const conversationKeysToRemove = [];
+  const summaryKeysToRemove = [];
+  
+  for (const key of conversationContexts.keys()) {
+    if (key.endsWith(`:${normalized}`) || key === normalized) {
+      // Keep data only for the specified organization
+      if (keepOrganizationId && key === createOrgMemoryKey(keepOrganizationId, phoneNumber)) {
+        continue;
+      }
+      conversationKeysToRemove.push(key);
+    }
+  }
+  
+  for (const key of conversationSummaries.keys()) {
+    if (key.endsWith(`:${normalized}`) || key === normalized) {
+      // Keep data only for the specified organization
+      if (keepOrganizationId && key === createOrgMemoryKey(keepOrganizationId, phoneNumber)) {
+        continue;
+      }
+      summaryKeysToRemove.push(key);
+    }
+  }
+  
+  // Remove contaminated memory
+  conversationKeysToRemove.forEach(key => {
+    conversationContexts.delete(key);
+    console.log(`🧹 Cleared conversation memory for key: ${key}`);
+  });
+  
+  summaryKeysToRemove.forEach(key => {
+    conversationSummaries.delete(key);
+    console.log(`🧹 Cleared summary memory for key: ${key}`);
+  });
+  
+  if (conversationKeysToRemove.length > 0 || summaryKeysToRemove.length > 0) {
+    console.log(`🧹 Memory cleanup completed for ${phoneNumber} - removed ${conversationKeysToRemove.length} conversation and ${summaryKeysToRemove.length} summary entries`);
+  }
+}
 
 // --- PHONE NUMBER NORMALIZATION ---
 
@@ -175,24 +225,53 @@ function normalizePhoneNumber(phoneNumber) {
 }
 
 /**
- * Find conversation history using normalized phone number lookup
- * This ensures SMS and Voice conversations share the same context
+ * Find conversation history using organization-aware phone number lookup
+ * This ensures SMS and Voice conversations are properly isolated by organization
  */
-function findConversationByPhone(phoneNumber) {
+async function findConversationByPhone(phoneNumber, organizationId = null) {
   const normalized = normalizePhoneNumber(phoneNumber);
   
-  // First try exact match
-  if (conversationContexts.has(normalized)) {
-    return { phoneNumber: normalized, history: conversationContexts.get(normalized) };
+  // Try to get organizationId if not provided
+  if (!organizationId) {
+    organizationId = await getOrganizationIdFromPhone(phoneNumber);
   }
   
-  // Try to find by checking all stored numbers
-  for (const [storedPhone, history] of conversationContexts.entries()) {
-    if (normalizePhoneNumber(storedPhone) === normalized) {
-      return { phoneNumber: storedPhone, history };
+  // FIRST: Try organization-scoped lookup if we have organizationId
+  if (organizationId) {
+    const orgMemoryKey = createOrgMemoryKey(organizationId, phoneNumber);
+    if (conversationContexts.has(orgMemoryKey)) {
+      console.log(`📋 Found conversation history for org-scoped key: ${orgMemoryKey}`);
+      return { phoneNumber: normalized, history: conversationContexts.get(orgMemoryKey) };
     }
   }
   
+  // SECOND: If no org-scoped data, check if there's legacy non-org data
+  if (conversationContexts.has(normalized)) {
+    const legacyHistory = conversationContexts.get(normalized);
+    console.log(`📋 Found legacy non-org conversation history for ${normalized} (${legacyHistory.length} messages)`);
+    
+    // If we have organizationId, migrate this data to org-scoped key
+    if (organizationId && legacyHistory.length > 0) {
+      const orgMemoryKey = createOrgMemoryKey(organizationId, phoneNumber);
+      conversationContexts.set(orgMemoryKey, legacyHistory);
+      conversationContexts.delete(normalized); // Remove legacy entry
+      console.log(`🔄 Migrated legacy conversation data to org-scoped key: ${orgMemoryKey}`);
+    }
+    
+    return { phoneNumber: normalized, history: legacyHistory };
+  }
+  
+  // THIRD: Try to find by checking all stored numbers with organization context
+  if (organizationId) {
+    for (const [storedKey, history] of conversationContexts.entries()) {
+      if (storedKey.startsWith(`${organizationId}:`) && storedKey.endsWith(normalized)) {
+        console.log(`📋 Found conversation via org-scoped search: ${storedKey}`);
+        return { phoneNumber: storedKey, history };
+      }
+    }
+  }
+  
+  // LAST: No conversation found
   return { phoneNumber: normalized, history: [] };
 }
 
@@ -203,24 +282,31 @@ async function getOrganizationIdFromPhone(phoneNumber) {
   try {
     const normalized = normalizePhoneNumber(phoneNumber);
     
-    // First try to get from active lead mapping
+    // FIRST: Check active lead mapping (current session context)
     const leadId = await getActiveLeadForPhone(phoneNumber);
     if (leadId) {
       const leadData = getLeadData(leadId);
       if (leadData && leadData.organizationId) {
+        console.log(`🔗 Found organizationId ${leadData.organizationId} from active lead ${leadId} for phone ${phoneNumber}`);
         return leadData.organizationId;
       }
     }
     
-    // Fallback: try to get from Supabase
+    // SECOND: Try Supabase with ambiguity detection
     if (supabasePersistence.isConnected) {
+      // First check without organizationId (this will detect ambiguity)
       const dbLead = await supabasePersistence.getLeadByPhone(phoneNumber);
       if (dbLead && dbLead.organization_id) {
+        console.log(`🔗 Found unambiguous organizationId ${dbLead.organization_id} for phone ${phoneNumber}`);
         return dbLead.organization_id;
+      } else if (dbLead === null) {
+        // This could mean either no leads found OR ambiguous phone number
+        // We need additional context to resolve this
+        console.log(`❓ Phone ${phoneNumber} is either not found or exists in multiple organizations`);
       }
     }
     
-    console.log(`⚠️ Could not determine organizationId for phone ${phoneNumber}`);
+    console.log(`⚠️ Could not determine organizationId for phone ${phoneNumber} - may need organization context`);
     return null;
   } catch (error) {
     console.error(`❌ Error getting organizationId for phone ${phoneNumber}:`, error);
@@ -283,38 +369,60 @@ function getConversationHistorySync(phoneNumber) {
 }
 
 function addToConversationHistory(phoneNumber, message, sentBy, messageType = 'text') {
-  const normalized = normalizePhoneNumber(phoneNumber);
-  
-  if (!conversationContexts.has(normalized)) {
-    conversationContexts.set(normalized, []);
-  }
-  
-  const history = conversationContexts.get(normalized);
-  const messageData = {
-    content: message,
-    sentBy: sentBy,
-    timestamp: new Date().toISOString(),
-    type: messageType
-  };
-  
-  history.push(messageData);
-  
-  // Keep only last 50 messages to prevent memory issues
-  if (history.length > 50) {
-    history.shift();
-  }
-  
-  console.log(`📝 Added ${messageType} message to history for ${normalized} (${sentBy}): ${message.substring(0, 100)}...`);
-  
-  // ENHANCED: Async persistence to Supabase (non-blocking)
-  // This doesn't affect existing functionality at all
+  // Get organization context immediately to prevent contamination
   (async () => {
     try {
       const organizationId = await getOrganizationIdFromPhone(phoneNumber);
+      const normalized = normalizePhoneNumber(phoneNumber);
+      
+      // Clear any contaminated memory for this phone when organizationId is determined
+      if (organizationId) {
+        clearMemoryForPhone(phoneNumber, organizationId);
+      }
+      
+      // Use organization-scoped memory key
+      const memoryKey = createOrgMemoryKey(organizationId, phoneNumber);
+      
+      if (!conversationContexts.has(memoryKey)) {
+        conversationContexts.set(memoryKey, []);
+      }
+      
+      const history = conversationContexts.get(memoryKey);
+      const messageData = {
+        content: message,
+        sentBy: sentBy,
+        timestamp: new Date().toISOString(),
+        type: messageType
+      };
+      
+      history.push(messageData);
+      
+      // Keep only last 50 messages to prevent memory issues
+      if (history.length > 50) {
+        history.shift();
+      }
+      
+      console.log(`📝 Added ${messageType} message to org-scoped history ${memoryKey} (${sentBy}): ${message.substring(0, 100)}...`);
+      
+      // Persist to Supabase
       await supabasePersistence.persistConversationMessage(phoneNumber, message, sentBy, messageType, { organizationId });
     } catch (error) {
       // Silent fail - system continues working normally
-      console.log(`🗄️ Persistence failed for message (system continues normally):`, error.message);
+      console.log(`🗄️ Organization-scoped persistence failed (system continues normally):`, error.message);
+      
+      // Fallback: store in non-org scoped memory as before (but this should be rare)
+      const normalized = normalizePhoneNumber(phoneNumber);
+      if (!conversationContexts.has(normalized)) {
+        conversationContexts.set(normalized, []);
+      }
+      const history = conversationContexts.get(normalized);
+      history.push({
+        content: message,
+        sentBy: sentBy,
+        timestamp: new Date().toISOString(),
+        type: messageType
+      });
+      console.log(`📝 FALLBACK: Added ${messageType} message to non-org memory for ${normalized}`);
     }
   })();
 }
