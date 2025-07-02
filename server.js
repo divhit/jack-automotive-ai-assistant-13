@@ -308,12 +308,15 @@ function addToConversationHistory(phoneNumber, message, sentBy, messageType = 't
   
   // ENHANCED: Async persistence to Supabase (non-blocking)
   // This doesn't affect existing functionality at all
-  const organizationId = await getOrganizationIdFromPhone(phoneNumber);
-  supabasePersistence.persistConversationMessage(phoneNumber, message, sentBy, messageType, { organizationId })
-    .catch(error => {
+  (async () => {
+    try {
+      const organizationId = await getOrganizationIdFromPhone(phoneNumber);
+      await supabasePersistence.persistConversationMessage(phoneNumber, message, sentBy, messageType, { organizationId });
+    } catch (error) {
       // Silent fail - system continues working normally
       console.log(`🗄️ Persistence failed for message (system continues normally):`, error.message);
-    });
+    }
+  })();
 }
 
 // Store conversation summary from post-call webhook
