@@ -60,26 +60,12 @@ interface TelephonyInterfaceProps {
   selectedLead: SubprimeLead | null;
   onLeadUpdate?: (leadId: string, updates: Partial<SubprimeLead>) => void;
   className?: string;
-  organizationId?: string; // SECURITY: Added organization context
 }
-
-// SECURITY: Helper function to get organization headers
-const getOrganizationHeaders = (organizationId?: string) => {
-  if (!organizationId) {
-    console.warn('⚠️ No organizationId provided - API calls may fail');
-    // Try to get from localStorage or other sources as fallback
-    // In a real app, this would come from the authentication context
-    const fallbackOrgId = localStorage.getItem('organizationId') || 'default-org';
-    return { 'organizationId': fallbackOrgId };
-  }
-  return { 'organizationId': organizationId };
-};
 
 export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
   selectedLead,
   onLeadUpdate,
-  className,
-  organizationId = 'default-org' // SECURITY: Default organization for now, should come from auth context
+  className
 }) => {
   // State management
   const [conversationHistory, setConversationHistory] = useState<ConversationMessage[]>([]);
@@ -167,31 +153,20 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
     
     closeEventSource(); // Close existing connection
     
-    // SECURITY: Include organization validation in SSE connection
     // Include phone number in query params for proper lead-to-phone mapping
     const eventSourceUrl = `/api/stream/conversation/${selectedLead.id}?phoneNumber=${encodeURIComponent(selectedLead.phoneNumber)}`;
     
-    // Note: EventSource doesn't support custom headers directly
-    // For security, we'll validate organization context on the server side using the leadId
-    // In a production app, you might need to use WebSocket or include org in URL params
     const eventSource = new EventSource(eventSourceUrl);
     eventSourceRef.current = eventSource;
     
     eventSource.onopen = () => {
-      console.log('📡 SSE connection established for lead:', selectedLead.id, '(phone:', selectedLead.phoneNumber, ') (org:', organizationId, ')');
+      console.log('📡 SSE connection established for lead:', selectedLead.id, '(phone:', selectedLead.phoneNumber, ')');
     };
     
     eventSource.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
         console.log('📡 SSE message received:', data.type, data);
-        
-        // SECURITY: Validate that the message is for the correct organization
-        if (data.organizationId && data.organizationId !== organizationId) {
-          console.error('🚨 SECURITY: Received SSE message for different organization:', data.organizationId, 'expected:', organizationId);
-          return; // Ignore messages from other organizations
-        }
-        
         handleRealTimeUpdate(data);
       } catch (error) {
         console.error('Error parsing SSE message:', error);
@@ -312,40 +287,16 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
     setError(null);
     
     try {
-      console.log('📋 Loading conversation history for lead:', selectedLead.id, '(phone:', selectedLead.phoneNumber, ') (org:', organizationId, ')');
+      console.log('📋 Loading conversation history for lead:', selectedLead.id, '(phone:', selectedLead.phoneNumber, ')');
       
-      // SECURITY: Include organization headers for validation
-      const response = await fetch(
-        `/api/conversation-history/${selectedLead.id}?phoneNumber=${encodeURIComponent(selectedLead.phoneNumber)}`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            ...getOrganizationHeaders(organizationId)
-          }
-        }
-      );
+      const response = await fetch(`/api/stream/conversation/${selectedLead.id}?phoneNumber=${encodeURIComponent(selectedLead.phoneNumber)}&load=true`);
       
       if (!response.ok) {
-        if (response.status === 403) {
-          throw new Error('Access denied - lead belongs to different organization');
-        } else if (response.status === 400) {
-          const errorData = await response.json();
-          if (errorData.code === 'MISSING_ORG_CONTEXT') {
-            throw new Error('Organization context required - please refresh the page');
-          }
-        }
         throw new Error(`Failed to load conversation history: ${response.status}`);
       }
       
       const data = await response.json();
       console.log('📋 Loaded conversation history:', data);
-      
-      // SECURITY: Validate that the returned data is for the correct organization
-      if (data.organizationId && data.organizationId !== organizationId) {
-        console.error('🚨 SECURITY: Received conversation data for different organization:', data.organizationId, 'expected:', organizationId);
-        throw new Error('Security violation - data from different organization');
-      }
       
       if (data.messages && Array.isArray(data.messages)) {
         const formattedMessages: ConversationMessage[] = data.messages.map((msg: any, index: number) => ({
@@ -358,19 +309,12 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
         }));
         
         setConversationHistory(formattedMessages);
-        console.log('✅ Formatted', formattedMessages.length, 'conversation messages for org:', organizationId);
+        console.log('✅ Formatted', formattedMessages.length, 'conversation messages');
       }
       
     } catch (error) {
       console.error('❌ Error loading conversation history:', error);
       setError(error.message || 'Failed to load conversation history');
-      
-      // SECURITY: Clear any potentially contaminated data
-      setConversationHistory([]);
-      
-      if (error.message?.includes('different organization') || error.message?.includes('Access denied')) {
-        toast.error('Security Error: Cannot access data from different organization');
-      }
     } finally {
       setIsLoading(false);
     }
@@ -383,42 +327,25 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
     setError(null);
     
     try {
-      console.log('📞 Starting voice call to:', selectedLead.phoneNumber, '(org:', organizationId, ')');
+      console.log('📞 Starting voice call to:', selectedLead.phoneNumber);
       
-      // SECURITY: Include organization headers for validation
       const response = await fetch('/api/elevenlabs/outbound-call/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...getOrganizationHeaders(organizationId)
         },
         body: JSON.stringify({
           phoneNumber: selectedLead.phoneNumber,
-          leadId: selectedLead.id,
-          organizationId: organizationId // SECURITY: Include organization context in request body
+          leadId: selectedLead.id
         })
       });
 
       if (!response.ok) {
-        if (response.status === 403) {
-          throw new Error('Access denied - lead belongs to different organization');
-        } else if (response.status === 400) {
-          const errorData = await response.json();
-          if (errorData.code === 'MISSING_ORG_CONTEXT') {
-            throw new Error('Organization context required - please refresh the page');
-          }
-        }
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to initiate call');
       }
 
       const result = await response.json();
-      
-      // SECURITY: Validate that the response is for the correct organization
-      if (result.organizationId && result.organizationId !== organizationId) {
-        console.error('🚨 SECURITY: Call response for different organization:', result.organizationId, 'expected:', organizationId);
-        throw new Error('Security violation - response from different organization');
-      }
       
       if (result.success) {
         setIsCallActive(true);
@@ -443,12 +370,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
     } catch (error) {
       console.error('Error starting voice call:', error);
       setError(error.message || 'Failed to start voice call. Please try again.');
-      
-      if (error.message?.includes('different organization') || error.message?.includes('Access denied')) {
-        toast.error('Security Error: Cannot initiate call - access denied');
-      } else {
-        toast.error(error.message || 'Failed to start call');
-      }
+      toast.error(error.message || 'Failed to start call');
     } finally {
       setIsLoading(false);
     }
@@ -481,58 +403,34 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
     setTextInput(''); // Clear input immediately for better UX
     
     try {
-      console.log('📱 Sending SMS to:', selectedLead.phoneNumber, 'Message:', messageText, '(org:', organizationId, ')');
+      console.log('📱 Sending SMS to:', selectedLead.phoneNumber, 'Message:', messageText);
       
-      // SECURITY: Include organization headers for validation
       const response = await fetch('/api/twilio/send-sms/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...getOrganizationHeaders(organizationId)
         },
         body: JSON.stringify({
           to: selectedLead.phoneNumber,
           message: messageText,
           leadId: selectedLead.id,
-          agentId: 'telephony-interface',
-          organizationId: organizationId // SECURITY: Include organization context in request body
+          agentId: 'telephony-interface'
         })
       });
 
       if (!response.ok) {
-        if (response.status === 403) {
-          throw new Error('Access denied - lead belongs to different organization');
-        } else if (response.status === 400) {
-          const errorData = await response.json();
-          if (errorData.code === 'MISSING_ORG_CONTEXT') {
-            throw new Error('Organization context required - please refresh the page');
-          }
-        }
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to send SMS');
       }
 
       const result = await response.json();
-      
-      // SECURITY: Validate that the response is for the correct organization
-      if (result.organizationId && result.organizationId !== organizationId) {
-        console.error('🚨 SECURITY: SMS response for different organization:', result.organizationId, 'expected:', organizationId);
-        throw new Error('Security violation - response from different organization');
-      }
-      
       toast.success(`SMS sent to ${selectedLead.phoneNumber}`);
-      console.log('✅ SMS sent successfully for org:', organizationId, '- message will appear via SSE stream');
+      console.log('✅ SMS sent successfully - message will appear via SSE stream');
 
     } catch (error) {
       console.error('Error sending SMS:', error);
       setError(error.message || 'Failed to send SMS. Please try again.');
-      
-      if (error.message?.includes('different organization') || error.message?.includes('Access denied')) {
-        toast.error('Security Error: Cannot send SMS - access denied');
-      } else {
-        toast.error(error.message || 'Failed to send SMS');
-      }
-      
+      toast.error(error.message || 'Failed to send SMS');
       setTextInput(messageText); // Restore message on error
     } finally {
       setIsLoading(false);
