@@ -318,15 +318,16 @@ async function getOrganizationIdFromPhone(phoneNumber) {
 async function getConversationHistory(phoneNumber, organizationId = null) {
   const normalized = normalizePhoneNumber(phoneNumber);
   
-  // If organizationId not provided, try to get it from phone number
+  // SECURITY: organizationId is now required for cross-organization data protection
   if (!organizationId) {
-    organizationId = await getOrganizationIdFromPhone(phoneNumber);
+    console.error(`🚨 SECURITY: getConversationHistory called without organizationId for ${phoneNumber}`);
+    return []; // Return empty array instead of falling back to global data
   }
   
-  // ENHANCED: Try to load from Supabase first, then fallback to memory
+  // ENHANCED: Try to load from Supabase first, then fallback to organization-scoped memory
   try {
     if (supabasePersistence.isEnabled && supabasePersistence.isConnected) {
-      console.log(`🗄️ Loading conversation history from Supabase for ${normalized}`);
+      console.log(`🗄️ Loading conversation history from Supabase for ${normalized} (org: ${organizationId})`);
       const supabaseHistory = await supabasePersistence.getConversationHistory(phoneNumber, organizationId);
       
       if (supabaseHistory && supabaseHistory.length > 0) {
@@ -334,33 +335,35 @@ async function getConversationHistory(phoneNumber, organizationId = null) {
         const voiceCount = supabaseHistory.filter(msg => msg.type === 'voice').length;
         const smsCount = supabaseHistory.filter(msg => msg.type === 'text').length;
         
-        console.log(`📋 Loaded ${supabaseHistory.length} messages from Supabase for ${phoneNumber} - ${voiceCount} voice, ${smsCount} SMS`);
+        console.log(`📋 Loaded ${supabaseHistory.length} messages from Supabase for ${phoneNumber} (org: ${organizationId}) - ${voiceCount} voice, ${smsCount} SMS`);
         
-        // Sync to memory for faster access
-        conversationContexts.set(normalized, supabaseHistory);
+        // Sync to organization-scoped memory for faster access
+        const orgMemoryKey = createOrgMemoryKey(organizationId, phoneNumber);
+        conversationContexts.set(orgMemoryKey, supabaseHistory);
         
         return supabaseHistory;
       }
     }
   } catch (error) {
-    console.log(`⚠️ Failed to load from Supabase, falling back to memory:`, error.message);
+    console.log(`⚠️ Failed to load from Supabase, falling back to organization-scoped memory:`, error.message);
   }
   
-  // Fallback to memory-based system
-  const result = findConversationByPhone(phoneNumber);
+  // Fallback to organization-scoped memory ONLY
+  const orgMemoryKey = createOrgMemoryKey(organizationId, phoneNumber);
+  const orgHistory = conversationContexts.get(orgMemoryKey) || [];
   
   // Debug: Count message types to understand the voice message issue
-  const voiceCount = result.history.filter(msg => msg.type === 'voice').length;
-  const smsCount = result.history.filter(msg => msg.type === 'text').length;
+  const voiceCount = orgHistory.filter(msg => msg.type === 'voice').length;
+  const smsCount = orgHistory.filter(msg => msg.type === 'text').length;
   
-  console.log(`📋 Found ${result.history.length} messages from memory for ${phoneNumber} (normalized: ${normalized}) - ${voiceCount} voice, ${smsCount} SMS`);
+  console.log(`📋 Found ${orgHistory.length} messages from organization-scoped memory for ${phoneNumber} (org: ${organizationId}) - ${voiceCount} voice, ${smsCount} SMS`);
   
-  // Debug: Show all stored phone numbers
-  if (result.history.length === 0) {
-    console.log(`🔍 DEBUG: All stored phone numbers:`, Array.from(conversationContexts.keys()));
+  // Debug: Show all stored phone numbers if no data found
+  if (orgHistory.length === 0) {
+    console.log(`🔍 DEBUG: All stored org-scoped keys:`, Array.from(conversationContexts.keys()).filter(k => k.startsWith(`${organizationId}:`)));
   }
   
-  return result.history;
+  return orgHistory;
 }
 
 // Synchronous version for backwards compatibility
@@ -369,78 +372,70 @@ function getConversationHistorySync(phoneNumber) {
   return result.history;
 }
 
-function addToConversationHistory(phoneNumber, message, sentBy, messageType = 'text') {
-  // Get organization context immediately to prevent contamination
-  (async () => {
-    try {
-      const organizationId = await getOrganizationIdFromPhone(phoneNumber);
-      const normalized = normalizePhoneNumber(phoneNumber);
-      
-      // Clear any contaminated memory for this phone when organizationId is determined
-      if (organizationId) {
-        clearMemoryForPhone(phoneNumber, organizationId);
-      }
-      
-      // Use organization-scoped memory key
-      const memoryKey = createOrgMemoryKey(organizationId, phoneNumber);
-      
-      if (!conversationContexts.has(memoryKey)) {
-        conversationContexts.set(memoryKey, []);
-      }
-      
-      const history = conversationContexts.get(memoryKey);
-      const messageData = {
-        content: message,
-        sentBy: sentBy,
-        timestamp: new Date().toISOString(),
-        type: messageType
-      };
-      
-      history.push(messageData);
-      
-      // Keep only last 50 messages to prevent memory issues
-      if (history.length > 50) {
-        history.shift();
-      }
-      
-      console.log(`📝 Added ${messageType} message to org-scoped history ${memoryKey} (${sentBy}): ${message.substring(0, 100)}...`);
-      
-      // Persist to Supabase
-      await supabasePersistence.persistConversationMessage(phoneNumber, message, sentBy, messageType, { organizationId });
-    } catch (error) {
-      // Silent fail - system continues working normally
+function addToConversationHistory(phoneNumber, message, sentBy, messageType = 'text', organizationId = null) {
+  // SECURITY: organizationId is now required for cross-organization data protection
+  if (!organizationId) {
+    console.error(`🚨 SECURITY: addToConversationHistory called without organizationId for ${phoneNumber}`);
+    return; // Don't store message without proper organization context
+  }
+  
+  const normalized = normalizePhoneNumber(phoneNumber);
+  
+  // Clear any contaminated non-org memory for this phone when organizationId is provided
+  clearMemoryForPhone(phoneNumber, organizationId);
+  
+  // Use organization-scoped memory key ONLY
+  const memoryKey = createOrgMemoryKey(organizationId, phoneNumber);
+  
+  if (!conversationContexts.has(memoryKey)) {
+    conversationContexts.set(memoryKey, []);
+  }
+  
+  const history = conversationContexts.get(memoryKey);
+  const messageData = {
+    content: message,
+    sentBy: sentBy,
+    timestamp: new Date().toISOString(),
+    type: messageType
+  };
+  
+  history.push(messageData);
+  
+  // Keep only last 50 messages to prevent memory issues
+  if (history.length > 50) {
+    history.shift();
+  }
+  
+  console.log(`📝 Added ${messageType} message to org-scoped history ${memoryKey} (${sentBy}): ${message.substring(0, 100)}...`);
+  
+  // Persist to Supabase with organization context
+  supabasePersistence.persistConversationMessage(phoneNumber, message, sentBy, messageType, { organizationId })
+    .catch(error => {
       console.log(`🗄️ Organization-scoped persistence failed (system continues normally):`, error.message);
-      
-      // Fallback: store in non-org scoped memory as before (but this should be rare)
-      const normalized = normalizePhoneNumber(phoneNumber);
-      if (!conversationContexts.has(normalized)) {
-        conversationContexts.set(normalized, []);
-      }
-      const history = conversationContexts.get(normalized);
-      history.push({
-        content: message,
-        sentBy: sentBy,
-        timestamp: new Date().toISOString(),
-        type: messageType
-      });
-      console.log(`📝 FALLBACK: Added ${messageType} message to non-org memory for ${normalized}`);
-    }
-  })();
+    });
 }
 
-// Store conversation summary from post-call webhook
-function storeConversationSummary(phoneNumber, summary) {
+// Store conversation summary from post-call webhook - SECURITY FIXED
+function storeConversationSummary(phoneNumber, summary, organizationId = null) {
+  // SECURITY: organizationId is now required for cross-organization data protection
+  if (!organizationId) {
+    console.error(`🚨 SECURITY: storeConversationSummary called without organizationId for ${phoneNumber}`);
+    return; // Don't store summary without proper organization context
+  }
+  
   const normalized = normalizePhoneNumber(phoneNumber);
   const summaryData = {
     summary,
     timestamp: new Date().toISOString()
   };
   
-  conversationSummaries.set(normalized, summaryData);
-  console.log(`📋 Stored conversation summary for ${normalized}:`, summary.substring(0, 100) + '...');
+  // Use organization-scoped memory key
+  const orgMemoryKey = createOrgMemoryKey(organizationId, phoneNumber);
+  conversationSummaries.set(orgMemoryKey, summaryData);
+  console.log(`📋 Stored conversation summary for ${normalized} (org: ${organizationId}):`, summary.substring(0, 100) + '...');
   
-  // ENHANCED: Async persistence to Supabase (non-blocking)
-  supabasePersistence.persistConversationSummary(phoneNumber, summary, summaryData.timestamp)
+  // ENHANCED: Async persistence to Supabase with organization context (non-blocking)
+  supabasePersistence.persistConversationSummary(phoneNumber, summary, summaryData.timestamp, { organizationId })
     .catch(error => {
       console.log(`🗄️ Persistence failed for summary (system continues normally):`, error.message);
     });
@@ -602,36 +597,39 @@ async function updateLeadFromConversationData(phoneNumber, dataCollectionResults
   }
 }
 
-// Get conversation summary - enhanced with Supabase loading
+// Get conversation summary - SECURITY FIXED with organization validation
 async function getConversationSummary(phoneNumber, organizationId = null) {
   const normalized = normalizePhoneNumber(phoneNumber);
   
-  // If organizationId not provided, try to get it from phone number
+  // SECURITY: organizationId is now required for cross-organization data protection
   if (!organizationId) {
-    organizationId = await getOrganizationIdFromPhone(phoneNumber);
+    console.error(`🚨 SECURITY: getConversationSummary called without organizationId for ${phoneNumber}`);
+    return null; // Return null instead of falling back to global data
   }
   
-  // ENHANCED: Try to load from Supabase first, then fallback to memory
+  // ENHANCED: Try to load from Supabase first, then fallback to organization-scoped memory
   try {
     if (supabasePersistence.isEnabled && supabasePersistence.isConnected) {
-      console.log(`🗄️ Loading conversation summary from Supabase for ${normalized}`);
+      console.log(`🗄️ Loading conversation summary from Supabase for ${normalized} (org: ${organizationId})`);
       const supabaseSummary = await supabasePersistence.getConversationSummary(phoneNumber, organizationId);
       
       if (supabaseSummary) {
         console.log(`📋 Loaded summary from Supabase for ${phoneNumber} in organization ${organizationId}`);
         
-        // Sync to memory for faster access
-        conversationSummaries.set(normalized, supabaseSummary);
+        // Sync to organization-scoped memory for faster access
+        const orgMemoryKey = createOrgMemoryKey(organizationId, phoneNumber);
+        conversationSummaries.set(orgMemoryKey, supabaseSummary);
         
         return supabaseSummary;
       }
     }
   } catch (error) {
-    console.log(`⚠️ Failed to load summary from Supabase, falling back to memory:`, error.message);
+    console.log(`⚠️ Failed to load summary from Supabase, falling back to organization-scoped memory:`, error.message);
   }
   
-  // Fallback to memory (NOTE: Memory doesn't have organization filtering)
-  return conversationSummaries.get(normalized);
+  // Fallback to organization-scoped memory ONLY
+  const orgMemoryKey = createOrgMemoryKey(organizationId, phoneNumber);
+  return conversationSummaries.get(orgMemoryKey);
 }
 
 // Synchronous version for backwards compatibility
@@ -692,15 +690,18 @@ function getLeadData(leadId) {
   return staticLead;
 }
 
-async function buildConversationContext(phoneNumber) {
-  // Get organizationId to prevent cross-organization data leakage
-  const organizationId = await getOrganizationIdFromPhone(phoneNumber);
+async function buildConversationContext(phoneNumber, organizationId = null) {
+  // SECURITY: organizationId is now required for cross-organization data protection
+  if (!organizationId) {
+    console.error(`🚨 SECURITY: buildConversationContext called without organizationId for ${phoneNumber}`);
+    return ''; // Return empty context instead of risking cross-organization data leakage
+  }
   
   const history = await getConversationHistory(phoneNumber, organizationId);
   const summaryData = await getConversationSummary(phoneNumber, organizationId);
   
   if (history.length === 0 && !summaryData) {
-    console.log(`📋 No conversation history or summary found for ${phoneNumber} (normalized: ${normalizePhoneNumber(phoneNumber)})`);
+    console.log(`📋 No conversation history or summary found for ${phoneNumber} (org: ${organizationId}) (normalized: ${normalizePhoneNumber(phoneNumber)})`);
     return '';
   }
   
@@ -743,7 +744,7 @@ async function buildConversationContext(phoneNumber) {
 - If this feels like a continuation, acknowledge it naturally: "Great to hear from you again" or similar
 - DO NOT restart or re-introduce yourself if you've already spoken with this customer`;
   
-  console.log(`📋 Built conversation context for ${phoneNumber} with summary + ${history.length} total messages (${voiceMessages.length} voice, ${smsMessages.length} SMS):`, contextText.substring(0, 400) + '...');
+  console.log(`📋 Built conversation context for ${phoneNumber} (org: ${organizationId}) with summary + ${history.length} total messages (${voiceMessages.length} voice, ${smsMessages.length} SMS):`, contextText.substring(0, 400) + '...');
   return contextText;
 }
 
@@ -1372,15 +1373,28 @@ app.post('/api/webhooks/twilio/sms/status', (req, res) => {
   res.sendStatus(200);
 });
 
-// ElevenLabs Outbound Call API (for Voice, using Native Integration)
-app.post('/api/elevenlabs/outbound-call', async (req, res) => {
+// ElevenLabs Outbound Call API (for Voice, using Native Integration) - SECURITY FIXED
+app.post('/api/elevenlabs/outbound-call', validateOrganizationAccess, async (req, res) => {
   console.log('📞 Outbound call request received for native integration:', req.body);
   
   try {
     const { phoneNumber, leadId } = req.body;
+    const { organizationId } = req;
     
     if (!phoneNumber) {
       return res.status(400).json({ error: 'Phone number is required' });
+    }
+
+    console.log('📞 Outbound call request with org context:', { phoneNumber, leadId, organizationId });
+
+    // SECURITY: Validate lead belongs to organization
+    const leadData = getLeadData(leadId);
+    if (leadData && leadData.organizationId && leadData.organizationId !== organizationId) {
+      console.error(`🚨 SECURITY VIOLATION: Attempted call to lead ${leadId} belonging to org ${leadData.organizationId} by org ${organizationId}`);
+      return res.status(403).json({ 
+        error: 'Access denied - lead belongs to different organization',
+        code: 'CROSS_ORG_ACCESS_DENIED' 
+      });
     }
 
     const apiKey = process.env.ELEVENLABS_API_KEY;
@@ -1410,13 +1424,11 @@ app.post('/api/elevenlabs/outbound-call', async (req, res) => {
     // Generate a unique conversation ID for tracking
     const tempConversationId = `temp_${Date.now()}_${phoneNumber}`;
     
-    // SECURITY FIX: Get organizationId to prevent cross-organization data leakage
-    const organizationId = await getOrganizationIdFromPhone(normalizedPhoneNumber);
+    // SECURITY: Use provided organizationId instead of trying to determine it
     const summary = await getConversationSummary(normalizedPhoneNumber, organizationId);
     const messages = await getConversationHistory(normalizedPhoneNumber, organizationId);
     
-    // Get actual lead data instead of placeholders
-    const leadData = getLeadData(leadId);
+    // Get actual lead data instead of placeholders (already retrieved above for validation)
     const customerName = leadData?.customerName || `Customer ${phoneNumber}`;
     const leadStatus = summary?.summary ? "Returning Customer" : (messages.length > 0 ? "Active Lead" : "New Inquiry");
     
@@ -1451,6 +1463,7 @@ app.post('/api/elevenlabs/outbound-call', async (req, res) => {
       conversation_initiation_client_data: {
         lead_id: leadId,
         customer_phone: phoneNumber,
+        organization_id: organizationId, // SECURITY: Include organization context
         dynamic_variables: {
           conversation_context: conversationContext.length > 500 ? conversationContext.substring(0, 500) + "..." : conversationContext,
           customer_name: customerName,
@@ -1460,7 +1473,7 @@ app.post('/api/elevenlabs/outbound-call', async (req, res) => {
       }
     };
 
-    console.log(`📞 Initiating ElevenLabs native call to ${phoneNumber}`);
+    console.log(`📞 Initiating ElevenLabs native call to ${phoneNumber} (org: ${organizationId})`);
     console.log(`📞 Using phone number ID: ${phoneNumberId}`);
     console.log(`📞 Call payload:`, JSON.stringify(callPayload, null, 2));
 
@@ -1500,7 +1513,8 @@ app.post('/api/elevenlabs/outbound-call', async (req, res) => {
       callDirection: 'outbound',
       startedAt: new Date().toISOString(),
       conversationContext: conversationContext,
-      dynamicVariables: callPayload.conversation_initiation_client_data?.dynamic_variables
+      dynamicVariables: callPayload.conversation_initiation_client_data?.dynamic_variables,
+      organizationId: organizationId // SECURITY: Include organization context
     }).catch(error => {
       console.log(`🗄️ Call session persistence failed (system continues normally):`, error.message);
     });
@@ -1510,13 +1524,16 @@ app.post('/api/elevenlabs/outbound-call', async (req, res) => {
       phoneNumber,
       leadId,
       conversationId,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      organizationId
     });
     
     res.status(200).json({ 
+      success: true,
       message: 'Outbound call initiated successfully', 
       callSid: result.call_sid,
       conversationId,
+      organizationId,
       ...result 
     });
     
@@ -1530,10 +1547,11 @@ app.post('/api/elevenlabs/outbound-call', async (req, res) => {
   }
 });
 
-// Twilio SMS Send API (for manual SMS from dashboard text box)
-app.post('/api/twilio/send-sms', async (req, res) => {
+// Twilio SMS Send API (for manual SMS from dashboard text box) - SECURITY FIXED
+app.post('/api/twilio/send-sms', validateOrganizationAccess, async (req, res) => {
   try {
     const { to, message, leadId, agentId } = req.body;
+    const { organizationId } = req;
     
     if (!to || !message) {
       return res.status(400).json({ error: 'Both "to" and "message" are required' });
@@ -1543,7 +1561,17 @@ app.post('/api/twilio/send-sms', async (req, res) => {
       return res.status(400).json({ error: 'Lead ID is required for context management' });
     }
     
-    console.log('📱 Manual SMS send request:', { to, message: message.substring(0, 50) + '...', leadId, agentId });
+    console.log('📱 Manual SMS send request:', { to, message: message.substring(0, 50) + '...', leadId, agentId, organizationId });
+    
+    // SECURITY: Validate lead belongs to organization
+    const leadData = getLeadData(leadId);
+    if (leadData && leadData.organizationId && leadData.organizationId !== organizationId) {
+      console.error(`🚨 SECURITY VIOLATION: Attempted SMS to lead ${leadId} belonging to org ${leadData.organizationId} by org ${organizationId}`);
+      return res.status(403).json({ 
+        error: 'Access denied - lead belongs to different organization',
+        code: 'CROSS_ORG_ACCESS_DENIED' 
+      });
+    }
     
     // Normalize phone number for consistent context storage
     const normalizedPhone = normalizePhoneNumber(to);
@@ -1551,8 +1579,8 @@ app.post('/api/twilio/send-sms', async (req, res) => {
     // Send SMS via existing Twilio function
     await sendSMSReply(to, message);
     
-    // Store in conversation history using existing function
-    addToConversationHistory(to, message, 'agent', 'text');
+    // Store in conversation history using existing function with organization context
+    addToConversationHistory(to, message, 'agent', 'text', organizationId);
     
     // Broadcast to dashboard using existing SSE system
     broadcastConversationUpdate({
@@ -1562,16 +1590,18 @@ app.post('/api/twilio/send-sms', async (req, res) => {
       timestamp: new Date().toISOString(),
       sentBy: 'agent',
       leadId: leadId, // This ensures it goes to the correct dashboard
-      status: 'sent'
+      status: 'sent',
+      organizationId
     });
     
-    console.log('✅ Manual SMS sent and broadcasted successfully');
+    console.log('✅ Manual SMS sent and broadcasted successfully for org:', organizationId);
     
     res.status(200).json({ 
       success: true, 
       message: 'SMS sent successfully',
       normalizedPhone,
-      leadId
+      leadId,
+      organizationId
     });
     
   } catch (error) {
@@ -2154,12 +2184,46 @@ function broadcastConversationUpdate(data) {
   }
 }
 
-// Server-Sent Events endpoint for real-time UI updates
-app.get('/api/stream/conversation/:leadId', async (req, res) => {
+// SECURITY: Organization validation middleware
+async function validateOrganizationAccess(req, res, next) {
+  try {
+    const { leadId } = req.params;
+    const { organizationId } = req.headers; // Expected from frontend
+    
+    if (!organizationId) {
+      return res.status(400).json({ 
+        error: 'Organization context required',
+        code: 'MISSING_ORG_CONTEXT' 
+      });
+    }
+    
+    // Validate lead belongs to organization
+    if (leadId) {
+      const leadData = getLeadData(leadId);
+      if (leadData && leadData.organizationId && leadData.organizationId !== organizationId) {
+        console.error(`🚨 SECURITY VIOLATION: Attempted cross-organization access - Lead ${leadId} belongs to org ${leadData.organizationId}, requested by org ${organizationId}`);
+        return res.status(403).json({ 
+          error: 'Access denied - lead belongs to different organization',
+          code: 'CROSS_ORG_ACCESS_DENIED' 
+        });
+      }
+    }
+    
+    req.organizationId = organizationId;
+    next();
+  } catch (error) {
+    console.error('❌ Organization validation error:', error);
+    res.status(500).json({ error: 'Organization validation failed' });
+  }
+}
+
+// Server-Sent Events endpoint for real-time UI updates - SECURITY FIXED
+app.get('/api/stream/conversation/:leadId', validateOrganizationAccess, async (req, res) => {
   const { leadId } = req.params;
-  const { phoneNumber, load } = req.query; // Get phone number and load flag from query params
+  const { phoneNumber, load } = req.query;
+  const { organizationId } = req;
   
-  console.log(`📡 SSE connection established for lead: ${leadId}`, phoneNumber ? `(phone: ${phoneNumber})` : '');
+  console.log(`📡 SSE connection established for lead: ${leadId} (org: ${organizationId})`, phoneNumber ? `(phone: ${phoneNumber})` : '');
   
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
@@ -2176,16 +2240,14 @@ app.get('/api/stream/conversation/:leadId', async (req, res) => {
     setActiveLeadForPhone(phoneNumber, leadId);
   }
   
-  res.write(`data: ${JSON.stringify({ type: 'connected', leadId })}\n\n`);
+  res.write(`data: ${JSON.stringify({ type: 'connected', leadId, organizationId })}\n\n`);
 
-  // ENHANCED: If load=true, send existing conversation history
+  // SECURITY FIXED: If load=true, send existing conversation history with organization validation
   if (load === 'true' && phoneNumber) {
     try {
-      console.log(`📋 Loading conversation history for SSE connection: ${leadId} (phone: ${phoneNumber})`);
+      console.log(`📋 Loading conversation history for SSE connection: ${leadId} (phone: ${phoneNumber}) (org: ${organizationId})`);
       
-      // ENHANCED: Use async function to load from Supabase
-      // SECURITY FIX: Get organizationId to prevent cross-organization data leakage
-      const organizationId = await getOrganizationIdFromPhone(phoneNumber);
+      // SECURITY: Use provided organizationId instead of trying to determine it
       const messages = await getConversationHistory(phoneNumber, organizationId);
       const summary = await getConversationSummary(phoneNumber, organizationId);
       
@@ -2206,10 +2268,11 @@ app.get('/api/stream/conversation/:leadId', async (req, res) => {
         phoneNumber,
         messages: formattedMessages,
         summary: summary?.summary,
-        totalMessages: formattedMessages.length
+        totalMessages: formattedMessages.length,
+        organizationId
       })}\n\n`);
       
-      console.log(`📋 Sent ${formattedMessages.length} messages via SSE for lead ${leadId}`);
+      console.log(`📋 Sent ${formattedMessages.length} messages via SSE for lead ${leadId} (org: ${organizationId})`);
       
     } catch (error) {
       console.error(`❌ Error loading conversation history for SSE:`, error);
@@ -2384,11 +2447,12 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Conversation history endpoint - ENHANCED with Supabase loading
-app.get('/api/conversation-history/:leadId', async (req, res) => {
+// Conversation history endpoint - SECURITY FIXED with organization validation
+app.get('/api/conversation-history/:leadId', validateOrganizationAccess, async (req, res) => {
   try {
     const { leadId } = req.params;
     const { phoneNumber } = req.query;
+    const { organizationId } = req;
     
     if (!leadId) {
       return res.status(400).json({ error: 'Lead ID is required' });
@@ -2403,21 +2467,20 @@ app.get('/api/conversation-history/:leadId', async (req, res) => {
     }
     
     if (!phoneToUse) {
-      console.log(`⚠️ No phone number found for lead ${leadId}`);
+      console.log(`⚠️ No phone number found for lead ${leadId} (org: ${organizationId})`);
       return res.json({ 
         messages: [],
         leadId,
+        organizationId,
         message: 'No phone number associated with this lead'
       });
     }
     
-    // ENHANCED: Use async function to load from Supabase
-    // SECURITY FIX: Get organizationId to prevent cross-organization data leakage
-    const organizationId = await getOrganizationIdFromPhone(phoneToUse);
+    // SECURITY: Use provided organizationId instead of trying to determine it
     const messages = await getConversationHistory(phoneToUse, organizationId);
     const summary = await getConversationSummary(phoneToUse, organizationId);
     
-    console.log(`📋 API: Retrieved ${messages.length} messages for lead ${leadId} (${phoneToUse})`);
+    console.log(`📋 API: Retrieved ${messages.length} messages for lead ${leadId} (${phoneToUse}) (org: ${organizationId})`);
     
     // Convert internal message format to API format
     const formattedMessages = messages.map((msg, index) => ({
@@ -2434,7 +2497,8 @@ app.get('/api/conversation-history/:leadId', async (req, res) => {
       leadId,
       phoneNumber: phoneToUse,
       summary: summary?.summary,
-      totalMessages: formattedMessages.length
+      totalMessages: formattedMessages.length,
+      organizationId
     });
     
   } catch (error) {
