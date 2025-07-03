@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { User } from 'lucide-react';
 import { SubprimeLead } from '@/data/subprime/subprimeLeads';
 import { TelephonyInterface } from './TelephonyInterface-fixed';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface SubprimeLeadDetailModalProps {
   lead: SubprimeLead | null;
@@ -23,6 +24,8 @@ const SubprimeLeadDetailModal: React.FC<SubprimeLeadDetailModalProps> = ({
   onOpenChange,
   onLeadUpdate
 }) => {
+  const { organization } = useAuth();
+  
   if (!lead) return null;
 
   const getStatusColor = (status: string) => {
@@ -64,16 +67,34 @@ const SubprimeLeadDetailModal: React.FC<SubprimeLeadDetailModalProps> = ({
               <span>ID: {lead.id}</span>
               <span>•</span>
               <span>Specialist: {lead.assignedSpecialist}</span>
+              {organization && (
+                <>
+                  <span>•</span>
+                  <span>Org: {organization.name}</span>
+                </>
+              )}
             </div>
           </DialogTitle>
         </DialogHeader>
 
         <div className="flex-1 overflow-hidden">
-          <TelephonyInterface
-            selectedLead={lead}
-            onLeadUpdate={onLeadUpdate}
-            className="h-full w-full"
-          />
+          {/* SECURITY: Only render TelephonyInterface when we have organization context */}
+          {organization?.id ? (
+            <TelephonyInterface
+              selectedLead={lead}
+              onLeadUpdate={onLeadUpdate}
+              className="h-full w-full"
+              organizationId={organization.id} // SECURITY: Pass organization ID from auth context
+            />
+          ) : (
+            <div className="h-full w-full flex items-center justify-center">
+              <div className="text-center text-muted-foreground">
+                <User className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>Loading organization context...</p>
+                <p className="text-sm mt-2">Please wait while we verify your organization access.</p>
+              </div>
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
