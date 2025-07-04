@@ -344,16 +344,25 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
   const handleStartVoiceCall = async () => {
     if (!selectedLead) return;
     
+    // SECURITY: Validate organization context before starting call
+    if (!organization?.id) {
+      console.error('🚨 SECURITY: No organization context - cannot start call');
+      setError('Organization context missing. Please refresh the page.');
+      toast.error('Organization context missing');
+      return;
+    }
+    
     setIsLoading(true);
     setError(null);
     
     try {
-      console.log('📞 Starting voice call to:', selectedLead.phoneNumber);
+      console.log('📞 Starting voice call to:', selectedLead.phoneNumber, 'Org:', organization.name);
       
       const response = await fetch('/api/elevenlabs/outbound-call/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'organizationId': organization.id, // SECURITY: Include organization context
         },
         body: JSON.stringify({
           phoneNumber: selectedLead.phoneNumber,
@@ -419,17 +428,26 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
   const handleSendTextMessage = async () => {
     if (!selectedLead || !textInput.trim()) return;
     
+    // SECURITY: Validate organization context before sending SMS
+    if (!organization?.id) {
+      console.error('🚨 SECURITY: No organization context - cannot send SMS');
+      setError('Organization context missing. Please refresh the page.');
+      toast.error('Organization context missing');
+      return;
+    }
+    
     setIsLoading(true);
     const messageText = textInput.trim();
     setTextInput(''); // Clear input immediately for better UX
     
     try {
-      console.log('📱 Sending SMS to:', selectedLead.phoneNumber, 'Message:', messageText);
+      console.log('📱 Sending SMS to:', selectedLead.phoneNumber, 'Message:', messageText, 'Org:', organization.name);
       
       const response = await fetch('/api/twilio/send-sms/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'organizationId': organization.id, // SECURITY: Include organization context
         },
         body: JSON.stringify({
           to: selectedLead.phoneNumber,

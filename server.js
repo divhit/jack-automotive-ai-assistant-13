@@ -2216,11 +2216,15 @@ async function validateOrganizationAccess(req, res, next) {
   const { leadId } = req.params;
     // For SSE connections, organizationId comes from query params since headers aren't supported
     // For regular API calls, organizationId comes from headers
-    const organizationId = req.headers.organizationId || req.query.organizationId;
+    // FIXED: Handle case variations in headers (organizationId vs organizationid)
+    const organizationId = req.headers.organizationId || 
+                          req.headers.organizationid || 
+                          req.headers['organization-id'] ||
+                          req.query.organizationId;
     
     console.log('🔍 Organization validation:', {
       leadId,
-      fromHeaders: req.headers.organizationId,
+      fromHeaders: req.headers.organizationId || req.headers.organizationid,
       fromQuery: req.query.organizationId,
       finalOrgId: organizationId,
       url: req.url,
@@ -2805,7 +2809,7 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', async (req, res) =>
 });
 
 // API endpoint to create new leads (called from SubprimeAddLeadDialog)
-app.post('/api/subprime/create-lead', async (req, res) => {
+app.post('/api/subprime/create-lead', validateOrganizationAccess, async (req, res) => {
   try {
     const leadData = req.body;
     

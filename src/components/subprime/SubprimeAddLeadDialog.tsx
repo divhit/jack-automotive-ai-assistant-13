@@ -172,6 +172,7 @@ export const SubprimeAddLeadDialog = ({ open, onOpenChange, onLeadAdded }: Subpr
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'organizationId': organizationId, // SECURITY: Include organization context
         },
         body: JSON.stringify(newLead)
       });
