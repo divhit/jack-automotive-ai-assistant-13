@@ -198,6 +198,9 @@ class SupabasePersistenceService {
         type: messageType === 'text' ? 'sms' : messageType, // Ensure SMS messages are properly categorized
         phone_number_normalized: normalizedPhone,
         
+        // CRITICAL: Set organization_id for proper data isolation
+        organization_id: metadata.organizationId,
+        
         // Preserve all telephony metadata
         twilio_message_sid: metadata.twilioMessageSid,
         twilio_call_sid: metadata.twilioCallSid,
@@ -275,6 +278,9 @@ class SupabasePersistenceService {
         summary: sessionData.summary,
         call_outcome: sessionData.callOutcome,
         
+        // CRITICAL: Set organization_id for proper data isolation
+        organization_id: sessionData.organizationId,
+        
         // Preserve context exactly
         conversation_context: sessionData.conversationContext,
         dynamic_variables: JSON.stringify(sessionData.dynamicVariables || {})
@@ -295,18 +301,24 @@ class SupabasePersistenceService {
   }
 
   // CONVERSATION SUMMARY PERSISTENCE (preserves exact summary structure)
-  async persistConversationSummary(phoneNumber, summary, timestamp) {
+  async persistConversationSummary(phoneNumber, summary, timestamp, metadata = {}) {
     if (!this.isEnabled || !this.isConnected) return;
     
     try {
       const normalizedPhone = this.normalizePhoneNumber(phoneNumber);
       
-      // Find lead ID
-      const { data: leads, error: leadError } = await this.supabase
+      // Find lead ID by phone number
+      let leadQuery = this.supabase
         .from('leads')
-        .select('id')
-        .eq('phone_number_normalized', normalizedPhone)
-        .limit(1);
+        .select('id, organization_id')
+        .eq('phone_number_normalized', normalizedPhone);
+
+      // If organizationId provided in metadata, scope the lookup
+      if (metadata.organizationId) {
+        leadQuery = leadQuery.eq('organization_id', metadata.organizationId);
+      }
+
+      const { data: leads, error: leadError } = await leadQuery.limit(1);
 
       if (leadError) throw leadError;
       if (!leads || leads.length === 0) return;
@@ -316,7 +328,8 @@ class SupabasePersistenceService {
         lead_id: leads[0].id,
         summary: summary,
         timestamp: timestamp || new Date().toISOString(),
-        conversation_type: 'mixed'
+        conversation_type: 'mixed',
+        organization_id: metadata.organizationId || leads[0].organization_id
       };
 
       const { error } = await this.supabase
