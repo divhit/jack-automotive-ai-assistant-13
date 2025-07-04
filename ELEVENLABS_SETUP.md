@@ -1,3 +1,60 @@
+# ElevenLabs Configuration - Complete Setup Guide
+
+## 🎯 **First Message Field**
+
+**Copy this into the "First message" field in ElevenLabs:**
+
+```
+Hi {{customer_name}}! Jack from {{organization_name}} here. I'm here to help you with your vehicle financing. Are you available to chat for a few minutes?
+```
+
+### **Why This Works:**
+- ✅ **Uses dynamic variables** (`customer_name`, `organization_name`)
+- ✅ **Simple variable substitution** (no conditionals - ElevenLabs doesn't support them)
+- ✅ **Gives customer control** (phone vs text choice)
+- ✅ **Sets professional tone** while being approachable
+- ✅ **Works for all scenarios** (first contact, follow-ups, continuations)
+
+---
+
+## 🎯 **System Prompt Field**
+
+**Use the content from:** `JACK_NEW_SYSTEM_PROMPT.md`
+
+This system prompt includes:
+- ✅ **All dynamic variables** properly integrated
+- ✅ **Organization-specific branding** with {{organization_name}}
+- ✅ **Context-aware responses** using conversation_context and previous_summary
+- ✅ **Subprime automotive financing expertise**
+- ✅ **Empathetic, human-like communication style**
+- ✅ **Flexible script framework** for various scenarios
+
+---
+
+## 🔧 **Variables to Add (if not already present)**
+
+Make sure these dynamic variables are configured in ElevenLabs:
+
+1. **`customer_name`** - Customer's name
+2. **`organization_name`** - Dealership/organization name  
+3. **`lead_status`** - Lead status (New Inquiry, Returning Customer, etc.)
+4. **`previous_summary`** - Summary of previous conversations
+5. **`conversation_context`** - Context from previous interactions
+
+---
+
+## 🎉 **Expected Results**
+
+### **For Premium Auto Sales:**
+- Customer calls: Jack says *"Hi John, this is Jack from Premium Auto Sales"*
+- Context-aware: *"I see you were interested in that Honda Civic we discussed"*
+
+### **For Downtown Motors:**
+- Customer calls: Jack says *"Hi Sarah, this is Jack from Downtown Motors"* 
+- Follow-up: *"Hope you're doing well since we last spoke about financing options"*
+
+**Professional, personalized, organization-specific experience!**
+
 # ElevenLabs Conversational AI Setup Guide
 
 This guide will help you set up the ElevenLabs Conversational AI integration for subprime lead management.

@@ -1099,7 +1099,7 @@ function startConversation(phoneNumber, initialMessage) {
             // SECURITY FIX: Get organizationId for proper history scoping
             const organizationId = await getOrganizationIdFromPhone(phoneNumber);
             addToConversationHistory(phoneNumber, agentResponse, 'agent', 'text', organizationId);
-            sendSMSReply(phoneNumber, agentResponse);
+            sendSMSReply(phoneNumber, agentResponse, organizationId);
             
             // Get the active lead ID for this phone number
             const leadId = await getActiveLeadForPhone(phoneNumber);
@@ -1345,16 +1345,26 @@ app.post('/api/webhooks/twilio/sms/incoming', async (req, res) => {
   console.log('📱 Twilio SMS Incoming Webhook received:', req.body);
   
   try {
-    const { From, Body, MessageSid } = req.body;
+    const { From, To, Body, MessageSid } = req.body;
     
-    if (!From || !Body) {
+    if (!From || !To || !Body) {
       console.error('❌ Missing required SMS data');
       return res.status(400).send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
     }
     
-    console.log('✅ Incoming SMS processed:', { from: From, body: Body, messageSid: MessageSid });
+    console.log('✅ Incoming SMS processed:', { from: From, to: To, body: Body, messageSid: MessageSid });
 
     const normalizedFrom = normalizePhoneNumber(From);
+
+    // ORGANIZATION ROUTING: Find organization by the phone number that RECEIVED the message (To)
+    const organizationId = await getOrganizationByPhoneNumber(To);
+    
+    if (!organizationId) {
+      console.error(`❌ No organization found for phone number ${To}. SMS cannot be routed.`);
+      return res.status(404).send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+    }
+    
+    console.log(`🎯 SMS routed to organization: ${organizationId} via phone number: ${To}`);
 
     // Get the active lead ID for this phone number (prioritizes SSE connections)
     const leadId = await getActiveLeadForPhone(From);
@@ -1366,11 +1376,12 @@ app.post('/api/webhooks/twilio/sms/incoming', async (req, res) => {
       timestamp: new Date().toISOString(),
       messageSid: MessageSid,
       sentBy: 'user',
-      leadId: leadId // Use the active lead ID
+      leadId: leadId,
+      organizationId: organizationId,
+      receivedOnNumber: To
     });
 
-    // SECURITY FIX: Get organizationId to prevent cross-organization data leakage
-    const organizationId = await getOrganizationIdFromPhone(From);
+    // SECURITY FIX: Use organization-specific context
     
     if (activeConversations.has(normalizedFrom)) {
       console.log('➡️ Existing conversation found. Sending message.');
@@ -1432,18 +1443,32 @@ app.post('/api/elevenlabs/outbound-call', validateOrganizationAccess, async (req
 
     const apiKey = process.env.ELEVENLABS_API_KEY;
     const agentId = process.env.ELEVENLABS_AGENT_ID;
-    const phoneNumberId = process.env.ELEVENLABS_PHONE_NUMBER_ID;
     
     console.log('🔐 Environment check:', { 
       hasApiKey: !!apiKey, 
       hasAgentId: !!agentId,
-      hasPhoneNumberId: !!phoneNumberId,
       agentIdLength: agentId?.length 
     });
     
-    if (!apiKey || !agentId || !phoneNumberId) {
-      console.error('❌ Missing credentials for native outbound call. Ensure ELEVENLABS_API_KEY, ELEVENLABS_AGENT_ID, and ELEVENLABS_PHONE_NUMBER_ID are set.');
+    if (!apiKey || !agentId) {
+      console.error('❌ Missing credentials for native outbound call. Ensure ELEVENLABS_API_KEY and ELEVENLABS_AGENT_ID are set.');
       return res.status(500).json({ error: 'Server configuration error for voice calls. Missing required environment variables.' });
+    }
+
+    // GET ORGANIZATION-SPECIFIC PHONE NUMBER
+    const orgPhone = await getOrganizationPhoneNumber(organizationId);
+    const phoneNumberId = orgPhone.elevenLabsPhoneId;
+    
+    console.log(`📞 Using organization phone number: ${orgPhone.phoneNumber} (ElevenLabs ID: ${phoneNumberId})`);
+    
+    if (!phoneNumberId) {
+      console.error('❌ No ElevenLabs phone number ID found for organization');
+      return res.status(500).json({ 
+        error: 'Organization phone number not configured. Please contact admin to set up phone number.',
+        requiresSetup: true,
+        organizationId,
+        fallbackUsed: orgPhone.phoneNumber === process.env.TWILIO_PHONE_NUMBER
+      });
     }
 
     // Use the exact API specification from ElevenLabs documentation
@@ -1488,6 +1513,23 @@ app.post('/api/elevenlabs/outbound-call', validateOrganizationAccess, async (req
       console.log(`📋 New conversation - no previous history`);
     }
 
+    // GET ORGANIZATION NAME for outbound calls
+    let organizationName = "Jack Automotive";
+    try {
+      const { data: orgData, error } = await supabase
+        .from('organizations')
+        .select('name')
+        .eq('id', organizationId)
+        .single();
+      
+      if (orgData && !error) {
+        organizationName = orgData.name;
+        console.log(`🏢 Using organization name for outbound call: ${organizationName}`);
+      }
+    } catch (error) {
+      console.error(`❌ Error fetching organization name for outbound call:`, error);
+    }
+
     const callPayload = {
       agent_id: agentId,
       agent_phone_number_id: phoneNumberId,
@@ -1501,7 +1543,8 @@ app.post('/api/elevenlabs/outbound-call', validateOrganizationAccess, async (req
           conversation_context: conversationContext.length > 500 ? conversationContext.substring(0, 500) + "..." : conversationContext,
           customer_name: customerName,
           lead_status: leadStatus,
-          previous_summary: previousSummary
+          previous_summary: previousSummary,
+          organization_name: organizationName
         }
       }
     };
@@ -1610,7 +1653,7 @@ app.post('/api/twilio/send-sms', validateOrganizationAccess, async (req, res) =>
     const normalizedPhone = normalizePhoneNumber(to);
     
     // Send SMS via existing Twilio function
-    await sendSMSReply(to, message);
+    await sendSMSReply(to, message, organizationId);
     
     // Store in conversation history using existing function with organization context
     addToConversationHistory(to, message, 'agent', 'text', organizationId);
@@ -1657,6 +1700,142 @@ app.post('/api/internal/broadcast', (req, res) => {
   } catch (error) {
     console.error('❌ Error in internal broadcast:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// --- ORGANIZATION PHONE NUMBER MANAGEMENT ENDPOINTS ---
+
+// Purchase new Twilio number for organization (Admin only)
+app.post('/api/admin/organizations/:organizationId/phone-numbers/purchase', async (req, res) => {
+  try {
+    const { organizationId } = req.params;
+    const { areaCode } = req.body;
+    
+    // TODO: Add admin authentication check
+    console.log(`📞 Purchasing new phone number for organization: ${organizationId}`);
+    
+    const result = await purchaseTwilioNumberForOrganization(organizationId, areaCode);
+    
+    res.status(200).json({
+      success: true,
+      message: 'Phone number purchased successfully',
+      ...result,
+      nextSteps: [
+        'Import this phone number to ElevenLabs dashboard',
+        'Assign the phone number to your agent',
+        'Call the activate endpoint with the ElevenLabs phone ID'
+      ]
+    });
+    
+  } catch (error) {
+    console.error('❌ Error purchasing phone number:', error);
+    res.status(500).json({ 
+      error: 'Failed to purchase phone number',
+      details: error.message 
+    });
+  }
+});
+
+// Activate phone number after ElevenLabs import (Admin only)
+app.post('/api/admin/phone-numbers/:phoneNumber/activate', async (req, res) => {
+  try {
+    const { phoneNumber } = req.params;
+    const { elevenLabsPhoneId } = req.body;
+    
+    if (!elevenLabsPhoneId) {
+      return res.status(400).json({ error: 'ElevenLabs phone ID is required' });
+    }
+    
+    // TODO: Add admin authentication check
+    console.log(`📞 Activating phone number: ${phoneNumber} with ElevenLabs ID: ${elevenLabsPhoneId}`);
+    
+    const result = await activateOrganizationPhoneNumber(phoneNumber, elevenLabsPhoneId);
+    
+    res.status(200).json({
+      success: true,
+      message: 'Phone number activated successfully',
+      phoneNumber,
+      elevenLabsPhoneId,
+      organizationId: result.organization_id,
+      isActive: result.is_active
+    });
+    
+  } catch (error) {
+    console.error('❌ Error activating phone number:', error);
+    res.status(500).json({ 
+      error: 'Failed to activate phone number',
+      details: error.message 
+    });
+  }
+});
+
+// List organization phone numbers
+app.get('/api/organizations/:organizationId/phone-numbers', validateOrganizationAccess, async (req, res) => {
+  try {
+    const { organizationId } = req.params;
+    
+    const { data: phoneNumbers, error } = await supabase
+      .from('organization_phone_numbers')
+      .select('*')
+      .eq('organization_id', organizationId)
+      .order('created_at', { ascending: false });
+    
+    if (error) {
+      console.error('❌ Error fetching organization phone numbers:', error);
+      return res.status(500).json({ error: 'Failed to fetch phone numbers' });
+    }
+    
+    res.status(200).json({
+      success: true,
+      phoneNumbers: phoneNumbers || [],
+      organizationId
+    });
+    
+  } catch (error) {
+    console.error('❌ Error listing phone numbers:', error);
+    res.status(500).json({ 
+      error: 'Failed to list phone numbers',
+      details: error.message 
+    });
+  }
+});
+
+// Get admin notifications (Admin only)
+app.get('/api/admin/notifications', async (req, res) => {
+  try {
+    const { status = 'pending', type } = req.query;
+    
+    // TODO: Add admin authentication check
+    
+    let query = supabase
+      .from('admin_notifications')
+      .select('*')
+      .eq('status', status)
+      .order('created_at', { ascending: false });
+    
+    if (type) {
+      query = query.eq('type', type);
+    }
+    
+    const { data: notifications, error } = await query;
+    
+    if (error) {
+      console.error('❌ Error fetching admin notifications:', error);
+      return res.status(500).json({ error: 'Failed to fetch notifications' });
+    }
+    
+    res.status(200).json({
+      success: true,
+      notifications: notifications || [],
+      filters: { status, type }
+    });
+    
+  } catch (error) {
+    console.error('❌ Error fetching admin notifications:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch notifications',
+      details: error.message 
+    });
   }
 });
 
@@ -2033,11 +2212,28 @@ app.post('/api/webhooks/elevenlabs/post-call', async (req, res) => {
       }
     }
 
+    // ENHANCED: Try to extract phone number from call_sid or conversation_id if still missing
+    if (!phoneNumber && conversationId) {
+      console.log('🔍 Trying to extract phone number from conversationId:', conversationId);
+      // ElevenLabs sometimes includes phone info in conversation metadata
+      const metadata = getConversationMetadata(conversationId);
+      if (metadata?.phoneNumber) {
+        phoneNumber = metadata.phoneNumber;
+        console.log('📞 Found phone number from metadata:', phoneNumber);
+      }
+    }
+
     // If we have phone number but no leadId, try to find the active lead
     if (!leadId && phoneNumber) {
       const normalizedPhone = normalizePhoneNumber(phoneNumber);
-      leadId = getActiveLeadForPhone(normalizedPhone);
+      leadId = await getActiveLeadForPhone(normalizedPhone);
       console.log('📞 Found active lead for phone:', { phoneNumber, normalizedPhone, leadId });
+    }
+
+    // LAST RESORT: If we still don't have phoneNumber, try to extract from caller context
+    if (!phoneNumber && eventData.data?.caller_id) {
+      phoneNumber = eventData.data.caller_id;
+      console.log('📞 Using caller_id as phone number:', phoneNumber);
     }
 
     // Extract transcript if available
@@ -2142,16 +2338,193 @@ app.post('/api/webhooks/elevenlabs/post-call', async (req, res) => {
   }
 });
 
+// --- ORGANIZATION PHONE NUMBER FUNCTIONS ---
+
+async function getOrganizationPhoneNumber(organizationId) {
+  try {
+    const { data: phoneRecord, error } = await supabase
+      .from('organization_phone_numbers')
+      .select('phone_number, elevenlabs_phone_id')
+      .eq('organization_id', organizationId)
+      .eq('is_active', true)
+      .single();
+    
+    if (error || !phoneRecord) {
+      // FALLBACK: Use default phone number if no organization-specific number
+      console.warn(`⚠️ No organization phone number found for ${organizationId}, using default`);
+      return {
+        phoneNumber: process.env.TWILIO_PHONE_NUMBER,
+        elevenLabsPhoneId: process.env.ELEVENLABS_PHONE_NUMBER_ID
+      };
+    }
+    
+    return {
+      phoneNumber: phoneRecord.phone_number,
+      elevenLabsPhoneId: phoneRecord.elevenlabs_phone_id
+    };
+  } catch (error) {
+    console.error('❌ Error getting organization phone number:', error);
+    // FALLBACK: Use default phone number
+    return {
+      phoneNumber: process.env.TWILIO_PHONE_NUMBER,
+      elevenLabsPhoneId: process.env.ELEVENLABS_PHONE_NUMBER_ID
+    };
+  }
+}
+
+async function getOrganizationByPhoneNumber(phoneNumber) {
+  try {
+    const { data: phoneRecord, error } = await supabase
+      .from('organization_phone_numbers')
+      .select('organization_id')
+      .eq('phone_number', phoneNumber)
+      .eq('is_active', true)
+      .single();
+    
+    if (error || !phoneRecord) {
+      console.warn(`⚠️ No organization found for phone number ${phoneNumber}`);
+      return null;
+    }
+    
+    return phoneRecord.organization_id;
+  } catch (error) {
+    console.error('❌ Error getting organization by phone number:', error);
+    return null;
+  }
+}
+
+async function purchaseTwilioNumberForOrganization(organizationId, areaCode = null) {
+  try {
+    const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+    
+    // Search for available numbers
+    const numbers = await client.availablePhoneNumbers('US')
+      .local
+      .list({
+        areaCode: areaCode,
+        limit: 5
+      });
+    
+    if (numbers.length === 0) {
+      throw new Error('No available phone numbers found');
+    }
+    
+    // Purchase the first available number
+    const selectedNumber = numbers[0].phoneNumber;
+    const purchasedNumber = await client.incomingPhoneNumbers
+      .create({
+        phoneNumber: selectedNumber,
+        voiceUrl: 'https://api.elevenlabs.io/v1/convai/conversations/twilio/inbound',
+        smsUrl: `${process.env.SERVER_URL}/api/webhooks/twilio/sms`
+      });
+    
+    console.log('✅ Purchased Twilio number:', selectedNumber);
+    
+    // Store in database (pending ElevenLabs configuration)
+    const { data: phoneRecord, error } = await supabase
+      .from('organization_phone_numbers')
+      .insert({
+        organization_id: organizationId,
+        phone_number: selectedNumber,
+        twilio_phone_sid: purchasedNumber.sid,
+        elevenlabs_phone_id: null, // Will be updated after manual import
+        is_active: false // Not active until ElevenLabs import
+      })
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('❌ Error storing phone number in database:', error);
+      throw error;
+    }
+    
+    // Create admin notification for manual ElevenLabs import
+    await supabase.from('admin_notifications').insert({
+      type: 'elevenlabs_import_required',
+      organization_id: organizationId,
+      phone_number: selectedNumber,
+      message: `Import ${selectedNumber} to ElevenLabs dashboard and assign to agent. Then activate this number.`,
+      status: 'pending'
+    });
+    
+    console.log('📢 Admin notification created for ElevenLabs import');
+    
+    return {
+      phoneNumber: selectedNumber,
+      twilioSid: purchasedNumber.sid,
+      databaseId: phoneRecord.id,
+      requiresElevenLabsImport: true
+    };
+    
+  } catch (error) {
+    console.error('❌ Error purchasing Twilio number:', error);
+    throw error;
+  }
+}
+
+async function activateOrganizationPhoneNumber(phoneNumber, elevenLabsPhoneId) {
+  try {
+    const { data, error } = await supabase
+      .from('organization_phone_numbers')
+      .update({
+        elevenlabs_phone_id: elevenLabsPhoneId,
+        is_active: true,
+        updated_at: new Date().toISOString()
+      })
+      .eq('phone_number', phoneNumber)
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('❌ Error activating phone number:', error);
+      throw error;
+    }
+    
+    // Mark admin notification as resolved
+    await supabase
+      .from('admin_notifications')
+      .update({
+        status: 'resolved',
+        resolved_at: new Date().toISOString()
+      })
+      .eq('phone_number', phoneNumber)
+      .eq('type', 'elevenlabs_import_required');
+    
+    console.log('✅ Phone number activated and notification resolved:', phoneNumber);
+    return data;
+    
+  } catch (error) {
+    console.error('❌ Error activating phone number:', error);
+    throw error;
+  }
+}
+
 // --- HELPER FUNCTIONS and UTILITIES ---
 
-async function sendSMSReply(to, message) {
+async function sendSMSReply(to, message, organizationId = null) {
   try {
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
     const authToken = process.env.TWILIO_AUTH_TOKEN;
-    const fromNumber = process.env.TWILIO_PHONE_NUMBER;
     
-    if (!accountSid || !authToken || !fromNumber) {
+    if (!accountSid || !authToken) {
       console.error('❌ Missing Twilio credentials for SMS reply');
+      return;
+    }
+
+    // GET ORGANIZATION-SPECIFIC PHONE NUMBER
+    let fromNumber;
+    if (organizationId) {
+      const orgPhone = await getOrganizationPhoneNumber(organizationId);
+      fromNumber = orgPhone.phoneNumber;
+      console.log(`📞 Using organization phone number for SMS reply: ${fromNumber}`);
+    } else {
+      // FALLBACK: Use default phone number
+      fromNumber = process.env.TWILIO_PHONE_NUMBER;
+      console.log(`📞 Using default phone number for SMS reply: ${fromNumber}`);
+    }
+    
+    if (!fromNumber) {
+      console.error('❌ No phone number available for SMS reply');
       return;
     }
 
@@ -2166,7 +2539,7 @@ async function sendSMSReply(to, message) {
 
     if (response.ok) {
       const result = await response.json();
-      console.log('✅ SMS reply sent:', { to, messageSid: result.sid });
+      console.log('✅ SMS reply sent:', { to, from: fromNumber, messageSid: result.sid, organizationId });
     } else {
       console.error('❌ Failed to send SMS reply:', response.status, await response.text());
     }
@@ -2350,6 +2723,32 @@ app.post('/api/auth/organizations', async (req, res) => {
       
       console.log(`✅ New organization created: ${organization.name}`);
       console.log(`👑 User ${email} becomes: ${userRole} (organization founder)`);
+      
+      // AUTOMATIC PHONE NUMBER PURCHASE: Buy a Twilio number for new organization
+      try {
+        console.log(`📞 Automatically purchasing Twilio number for new organization: ${organization.id}`);
+        const phoneResult = await purchaseTwilioNumberForOrganization(organization.id);
+        
+        console.log(`✅ Phone number purchased for ${organization.name}: ${phoneResult.phoneNumber}`);
+        console.log(`📋 Manual step required: Import ${phoneResult.phoneNumber} to ElevenLabs dashboard`);
+        
+        // Store success info for response
+        organization.phoneNumberPurchased = phoneResult.phoneNumber;
+        organization.requiresElevenLabsImport = true;
+        
+      } catch (phoneError) {
+        console.error(`❌ Failed to purchase phone number for organization ${organization.id}:`, phoneError);
+        // Don't fail the organization creation, but log the issue
+        organization.phoneNumberError = phoneError.message;
+        
+        // Create admin notification for manual phone number setup
+        await supabase.from('admin_notifications').insert({
+          type: 'phone_number_setup_required',
+          organization_id: organization.id,
+          message: `Failed to automatically purchase phone number for "${organization.name}". Manual setup required.`,
+          status: 'pending'
+        });
+      }
     }
 
     // STEP 2: Verify user exists in auth.users before creating profile
@@ -2759,6 +3158,7 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', async (req, res) =>
           customer_name: "Customer",
           lead_status: "New Inquiry",
           previous_summary: "First time calling - no previous interactions",
+          organization_name: "Jack Automotive",
           caller_type: "new_caller",
           organization_context: "unassigned"
         }
@@ -2775,6 +3175,25 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', async (req, res) =>
     // EXISTING LOGIC: For callers with organization context
     const activeLead = await getActiveLeadForPhone(normalizedPhone);  // ✅ FIXED: Added await
     console.log(`🔍 Active lead for ${normalizedPhone}:`, activeLead);
+    
+    // GET ORGANIZATION NAME for agent prompt
+    let organizationName = "Jack Automotive";
+    try {
+      const { data: orgData, error } = await supabase
+        .from('organizations')
+        .select('name')
+        .eq('id', organizationId)
+        .single();
+      
+      if (orgData && !error) {
+        organizationName = orgData.name;
+        console.log(`🏢 Found organization name: ${organizationName}`);
+      } else {
+        console.warn(`⚠️ Could not find organization name for ${organizationId}, using default`);
+      }
+    } catch (error) {
+      console.error(`❌ Error fetching organization name:`, error);
+    }
     
     // Build conversation context - ENHANCED with Supabase loading
     const conversationContext = await buildConversationContext(caller_id, organizationId);
@@ -2824,6 +3243,7 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', async (req, res) =>
         customer_name: customerName,
         lead_status: leadStatus,
         previous_summary: previousSummary,
+        organization_name: organizationName,
         organization_id: organizationId,
         caller_type: "existing_lead"
       }
@@ -2858,6 +3278,7 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', async (req, res) =>
         customer_name: "Customer",
         lead_status: "New Inquiry",
         previous_summary: "Unable to retrieve previous conversation history",
+        organization_name: "Jack Automotive",
         caller_type: "error_fallback"
       }
     };
