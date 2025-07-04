@@ -1402,7 +1402,7 @@ app.post('/api/webhooks/twilio/sms/incoming', async (req, res) => {
     });
 
     // SECURITY FIX: Use organization-specific context
-    
+
     if (activeConversations.has(normalizedFrom)) {
       console.log('➡️ Existing conversation found. Sending message.');
       const ws = activeConversations.get(normalizedFrom);
@@ -1536,7 +1536,7 @@ app.post('/api/elevenlabs/outbound-call', validateOrganizationAccess, async (req
     // GET ORGANIZATION NAME for outbound calls
     let organizationName = "Jack Automotive";
     try {
-      const { data: orgData, error } = await supabase
+      const { data: orgData, error } = await client
         .from('organizations')
         .select('name')
         .eq('id', organizationId)
@@ -3214,7 +3214,7 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', async (req, res) =>
     } catch (error) {
       console.error(`❌ Error fetching organization name:`, error);
     }
-    
+
     // Build conversation context - ENHANCED with Supabase loading
     const conversationContext = await buildConversationContext(caller_id, organizationId);
     const summary = await getConversationSummary(normalizedPhone, organizationId);
