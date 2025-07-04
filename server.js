@@ -1032,9 +1032,28 @@ function startConversation(phoneNumber, initialMessage) {
     
     console.log(`📋 SMS Context preserved: ${history.length} total messages, leadId: ${leadId}, context length: ${conversationContext.length}, using ElevenLabs summary: ${!!(summaryData?.summary && summaryData.summary.length > 20)}`);
     
+    // Get organization name for dynamic variables
+    let organizationName = "Automarket"; // Default fallback
+    if (organizationId) {
+      try {
+        const { data: orgData, error } = await client
+          .from('organizations')
+          .select('name')
+          .eq('id', organizationId)
+          .single();
+        
+        if (orgData && !error) {
+          organizationName = orgData.name;
+        }
+      } catch (error) {
+        console.log('⚠️ Failed to get organization name, using fallback:', error.message);
+      }
+    }
+    
     // DEBUG: Log the actual dynamic variables being sent
     const dynamicVars = {
       customer_name: customerName,
+      organization_name: organizationName,
       lead_status: leadStatus,
       previous_summary: previousSummary,
       // FIXED: Include conversation_context (not conversation_overview) to match system prompt
@@ -1043,6 +1062,7 @@ function startConversation(phoneNumber, initialMessage) {
     
     console.log(`🧪 DEBUG: SMS Dynamic variables being sent:`, {
       customer_name: dynamicVars.customer_name,
+      organization_name: dynamicVars.organization_name,
       lead_status: dynamicVars.lead_status,
       previous_summary_length: dynamicVars.previous_summary?.length || 0,
       previous_summary_preview: dynamicVars.previous_summary?.substring(0, 100) + "...",
