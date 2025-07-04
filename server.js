@@ -2342,7 +2342,7 @@ app.post('/api/webhooks/elevenlabs/post-call', async (req, res) => {
 
 async function getOrganizationPhoneNumber(organizationId) {
   try {
-    const { data: phoneRecord, error } = await supabase
+    const { data: phoneRecord, error } = await client
       .from('organization_phone_numbers')
       .select('phone_number, elevenlabs_phone_id')
       .eq('organization_id', organizationId)
@@ -2374,7 +2374,7 @@ async function getOrganizationPhoneNumber(organizationId) {
 
 async function getOrganizationByPhoneNumber(phoneNumber) {
   try {
-    const { data: phoneRecord, error } = await supabase
+    const { data: phoneRecord, error } = await client
       .from('organization_phone_numbers')
       .select('organization_id')
       .eq('phone_number', phoneNumber)
@@ -2421,7 +2421,7 @@ async function purchaseTwilioNumberForOrganization(organizationId, areaCode = nu
     console.log('✅ Purchased Twilio number:', selectedNumber);
     
     // Store in database (pending ElevenLabs configuration)
-    const { data: phoneRecord, error } = await supabase
+    const { data: phoneRecord, error } = await client
       .from('organization_phone_numbers')
       .insert({
         organization_id: organizationId,
@@ -2439,7 +2439,7 @@ async function purchaseTwilioNumberForOrganization(organizationId, areaCode = nu
     }
     
     // Create admin notification for manual ElevenLabs import
-    await supabase.from('admin_notifications').insert({
+    await client.from('admin_notifications').insert({
       type: 'elevenlabs_import_required',
       organization_id: organizationId,
       phone_number: selectedNumber,
@@ -2464,7 +2464,7 @@ async function purchaseTwilioNumberForOrganization(organizationId, areaCode = nu
 
 async function activateOrganizationPhoneNumber(phoneNumber, elevenLabsPhoneId) {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await client
       .from('organization_phone_numbers')
       .update({
         elevenlabs_phone_id: elevenLabsPhoneId,
@@ -2481,7 +2481,7 @@ async function activateOrganizationPhoneNumber(phoneNumber, elevenLabsPhoneId) {
     }
     
     // Mark admin notification as resolved
-    await supabase
+    await client
       .from('admin_notifications')
       .update({
         status: 'resolved',
