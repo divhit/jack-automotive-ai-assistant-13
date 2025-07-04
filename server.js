@@ -2229,6 +2229,143 @@ async function validateOrganizationAccess(req, res, next) {
   }
 }
 
+// ==========================================
+// AUTHENTICATION & ORGANIZATION ENDPOINTS
+// ==========================================
+
+// Create organization OR join existing organization (for new signups)
+app.post('/api/auth/organizations', async (req, res) => {
+  try {
+    console.log('🏢 Organization signup request received:', req.body);
+    
+    const { name, slug, email, phone_number, user_id, first_name, last_name } = req.body;
+
+    // Validate required fields
+    if (!name || !slug || !user_id) {
+      return res.status(400).json({ error: 'Organization name, slug, and user_id are required' });
+    }
+
+    // STEP 1: Check if organization with this slug already exists
+    const existingOrgResult = await client.from('organizations')
+      .select('id, name, slug')
+      .eq('slug', slug)
+      .eq('is_active', true)
+      .single();
+
+    let organization;
+    let userRole;
+    let isNewOrganization = false;
+
+    if (existingOrgResult.data) {
+      // ORGANIZATION EXISTS - User joins existing organization
+      organization = existingOrgResult.data;
+      userRole = 'agent'; // Subsequent users become agents
+      isNewOrganization = false;
+      
+      console.log(`✅ Found existing organization: ${organization.name} (${organization.slug})`);
+      console.log(`👥 User ${email} will join as: ${userRole}`);
+
+    } else {
+      // ORGANIZATION DOESN'T EXIST - Create new organization
+      console.log(`🆕 Creating new organization: ${name} (${slug})`);
+      
+      const newOrgResult = await client.from('organizations')
+        .insert({
+          name,
+          slug,
+          email: email,
+          phone_number: phone_number,
+          settings: {
+            created_by: user_id,
+            features: {
+              telephony: true,
+              analytics: true,
+              lead_management: true
+            }
+          },
+          is_active: true
+        })
+        .select()
+        .single();
+
+      if (newOrgResult.error) {
+        console.error('❌ Error creating organization:', newOrgResult.error);
+        return res.status(400).json({ error: newOrgResult.error.message });
+      }
+
+      organization = newOrgResult.data;
+      userRole = 'admin'; // First user becomes admin
+      isNewOrganization = true;
+      
+      console.log(`✅ New organization created: ${organization.name}`);
+      console.log(`👑 User ${email} becomes: ${userRole} (organization founder)`);
+    }
+
+    // STEP 2: Create or update user profile with organization
+    const profileResult = await client.from('user_profiles')
+      .upsert({
+        id: user_id,
+        organization_id: organization.id,
+        email: email,
+        first_name: first_name,
+        last_name: last_name,
+        role: userRole, // admin for first user, agent for subsequent users
+        is_active: true,
+        timezone: 'UTC',
+        preferences: {},
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      });
+
+    if (profileResult.error) {
+      console.error('❌ Error creating/updating profile:', profileResult.error);
+      return res.status(400).json({ error: 'Failed to create user profile' });
+    }
+
+    console.log('✅ User profile created/updated with role:', userRole);
+
+    // STEP 3: Create organization membership
+    const membershipResult = await client.from('organization_memberships')
+      .insert({
+        user_id: user_id,
+        organization_id: organization.id,
+        role: userRole,
+        is_active: true,
+        permissions: userRole === 'admin' ? { all: true } : { read: true, write: true, lead_create: true }
+      });
+
+    if (membershipResult.error) {
+      console.error('❌ Error creating membership:', membershipResult.error);
+      // Don't fail the request, but log the issue
+    } else {
+      console.log('✅ Organization membership created with role:', userRole);
+    }
+
+    // STEP 4: Send appropriate response
+    const responseMessage = isNewOrganization 
+      ? `Organization "${organization.name}" created successfully. You are now the admin.`
+      : `Successfully joined existing organization "${organization.name}" as ${userRole}.`;
+
+    console.log(`🎉 Organization setup complete for user ${email}:`, {
+      organization: organization.name,
+      role: userRole,
+      isNewOrg: isNewOrganization
+    });
+
+    res.status(201).json({ 
+      success: true, 
+      organization: organization,
+      userRole: userRole,
+      isNewOrganization: isNewOrganization,
+      message: responseMessage
+    });
+
+  } catch (error) {
+    console.error('❌ Error in /api/auth/organizations POST:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Server-Sent Events endpoint for real-time UI updates - SECURITY FIXED
 app.get('/api/stream/conversation/:leadId', validateOrganizationAccess, async (req, res) => {
   const { leadId } = req.params;

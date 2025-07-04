@@ -49,8 +49,6 @@ export interface AuthContextType {
   
   // Organization methods
   createOrganization: (data: OrganizationCreateData) => Promise<{ data?: Organization; error?: Error }>;
-  associateWithOrganization: (organizationId: string) => Promise<{ error?: Error }>;
-  getAvailableOrganizations: () => Promise<{ data?: Organization[]; error?: Error }>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<{ error?: Error }>;
   
   // Permissions
@@ -304,7 +302,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  // Sign up with optional organization creation
+  // Sign up with organization creation
   const signUp = async (
     email: string, 
     password: string, 
@@ -316,7 +314,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                      import.meta.env.REACT_APP_SITE_URL || 
                      (import.meta.env.PROD ? 'https://jack-automotive-ai-assistant-13.onrender.com' : 'http://localhost:8080');
 
-      const { data, error } = await supabase.auth.signUp({
+      // Step 1: Create the user account
+      const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -331,15 +330,62 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       });
 
-      if (error) {
-        toast.error('Sign up failed: ' + error.message);
-        return { error };
+      if (authError) {
+        toast.error('Sign up failed: ' + authError.message);
+        return { error: authError };
       }
 
-      // Note: Profile and organization creation is handled by Supabase triggers/functions
-      // or can be handled in the auth state change listener
+      // Step 2: If user was created successfully AND we have organization data, create the organization
+      if (authData.user && orgData) {
+        try {
+          console.log('🏢 Creating organization for new user:', {
+            user_id: authData.user.id,
+            org_name: orgData.organizationName,
+            org_slug: orgData.organizationSlug
+          });
 
-      toast.success('Account created! Please check your email to verify your account.');
+          // Create organization using server endpoint
+          const orgResponse = await fetch('/api/auth/organizations', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${authData.session?.access_token}`
+            },
+            body: JSON.stringify({
+              name: orgData.organizationName,
+              slug: orgData.organizationSlug,
+              email: email,
+              phone_number: orgData.phoneNumber,
+              user_id: authData.user.id,
+              first_name: orgData.firstName,
+              last_name: orgData.lastName
+            })
+          });
+
+          if (!orgResponse.ok) {
+            const errorData = await orgResponse.json();
+            console.error('Failed to setup organization:', errorData);
+            // Don't fail the signup if organization setup fails
+            toast.warning('Account created but organization setup needs completion. Please contact support.');
+          } else {
+            const orgData = await orgResponse.json();
+            console.log('✅ Organization setup successful:', orgData);
+            
+            // Provide appropriate feedback based on whether it's a new org or joining existing
+            if (orgData.isNewOrganization) {
+              toast.success(`Organization "${orgData.organization.name}" created successfully! You are the admin. Please check your email to verify your account.`);
+            } else {
+              toast.success(`Successfully joined "${orgData.organization.name}" as ${orgData.userRole}. Please check your email to verify your account.`);
+            }
+          }
+        } catch (orgError) {
+          console.error('Error creating organization:', orgError);
+          toast.warning('Account created but organization setup needs completion. Please contact support.');
+        }
+      } else {
+        toast.success('Account created! Please check your email to verify your account.');
+      }
+
       return {};
     } catch (error) {
       const authError = error as AuthError;
@@ -393,66 +439,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  // Associate user with an existing organization (for fixing missing associations)
-  const associateWithOrganization = async (organizationId: string) => {
-    if (!user) {
-      return { error: new Error('No authenticated user') };
-    }
 
-    try {
-      // Update the user profile with the organization ID
-      const { error: profileError } = await (supabase as any)
-        .from('user_profiles')
-        .update({ organization_id: organizationId })
-        .eq('id', user.id);
-
-      if (profileError) {
-        return { error: new Error(profileError.message) };
-      }
-
-      // Create organization membership record
-      const { error: membershipError } = await (supabase as any)
-        .from('organization_memberships')
-        .upsert({
-          user_id: user.id,
-          organization_id: organizationId,
-          role: 'agent', // Default role
-          is_active: true
-        });
-
-      if (membershipError) {
-        console.warn('Failed to create membership record:', membershipError);
-        // Don't fail if membership creation fails, as the profile update is more important
-      }
-
-      // Refresh user data to get the new organization
-      await loadUserData(user.id);
-      
-      toast.success('Successfully associated with organization');
-      return {};
-    } catch (error) {
-      return { error: error as Error };
-    }
-  };
-
-  // Get available organizations (for association selection)
-  const getAvailableOrganizations = async () => {
-    try {
-      const { data, error } = await (supabase as any)
-        .from('organizations')
-        .select('id, name, slug')
-        .eq('is_active', true)
-        .order('name');
-
-      if (error) {
-        return { error: new Error(error.message) };
-      }
-
-      return { data: data as Organization[] };
-    } catch (error) {
-      return { error: error as Error };
-    }
-  };
 
   // Update user profile
   const updateProfile = async (updates: Partial<UserProfile>) => {
@@ -531,8 +518,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     
     // Organization methods
     createOrganization,
-    associateWithOrganization,
-    getAvailableOrganizations,
     updateProfile,
     
     // Permissions

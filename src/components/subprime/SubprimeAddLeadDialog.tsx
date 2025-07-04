@@ -13,7 +13,6 @@ import { SubprimeLead } from "@/data/subprime/subprimeLeads";
 import { UserPlus, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import { OrganizationAssociation } from "@/components/auth/OrganizationAssociation";
 
 interface SubprimeAddLeadDialogProps {
   open: boolean;
@@ -50,13 +49,12 @@ const normalizePhoneNumber = (input: string): string => {
 };
 
 export const SubprimeAddLeadDialog = ({ open, onOpenChange, onLeadAdded }: SubprimeAddLeadDialogProps) => {
-  const { user, profile, organization, hasOrganization, organizationId } = useAuth();
+  const { user, profile, organization } = useAuth();
   const [formData, setFormData] = useState<FormDataType>({
     customerName: "",
     phoneNumber: "",
     email: ""
   });
-  const [showOrgAssociation, setShowOrgAssociation] = useState(false);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -111,8 +109,9 @@ export const SubprimeAddLeadDialog = ({ open, onOpenChange, onLeadAdded }: Subpr
 
     // SECURITY: Check for organization context
     if (!organization?.id && !profile?.organization_id) {
-      console.log('🚨 No organization context - showing association dialog');
-      setShowOrgAssociation(true);
+      toast.error("Organization context missing", {
+        description: "Please contact support to set up your organization properly"
+      });
       return;
     }
 
@@ -208,38 +207,18 @@ export const SubprimeAddLeadDialog = ({ open, onOpenChange, onLeadAdded }: Subpr
     }
   };
 
-  const handleOrganizationAssociation = () => {
-    setShowOrgAssociation(false);
-    // Form will be available after organization is associated
-  };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
-        {showOrgAssociation ? (
-          <>
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <UserPlus className="h-5 w-5" />
-                Organization Required
-              </DialogTitle>
-              <DialogDescription>
-                You need to be associated with an organization before creating leads.
-              </DialogDescription>
-            </DialogHeader>
-            <OrganizationAssociation onAssociationComplete={handleOrganizationAssociation} />
-          </>
-        ) : (
-          <>
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <UserPlus className="h-5 w-5" />
-                Add New Lead
-              </DialogTitle>
-              <DialogDescription>
-                Create a new lead entry. Additional details will be gathered through conversations.
-              </DialogDescription>
-            </DialogHeader>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <UserPlus className="h-5 w-5" />
+            Add New Lead
+          </DialogTitle>
+          <DialogDescription>
+            Create a new lead entry. Additional details will be gathered through conversations.
+          </DialogDescription>
+        </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-2">
@@ -304,17 +283,15 @@ export const SubprimeAddLeadDialog = ({ open, onOpenChange, onLeadAdded }: Subpr
           </div>
         </div>
 
-            <div className="flex justify-end gap-3 pt-4">
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleSubmit}>
-                <UserPlus className="h-4 w-4 mr-2" />
-                Add Lead
-              </Button>
-            </div>
-          </>
-        )}
+        <div className="flex justify-end gap-3 pt-4">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleSubmit}>
+            <UserPlus className="h-4 w-4 mr-2" />
+            Add Lead
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );
