@@ -24,7 +24,19 @@ const SubprimeLeadDetailModal: React.FC<SubprimeLeadDetailModalProps> = ({
   onOpenChange,
   onLeadUpdate
 }) => {
-  const { organization } = useAuth();
+  // SECURITY: Get organization context from auth
+  const { organization, loading, user } = useAuth();
+  
+  // DEBUG: Log organization context
+  console.log('🏢 SubprimeLeadDetailModal - Auth Context Debug:', {
+    organization: organization,
+    organizationId: organization?.id,
+    organizationName: organization?.name,
+    loading: loading,
+    user: user,
+    hasOrganization: !!organization,
+    leadId: lead?.id
+  });
   
   if (!lead) return null;
 
@@ -79,7 +91,15 @@ const SubprimeLeadDetailModal: React.FC<SubprimeLeadDetailModalProps> = ({
 
         <div className="flex-1 overflow-hidden">
           {/* SECURITY: Only render TelephonyInterface when we have organization context */}
-          {organization?.id ? (
+          {loading ? (
+            <div className="h-full w-full flex items-center justify-center">
+              <div className="text-center text-muted-foreground">
+                <User className="h-12 w-12 mx-auto mb-4 opacity-50 animate-pulse" />
+                <p>Loading authentication...</p>
+                <p className="text-sm mt-2">Please wait while we authenticate your session.</p>
+              </div>
+            </div>
+          ) : organization?.id ? (
             <TelephonyInterface
               selectedLead={lead}
               onLeadUpdate={onLeadUpdate}
@@ -90,8 +110,9 @@ const SubprimeLeadDetailModal: React.FC<SubprimeLeadDetailModalProps> = ({
             <div className="h-full w-full flex items-center justify-center">
               <div className="text-center text-muted-foreground">
                 <User className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Loading organization context...</p>
-                <p className="text-sm mt-2">Please wait while we verify your organization access.</p>
+                <p>⚠️ Organization context not available</p>
+                <p className="text-sm mt-2">Your account may not be properly associated with an organization.</p>
+                <p className="text-xs mt-1 text-red-500">Please contact support if this issue persists.</p>
               </div>
             </div>
           )}

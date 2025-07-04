@@ -78,6 +78,15 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
   className,
   organizationId = 'default-org' // SECURITY: Default organization for now, should come from auth context
 }) => {
+  // DEBUG: Log organization context being used
+  console.log('📞 TelephonyInterface - Organization Context Debug:', {
+    organizationId: organizationId,
+    selectedLeadId: selectedLead?.id,
+    selectedLeadPhone: selectedLead?.phoneNumber,
+    hasOrganizationId: !!organizationId,
+    isDefaultOrg: organizationId === 'default-org'
+  });
+
   // State management
   const [conversationHistory, setConversationHistory] = useState<ConversationMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -323,11 +332,13 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
     // SECURITY: Include organization validation in SSE connection
     // Include phone number in query params for proper lead-to-phone mapping
     // ENHANCED: Add load=true to automatically load conversation history from Supabase
-    const eventSource = new EventSource(`/api/stream/conversation/${selectedLead.id}?phoneNumber=${encodeURIComponent(selectedLead.phoneNumber)}&load=true`);
+    // NOTE: SSE connections cannot include custom headers, so we pass organizationId as query param
+    const eventSource = new EventSource(`/api/stream/conversation/${selectedLead.id}?phoneNumber=${encodeURIComponent(selectedLead.phoneNumber)}&load=true&organizationId=${encodeURIComponent(organizationId)}`);
     eventSourceRef.current = eventSource;
     
     eventSource.onopen = () => {
       console.log('📡 SSE connection established for lead:', selectedLead.id, '(phone:', selectedLead.phoneNumber, ') (org:', organizationId, ')');
+      console.log('🔗 SSE URL:', `/api/stream/conversation/${selectedLead.id}?phoneNumber=${encodeURIComponent(selectedLead.phoneNumber)}&load=true&organizationId=${encodeURIComponent(organizationId)}`);
     };
     
     eventSource.onmessage = (event) => {

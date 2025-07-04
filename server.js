@@ -379,35 +379,35 @@ function addToConversationHistory(phoneNumber, message, sentBy, messageType = 't
     return; // Don't store message without proper organization context
   }
   
-  const normalized = normalizePhoneNumber(phoneNumber);
-  
+      const normalized = normalizePhoneNumber(phoneNumber);
+      
   // Clear any contaminated non-org memory for this phone when organizationId is provided
-  clearMemoryForPhone(phoneNumber, organizationId);
-  
+        clearMemoryForPhone(phoneNumber, organizationId);
+      
   // Use organization-scoped memory key ONLY
-  const memoryKey = createOrgMemoryKey(organizationId, phoneNumber);
-  
-  if (!conversationContexts.has(memoryKey)) {
-    conversationContexts.set(memoryKey, []);
-  }
-  
-  const history = conversationContexts.get(memoryKey);
-  const messageData = {
-    content: message,
-    sentBy: sentBy,
-    timestamp: new Date().toISOString(),
-    type: messageType
-  };
-  
-  history.push(messageData);
-  
-  // Keep only last 50 messages to prevent memory issues
-  if (history.length > 50) {
-    history.shift();
-  }
-  
-  console.log(`📝 Added ${messageType} message to org-scoped history ${memoryKey} (${sentBy}): ${message.substring(0, 100)}...`);
-  
+      const memoryKey = createOrgMemoryKey(organizationId, phoneNumber);
+      
+      if (!conversationContexts.has(memoryKey)) {
+        conversationContexts.set(memoryKey, []);
+      }
+      
+      const history = conversationContexts.get(memoryKey);
+      const messageData = {
+        content: message,
+        sentBy: sentBy,
+        timestamp: new Date().toISOString(),
+        type: messageType
+      };
+      
+      history.push(messageData);
+      
+      // Keep only last 50 messages to prevent memory issues
+      if (history.length > 50) {
+        history.shift();
+      }
+      
+      console.log(`📝 Added ${messageType} message to org-scoped history ${memoryKey} (${sentBy}): ${message.substring(0, 100)}...`);
+      
   // Persist to Supabase with organization context
   supabasePersistence.persistConversationMessage(phoneNumber, message, sentBy, messageType, { organizationId })
     .catch(error => {
@@ -2187,10 +2187,22 @@ function broadcastConversationUpdate(data) {
 // SECURITY: Organization validation middleware
 async function validateOrganizationAccess(req, res, next) {
   try {
-    const { leadId } = req.params;
-    const { organizationId } = req.headers; // Expected from frontend
+  const { leadId } = req.params;
+    // For SSE connections, organizationId comes from query params since headers aren't supported
+    // For regular API calls, organizationId comes from headers
+    const organizationId = req.headers.organizationId || req.query.organizationId;
+    
+    console.log('🔍 Organization validation:', {
+      leadId,
+      fromHeaders: req.headers.organizationId,
+      fromQuery: req.query.organizationId,
+      finalOrgId: organizationId,
+      url: req.url,
+      method: req.method
+    });
     
     if (!organizationId) {
+      console.error('❌ Organization context missing:', { headers: req.headers, query: req.query });
       return res.status(400).json({ 
         error: 'Organization context required',
         code: 'MISSING_ORG_CONTEXT' 
@@ -2224,6 +2236,7 @@ app.get('/api/stream/conversation/:leadId', validateOrganizationAccess, async (r
   const { organizationId } = req;
   
   console.log(`📡 SSE connection established for lead: ${leadId} (org: ${organizationId})`, phoneNumber ? `(phone: ${phoneNumber})` : '');
+  console.log('🔍 Organization ID source:', req.headers.organizationId ? 'headers' : 'query', 'value:', organizationId);
   
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
