@@ -644,7 +644,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
       if (error.message?.includes('different organization') || error.message?.includes('Access denied')) {
         toast.error('Security Error: Cannot initiate call - access denied');
       } else {
-        toast.error(error.message || 'Failed to start call');
+      toast.error(error.message || 'Failed to start call');
       }
     } finally {
       setIsLoading(false);
@@ -727,7 +727,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
       if (error.message?.includes('different organization') || error.message?.includes('Access denied')) {
         toast.error('Security Error: Cannot send SMS - access denied');
       } else {
-        toast.error(error.message || 'Failed to send SMS');
+      toast.error(error.message || 'Failed to send SMS');
       }
       
       setTextInput(messageText); // Restore message on error

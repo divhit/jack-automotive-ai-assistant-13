@@ -4,6 +4,7 @@ export interface SubprimeLead {
   customerName: string;
   phoneNumber: string;
   email?: string;
+  organizationId?: string; // SECURITY: Organization context for multi-tenant data isolation
   chaseStatus: "Auto Chase Running" | "Paused" | "Completed" | "Manual Review";
   fundingReadiness: "Ready" | "Partial" | "Not Ready";
   fundingReadinessReason: string;

@@ -49,6 +49,8 @@ export interface AuthContextType {
   
   // Organization methods
   createOrganization: (data: OrganizationCreateData) => Promise<{ data?: Organization; error?: Error }>;
+  associateWithOrganization: (organizationId: string) => Promise<{ error?: Error }>;
+  getAvailableOrganizations: () => Promise<{ data?: Organization[]; error?: Error }>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<{ error?: Error }>;
   
   // Permissions
@@ -58,6 +60,12 @@ export interface AuthContextType {
   // Utility
   isAuthenticated: boolean;
   refreshProfile: () => Promise<void>;
+  
+  // Computed properties for convenience
+  hasOrganization: boolean;
+  organizationId: string | undefined;
+  organizationName: string | undefined;
+  leadId: string | undefined;
 }
 
 export interface OrganizationSignupData {
@@ -385,6 +393,67 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  // Associate user with an existing organization (for fixing missing associations)
+  const associateWithOrganization = async (organizationId: string) => {
+    if (!user) {
+      return { error: new Error('No authenticated user') };
+    }
+
+    try {
+      // Update the user profile with the organization ID
+      const { error: profileError } = await (supabase as any)
+        .from('user_profiles')
+        .update({ organization_id: organizationId })
+        .eq('id', user.id);
+
+      if (profileError) {
+        return { error: new Error(profileError.message) };
+      }
+
+      // Create organization membership record
+      const { error: membershipError } = await (supabase as any)
+        .from('organization_memberships')
+        .upsert({
+          user_id: user.id,
+          organization_id: organizationId,
+          role: 'agent', // Default role
+          is_active: true
+        });
+
+      if (membershipError) {
+        console.warn('Failed to create membership record:', membershipError);
+        // Don't fail if membership creation fails, as the profile update is more important
+      }
+
+      // Refresh user data to get the new organization
+      await loadUserData(user.id);
+      
+      toast.success('Successfully associated with organization');
+      return {};
+    } catch (error) {
+      return { error: error as Error };
+    }
+  };
+
+  // Get available organizations (for association selection)
+  const getAvailableOrganizations = async () => {
+    try {
+      const { data, error } = await (supabase as any)
+        .from('organizations')
+        .select('id, name, slug')
+        .eq('is_active', true)
+        .order('name');
+
+      if (error) {
+        return { error: new Error(error.message) };
+      }
+
+      return { data: data as Organization[] };
+    } catch (error) {
+      return { error: error as Error };
+    }
+  };
+
   // Update user profile
   const updateProfile = async (updates: Partial<UserProfile>) => {
     if (!user) {
@@ -462,6 +531,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     
     // Organization methods
     createOrganization,
+    associateWithOrganization,
+    getAvailableOrganizations,
     updateProfile,
     
     // Permissions
@@ -471,6 +542,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Utility
     isAuthenticated: !!user,
     refreshProfile,
+    
+    // Computed properties for convenience
+    hasOrganization: !!organization,
+    organizationId: organization?.id || profile?.organization_id,
+    organizationName: organization?.name,
+    leadId: undefined, // This could be set based on current context
   };
 
   return (

@@ -2632,7 +2632,8 @@ app.post('/api/subprime/create-lead', async (req, res) => {
       customerName: leadData.customerName,
       phoneNumber: leadData.phoneNumber,
       fundingReadiness: leadData.fundingReadiness,
-      sentiment: leadData.sentiment
+      sentiment: leadData.sentiment,
+      organizationId: leadData.organizationId // SECURITY: Log organization context
     });
 
     // Validate required fields for telephony integration
@@ -2649,6 +2650,11 @@ app.post('/api/subprime/create-lead', async (req, res) => {
       });
     }
 
+    // SECURITY: Validate organization context
+    if (!leadData.organizationId) {
+      console.warn('⚠️ Lead created without organization context - this may cause security issues');
+    }
+
     // Store the lead in memory (preserves all existing functionality)
     const leadRecord = {
       id: leadData.id,
@@ -2656,7 +2662,7 @@ app.post('/api/subprime/create-lead', async (req, res) => {
       phoneNumber: leadData.phoneNumber,
       email: leadData.email,
       chaseStatus: leadData.chaseStatus || "Auto Chase Running",
-      organizationId: leadData.organizationId, // Store organization context
+      organizationId: leadData.organizationId, // SECURITY: Store organization context
       fundingReadiness: leadData.fundingReadiness || "Not Ready",
       fundingReadinessReason: leadData.fundingReadinessReason,
       sentiment: leadData.sentiment || "Neutral",
@@ -2685,13 +2691,15 @@ app.post('/api/subprime/create-lead', async (req, res) => {
       customer_name: leadData.customerName,
       phone_number_normalized: normalizePhoneNumber(leadData.phoneNumber),
       funding_readiness: leadData.fundingReadiness,
-      sentiment: leadData.sentiment
+      sentiment: leadData.sentiment,
+      organization_id: leadData.organizationId // SECURITY: Log organization context
     });
 
     res.status(201).json({ 
       success: true, 
       message: 'Lead created successfully',
       leadId: leadData.id,
+      organizationId: leadData.organizationId, // SECURITY: Return organization context
       dynamicVariables: {
         customer_name: leadData.customerName,
         lead_status: "New Inquiry", // Since it's a new lead

@@ -100,10 +100,10 @@ const SubprimeLeadDetailModal: React.FC<SubprimeLeadDetailModalProps> = ({
               </div>
             </div>
           ) : organization?.id ? (
-            <TelephonyInterface
-              selectedLead={lead}
-              onLeadUpdate={onLeadUpdate}
-              className="h-full w-full"
+          <TelephonyInterface
+            selectedLead={lead}
+            onLeadUpdate={onLeadUpdate}
+            className="h-full w-full"
               organizationId={organization.id} // SECURITY: Pass organization ID from auth context
             />
           ) : (

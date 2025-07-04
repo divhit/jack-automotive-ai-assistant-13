@@ -12,6 +12,8 @@ import { Label } from "@/components/ui/label";
 import { SubprimeLead } from "@/data/subprime/subprimeLeads";
 import { UserPlus, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
+import { OrganizationAssociation } from "@/components/auth/OrganizationAssociation";
 
 interface SubprimeAddLeadDialogProps {
   open: boolean;
@@ -48,11 +50,13 @@ const normalizePhoneNumber = (input: string): string => {
 };
 
 export const SubprimeAddLeadDialog = ({ open, onOpenChange, onLeadAdded }: SubprimeAddLeadDialogProps) => {
+  const { user, profile, organization, hasOrganization, organizationId } = useAuth();
   const [formData, setFormData] = useState<FormDataType>({
     customerName: "",
     phoneNumber: "",
     email: ""
   });
+  const [showOrgAssociation, setShowOrgAssociation] = useState(false);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -105,6 +109,13 @@ export const SubprimeAddLeadDialog = ({ open, onOpenChange, onLeadAdded }: Subpr
       return;
     }
 
+    // SECURITY: Check for organization context
+    if (!organization?.id && !profile?.organization_id) {
+      console.log('🚨 No organization context - showing association dialog');
+      setShowOrgAssociation(true);
+      return;
+    }
+
     // Generate unique ID
     const leadId = `sl_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
@@ -114,6 +125,9 @@ export const SubprimeAddLeadDialog = ({ open, onOpenChange, onLeadAdded }: Subpr
 
     // Normalize phone number one final time
     const normalizedPhone = normalizePhoneNumber(formData.phoneNumber);
+
+    // SECURITY: Include organization context in lead creation
+    const organizationId = organization?.id || profile?.organization_id;
 
     // Create the lead object with sensible defaults
     const newLead: SubprimeLead = {
@@ -126,6 +140,7 @@ export const SubprimeAddLeadDialog = ({ open, onOpenChange, onLeadAdded }: Subpr
       fundingReadinessReason: "New lead - initial assessment needed",
       sentiment: "Neutral",
       lastTouchpoint: new Date().toISOString(),
+      organizationId: organizationId, // SECURITY: Include organization ID
       nextAction: {
         type: "Initial contact and screening",
         dueDate: nextActionDate.toISOString(),
@@ -148,7 +163,8 @@ export const SubprimeAddLeadDialog = ({ open, onOpenChange, onLeadAdded }: Subpr
       id: newLead.id,
       customerName: newLead.customerName,
       phoneNumber: newLead.phoneNumber, // Now properly normalized
-      email: newLead.email
+      email: newLead.email,
+      organizationId: organizationId // SECURITY: Log organization context
     });
 
     try {
@@ -192,18 +208,38 @@ export const SubprimeAddLeadDialog = ({ open, onOpenChange, onLeadAdded }: Subpr
     }
   };
 
+  const handleOrganizationAssociation = () => {
+    setShowOrgAssociation(false);
+    // Form will be available after organization is associated
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <UserPlus className="h-5 w-5" />
-            Add New Lead
-          </DialogTitle>
-          <DialogDescription>
-            Create a new lead entry. Additional details will be gathered through conversations.
-          </DialogDescription>
-        </DialogHeader>
+        {showOrgAssociation ? (
+          <>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <UserPlus className="h-5 w-5" />
+                Organization Required
+              </DialogTitle>
+              <DialogDescription>
+                You need to be associated with an organization before creating leads.
+              </DialogDescription>
+            </DialogHeader>
+            <OrganizationAssociation onAssociationComplete={handleOrganizationAssociation} />
+          </>
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <UserPlus className="h-5 w-5" />
+                Add New Lead
+              </DialogTitle>
+              <DialogDescription>
+                Create a new lead entry. Additional details will be gathered through conversations.
+              </DialogDescription>
+            </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-2">
@@ -268,15 +304,17 @@ export const SubprimeAddLeadDialog = ({ open, onOpenChange, onLeadAdded }: Subpr
           </div>
         </div>
 
-        <div className="flex justify-end gap-3 pt-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button onClick={handleSubmit}>
-            <UserPlus className="h-4 w-4 mr-2" />
-            Add Lead
-          </Button>
-        </div>
+            <div className="flex justify-end gap-3 pt-4">
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSubmit}>
+                <UserPlus className="h-4 w-4 mr-2" />
+                Add Lead
+              </Button>
+            </div>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );
