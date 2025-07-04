@@ -2743,12 +2743,38 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', async (req, res) =>
     const normalizedPhone = normalizePhoneNumber(caller_id);
     console.log(`📞 Building conversation initiation data for ${caller_id} (normalized: ${normalizedPhone})`);
 
-    // Get the active lead for this phone number
-    const activeLead = getActiveLeadForPhone(normalizedPhone);
-    console.log(`🔍 Active lead for ${normalizedPhone}:`, activeLead);
+    // SECURITY FIX: Get organizationId with fallback handling
+    let organizationId = await getOrganizationIdFromPhone(caller_id);
+    
+    // FALLBACK: If no organizationId found, this is a new caller
+    if (!organizationId) {
+      console.log(`🆕 New caller ${caller_id} - no organization context found`);
+      
+      // For new callers, we need to assign them to a default organization
+      // or handle them gracefully without organization context
+      // For now, we'll create a generic response for new callers
+      const response = {
+        dynamic_variables: {
+          conversation_context: "New caller - no previous conversation history",
+          customer_name: "Customer",
+          lead_status: "New Inquiry",
+          previous_summary: "First time calling - no previous interactions",
+          caller_type: "new_caller",
+          organization_context: "unassigned"
+        }
+      };
+      
+      console.log('✅ Returning generic response for new caller:', {
+        caller_id,
+        response
+      });
+      
+      return res.status(200).json(response);
+    }
 
-    // SECURITY FIX: Get organizationId to prevent cross-organization data leakage
-    const organizationId = await getOrganizationIdFromPhone(caller_id);
+    // EXISTING LOGIC: For callers with organization context
+    const activeLead = await getActiveLeadForPhone(normalizedPhone);  // ✅ FIXED: Added await
+    console.log(`🔍 Active lead for ${normalizedPhone}:`, activeLead);
     
     // Build conversation context - ENHANCED with Supabase loading
     const conversationContext = await buildConversationContext(caller_id, organizationId);
@@ -2797,7 +2823,9 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', async (req, res) =>
         conversation_context: finalContext,
         customer_name: customerName,
         lead_status: leadStatus,
-        previous_summary: previousSummary
+        previous_summary: previousSummary,
+        organization_id: organizationId,
+        caller_type: "existing_lead"
       }
     };
     
@@ -2807,20 +2835,34 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', async (req, res) =>
       lead_status: leadStatus,
       previous_summary_length: previousSummary.length,
       previous_summary_preview: previousSummary.substring(0, 150) + "...",
-      using_elevenlabs_summary: !!(summary?.summary && summary.summary.length > 20)
+      using_elevenlabs_summary: !!(summary?.summary && summary.summary.length > 20),
+      organization_id: organizationId
     });
 
     console.log('✅ Returning conversation initiation data:', {
       caller_id,
       contextLength: conversationContext.length,
       summaryLength: summary?.summary?.length || 0,
-      messageCount: messages.length
+      messageCount: messages.length,
+      organizationId
     });
 
     res.status(200).json(response);
   } catch (error) {
     console.error('❌ Error processing conversation initiation webhook:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    
+    // FALLBACK: Return basic response even on error
+    const fallbackResponse = {
+      dynamic_variables: {
+        conversation_context: "Error retrieving conversation history",
+        customer_name: "Customer",
+        lead_status: "New Inquiry",
+        previous_summary: "Unable to retrieve previous conversation history",
+        caller_type: "error_fallback"
+      }
+    };
+    
+    res.status(200).json(fallbackResponse);
   }
 });
 
