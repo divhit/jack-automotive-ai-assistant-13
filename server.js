@@ -2325,7 +2325,20 @@ app.post('/api/auth/organizations', async (req, res) => {
       console.log(`👑 User ${email} becomes: ${userRole} (organization founder)`);
     }
 
-    // STEP 2: Create or update user profile with organization
+    // STEP 2: Verify user exists in auth.users before creating profile
+    const authUserResult = await client.auth.admin.getUserById(user_id);
+    
+    if (authUserResult.error || !authUserResult.data.user) {
+      console.error('❌ User not found in auth.users:', authUserResult.error);
+      return res.status(400).json({ 
+        error: 'User not found in authentication system. Please complete signup first.',
+        details: authUserResult.error?.message
+      });
+    }
+
+    console.log('✅ User verified in auth.users:', authUserResult.data.user.email);
+
+    // STEP 3: Create or update user profile with organization
     const profileResult = await client.from('user_profiles')
       .upsert({
         id: user_id,
@@ -2348,7 +2361,7 @@ app.post('/api/auth/organizations', async (req, res) => {
 
     console.log('✅ User profile created/updated with role:', userRole);
 
-    // STEP 3: Create organization membership
+    // STEP 4: Create organization membership
     const membershipResult = await client.from('organization_memberships')
       .insert({
         user_id: user_id,
@@ -2365,7 +2378,7 @@ app.post('/api/auth/organizations', async (req, res) => {
       console.log('✅ Organization membership created with role:', userRole);
     }
 
-    // STEP 4: Send appropriate response
+    // STEP 5: Send appropriate response
     const responseMessage = isNewOrganization 
       ? `Organization "${organization.name}" created successfully. You are now the admin.`
       : `Successfully joined existing organization "${organization.name}" as ${userRole}.`;

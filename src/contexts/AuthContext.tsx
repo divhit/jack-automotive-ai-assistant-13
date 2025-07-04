@@ -392,7 +392,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           toast.warning('Account created but organization setup needs completion. Please contact support.');
         }
       } else {
-        toast.success('Account created! Please check your email to verify your account.');
+      toast.success('Account created! Please check your email to verify your account.');
       }
 
       return {};
