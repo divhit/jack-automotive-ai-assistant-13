@@ -10,11 +10,29 @@ import fs from 'fs';
 
 // ENHANCED: Import Supabase persistence service (non-breaking addition)
 import supabasePersistence from './services/supabasePersistence.js';
+// Import Supabase client for direct operations
+import { createClient } from '@supabase/supabase-js';
 
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Initialize Supabase client for direct operations
+let client = null;
+try {
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.REACT_APP_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.REACT_APP_SUPABASE_ANON_KEY;
+  
+  if (supabaseUrl && supabaseKey) {
+    client = createClient(supabaseUrl, supabaseKey);
+    console.log('✅ Supabase client initialized for direct operations');
+  } else {
+    console.warn('⚠️ Supabase client not initialized - missing environment variables');
+  }
+} catch (error) {
+  console.error('❌ Supabase client initialization failed:', error);
+}
 
 // Function to load existing leads from Supabase into memory
 async function loadExistingLeadsIntoMemory() {
@@ -2243,6 +2261,12 @@ app.post('/api/auth/organizations', async (req, res) => {
     // Validate required fields
     if (!name || !slug || !user_id) {
       return res.status(400).json({ error: 'Organization name, slug, and user_id are required' });
+    }
+
+    // Check if Supabase client is available
+    if (!client) {
+      console.error('❌ Supabase client not initialized - missing environment variables');
+      return res.status(500).json({ error: 'Database connection not available' });
     }
 
     // STEP 1: Check if organization with this slug already exists
