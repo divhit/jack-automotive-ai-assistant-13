@@ -371,6 +371,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             const orgData = await orgResponse.json();
             console.log('✅ Organization setup successful:', orgData);
             
+            // CRITICAL FIX: Refresh user profile to get the new organization context
+            console.log('🔄 Refreshing user profile to load new organization context...');
+            try {
+              await loadUserData(authData.user.id);
+              console.log('✅ User profile refreshed with new organization context');
+            } catch (refreshError) {
+              console.error('❌ Failed to refresh user profile:', refreshError);
+            }
+            
             // Provide appropriate feedback based on whether it's a new org or joining existing
             if (orgData.isNewOrganization) {
               toast.success(`Organization "${orgData.organization.name}" created successfully! You are the admin. Please check your email to verify your account.`);

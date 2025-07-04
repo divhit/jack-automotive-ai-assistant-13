@@ -60,7 +60,7 @@ const SubprimeDashboard = () => {
     });
   }, [user, profile, organization, hasPermission, hasRole]);
   
-  const [allLeads, setAllLeads] = useState<SubprimeLead[]>(subprimeLeads);
+  const [allLeads, setAllLeads] = useState<SubprimeLead[]>([]);  // Start empty - only load organization-specific data
   const [searchTerm, setSearchTerm] = useState("");
   const [tileDialogOpen, setTileDialogOpen] = useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
@@ -151,7 +151,8 @@ const SubprimeDashboard = () => {
 
   const loadLeadsFromServer = async () => {
     if (!organization?.id) {
-      console.warn('No organization context available for loading leads');
+      console.error('🚨 SECURITY: No organization context available - cannot load leads to prevent cross-organization data leakage');
+      toast.error('Organization context missing. Please refresh the page.');
       return;
     }
 
@@ -165,7 +166,7 @@ const SubprimeDashboard = () => {
         setAllLeads(data.leads);
         setDataSource(data.source);
         setLastRefresh(new Date());
-        console.log(`📊 Loaded ${data.leads.length} leads from ${data.source} for org: ${organization.name}`);
+        console.log(`📊 Loaded ${data.leads.length} leads from ${data.source} for org: ${organization.name} (${organization.id})`);
         
         if (data.source === 'database') {
           toast.success(`Loaded ${data.leads.length} leads from database`);
@@ -173,7 +174,9 @@ const SubprimeDashboard = () => {
       }
     } catch (error) {
       console.error('Error loading leads:', error);
-      toast.error('Failed to load leads from server, using local data');
+      toast.error('Failed to load leads from server');
+      // Don't fall back to static data - could be from wrong organization
+      setAllLeads([]);
     } finally {
       setIsLoading(false);
     }

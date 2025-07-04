@@ -60,14 +60,11 @@ interface TelephonyInterfaceProps {
   organizationId?: string; // SECURITY: Added organization context
 }
 
-// SECURITY: Helper function to get organization headers
+// SECURITY: Helper function to get organization headers - NO FALLBACKS TO PREVENT CROSS-ORG DATA LEAKAGE
 const getOrganizationHeaders = (organizationId?: string) => {
   if (!organizationId) {
-    console.warn('⚠️ No organizationId provided - API calls may fail');
-    // Try to get from localStorage or other sources as fallback
-    // In a real app, this would come from the authentication context
-    const fallbackOrgId = localStorage.getItem('organizationId') || 'default-org';
-    return { 'organizationId': fallbackOrgId };
+    console.error('🚨 SECURITY: No organizationId provided - refusing to make API calls that could leak cross-organization data');
+    throw new Error('Organization context required - please refresh the page');
   }
   return { 'organizationId': organizationId };
 };
