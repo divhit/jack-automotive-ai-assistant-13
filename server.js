@@ -162,6 +162,7 @@ const phoneToLeadMapping = new Map(); // phoneNumber -> leadId
 const leadToPhoneMapping = new Map(); // leadId -> phoneNumber
 const dynamicLeads = new Map(); // leadId -> lead object
 const sseConnections = new Map(); // leadId -> response object (for Server-Sent Events)
+const conversationMetadata = new Map(); // conversationId -> { phoneNumber, leadId, startTime }
 
 // ORGANIZATION-SCOPED MEMORY UTILITIES
 function createOrgMemoryKey(organizationId, phoneNumber) {
@@ -991,16 +992,16 @@ function startConversation(phoneNumber, initialMessage) {
     console.log(`🔗 WebSocket connected for ${phoneNumber} (normalized: ${normalized})`);
     activeConversations.set(normalized, ws);
     
+    // SECURITY FIX: Get organizationId first to prevent cross-organization data leakage
+    const organizationId = await getOrganizationIdFromPhone(phoneNumber);
+    
     // ENHANCED: Build conversation context with async loading for better context
-    const conversationContext = await buildConversationContext(phoneNumber);
+    const conversationContext = await buildConversationContext(phoneNumber, organizationId);
     
     // Get lead data and build dynamic variables like voice calls do
     const leadId = await getActiveLeadForPhone(phoneNumber);
     const leadData = getLeadData(leadId);
     const customerName = leadData?.customerName || `Customer ${phoneNumber}`;
-    
-    // SECURITY FIX: Get organizationId to prevent cross-organization data leakage
-    const organizationId = await getOrganizationIdFromPhone(phoneNumber);
     
     const summaryData = await getConversationSummary(phoneNumber, organizationId);
     const history = await getConversationHistory(phoneNumber, organizationId);
@@ -1094,7 +1095,10 @@ function startConversation(phoneNumber, initialMessage) {
         const agentResponse = response.agent_response_event?.agent_response || '';
         if (agentResponse) {
             console.log(`✅ [${phoneNumber}] Agent response received:`, agentResponse);
-            addToConversationHistory(phoneNumber, agentResponse, 'agent', 'text');
+            
+            // SECURITY FIX: Get organizationId for proper history scoping
+            const organizationId = await getOrganizationIdFromPhone(phoneNumber);
+            addToConversationHistory(phoneNumber, agentResponse, 'agent', 'text', organizationId);
             sendSMSReply(phoneNumber, agentResponse);
             
             // Get the active lead ID for this phone number
@@ -1272,14 +1276,16 @@ app.post('/api/debug/set-lead-mapping', (req, res) => {
 });
 
 // Debug endpoint to manually store a message (for testing)
-app.post('/api/debug/store-message', (req, res) => {
+app.post('/api/debug/store-message', async (req, res) => {
   try {
-    const { phoneNumber, message, sentBy, type = 'text' } = req.body;
+    const { phoneNumber, message, sentBy, type = 'text', organizationId } = req.body;
     if (!phoneNumber || !message || !sentBy) {
       return res.status(400).json({ error: 'phoneNumber, message, and sentBy are required' });
     }
     
-    addToConversationHistory(phoneNumber, message, sentBy, type);
+    // SECURITY FIX: Get organizationId for proper scoping
+    const orgId = organizationId || await getOrganizationIdFromPhone(phoneNumber);
+    addToConversationHistory(phoneNumber, message, sentBy, type, orgId);
     
     res.json({ 
       success: true, 
@@ -1363,17 +1369,18 @@ app.post('/api/webhooks/twilio/sms/incoming', async (req, res) => {
       leadId: leadId // Use the active lead ID
     });
 
+    // SECURITY FIX: Get organizationId to prevent cross-organization data leakage
+    const organizationId = await getOrganizationIdFromPhone(From);
+    
     if (activeConversations.has(normalizedFrom)) {
       console.log('➡️ Existing conversation found. Sending message.');
       const ws = activeConversations.get(normalizedFrom);
-      addToConversationHistory(From, Body, 'user', 'text');
+      addToConversationHistory(From, Body, 'user', 'text', organizationId);
       ws.send(JSON.stringify({ type: 'user_message', text: Body }));
     } else {
       // ENHANCED: Check conversation history BEFORE starting new conversation  
-      // SECURITY FIX: Get organizationId to prevent cross-organization data leakage
-      const organizationId = await getOrganizationIdFromPhone(From);
       const existingHistory = await getConversationHistory(From, organizationId);
-      addToConversationHistory(From, Body, 'user', 'text');
+      addToConversationHistory(From, Body, 'user', 'text', organizationId);
       
       if (existingHistory.length > 0) {
         console.log(`📞➡️📱 Found ${existingHistory.length} previous messages (voice/SMS history). Starting new SMS conversation with context.`);
@@ -1445,7 +1452,7 @@ app.post('/api/elevenlabs/outbound-call', validateOrganizationAccess, async (req
     // Get conversation context for seamless SMS ↔ Voice transition
     // Use normalized phone number to ensure consistency with stored history
     const normalizedPhoneNumber = normalizePhoneNumber(phoneNumber);
-    const conversationContext = await buildConversationContext(normalizedPhoneNumber);
+    const conversationContext = await buildConversationContext(normalizedPhoneNumber, organizationId);
     
     // Generate a unique conversation ID for tracking
     const tempConversationId = `temp_${Date.now()}_${phoneNumber}`;
@@ -1812,7 +1819,9 @@ app.post('/api/webhooks/elevenlabs/conversation-events', async (req, res) => {
         const userMessage = eventData.data?.message || eventData.data?.transcript;
         console.log('💬 User voice message:', userMessage?.substring(0, 50));
         if (userMessage && phoneNumber) {
-          addToConversationHistory(phoneNumber, userMessage, 'user', 'voice');
+          // SECURITY FIX: Get organizationId for proper scoping
+          const organizationId = await getOrganizationIdFromPhone(phoneNumber);
+          addToConversationHistory(phoneNumber, userMessage, 'user', 'voice', organizationId);
           if (leadId) {
             broadcastConversationUpdate({
               type: 'voice_received',
@@ -1832,7 +1841,9 @@ app.post('/api/webhooks/elevenlabs/conversation-events', async (req, res) => {
         const agentMessage = eventData.data?.message || eventData.data?.response;
         console.log('🤖 Agent voice message:', agentMessage?.substring(0, 50));
         if (agentMessage && phoneNumber) {
-          addToConversationHistory(phoneNumber, agentMessage, 'agent', 'voice');
+          // SECURITY FIX: Get organizationId for proper scoping
+          const organizationId = await getOrganizationIdFromPhone(phoneNumber);
+          addToConversationHistory(phoneNumber, agentMessage, 'agent', 'voice', organizationId);
           if (leadId) {
             broadcastConversationUpdate({
               type: 'voice_sent',
@@ -2051,9 +2062,13 @@ app.post('/api/webhooks/elevenlabs/post-call', async (req, res) => {
     if (transcript && phoneNumber && Array.isArray(transcript)) {
       const normalizedForStorage = normalizePhoneNumber(phoneNumber);
       console.log('📝 Storing post-call conversation history for:', phoneNumber, '(normalized:', normalizedForStorage + ')');
+      
+      // SECURITY FIX: Get organizationId for proper scoping
+      const organizationId = await getOrganizationIdFromPhone(phoneNumber);
+      
       transcript.forEach(message => {
         if (message.role && message.message) {
-          addToConversationHistory(phoneNumber, message.message, message.role, 'voice');
+          addToConversationHistory(phoneNumber, message.message, message.role, 'voice', organizationId);
         }
       });
     }
@@ -2732,10 +2747,11 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', async (req, res) =>
     const activeLead = getActiveLeadForPhone(normalizedPhone);
     console.log(`🔍 Active lead for ${normalizedPhone}:`, activeLead);
 
-    // Build conversation context - ENHANCED with Supabase loading
-    const conversationContext = await buildConversationContext(caller_id);
     // SECURITY FIX: Get organizationId to prevent cross-organization data leakage
     const organizationId = await getOrganizationIdFromPhone(caller_id);
+    
+    // Build conversation context - ENHANCED with Supabase loading
+    const conversationContext = await buildConversationContext(caller_id, organizationId);
     const summary = await getConversationSummary(normalizedPhone, organizationId);
     const messages = await getConversationHistory(caller_id, organizationId);
     
