@@ -46,6 +46,7 @@ import { SubprimeLead } from '@/data/subprime/subprimeLeads';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
 import { ElevenLabsAnalyticsPanel } from './enhanced/ElevenLabsAnalyticsPanel';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface ConversationMessage {
   id: string;
@@ -67,6 +68,9 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
   onLeadUpdate,
   className
 }) => {
+  // SECURITY: Get organization context
+  const { organization } = useAuth();
+  
   // State management
   const [conversationHistory, setConversationHistory] = useState<ConversationMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -151,16 +155,25 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
   const setupEventSource = () => {
     if (!selectedLead) return;
     
+    // SECURITY: Validate organization context before establishing SSE connection
+    if (!organization?.id) {
+      console.error('🚨 SECURITY: No organization context - cannot establish SSE connection');
+      setError('Organization context missing. Please refresh the page.');
+      return;
+    }
+    
     closeEventSource(); // Close existing connection
     
-    // Include phone number in query params for proper lead-to-phone mapping
-    const eventSourceUrl = `/api/stream/conversation/${selectedLead.id}?phoneNumber=${encodeURIComponent(selectedLead.phoneNumber)}`;
+    // SECURITY: Include organizationId in query params for organization validation
+    const eventSourceUrl = `/api/stream/conversation/${selectedLead.id}?phoneNumber=${encodeURIComponent(selectedLead.phoneNumber)}&load=true&organizationId=${encodeURIComponent(organization.id)}`;
+    
+    console.log('📡 Establishing SSE connection for lead:', selectedLead.id, 'organization:', organization.name);
     
     const eventSource = new EventSource(eventSourceUrl);
     eventSourceRef.current = eventSource;
     
     eventSource.onopen = () => {
-      console.log('📡 SSE connection established for lead:', selectedLead.id, '(phone:', selectedLead.phoneNumber, ')');
+      console.log('📡 SSE connection established for lead:', selectedLead.id, '(phone:', selectedLead.phoneNumber, ') (org:', organization.name, ')');
     };
     
     eventSource.onmessage = (event) => {
@@ -283,13 +296,21 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
   const loadConversationHistory = async () => {
     if (!selectedLead) return;
     
+    // SECURITY: Validate organization context
+    if (!organization?.id) {
+      console.error('🚨 SECURITY: No organization context - cannot load conversation history');
+      setError('Organization context missing. Please refresh the page.');
+      return;
+    }
+    
     setIsLoading(true);
     setError(null);
     
     try {
-      console.log('📋 Loading conversation history for lead:', selectedLead.id, '(phone:', selectedLead.phoneNumber, ')');
+      console.log('📋 Loading conversation history for lead:', selectedLead.id, '(phone:', selectedLead.phoneNumber, ') (org:', organization.name, ')');
       
-      const response = await fetch(`/api/stream/conversation/${selectedLead.id}?phoneNumber=${encodeURIComponent(selectedLead.phoneNumber)}&load=true`);
+      // SECURITY: Include organizationId in request for organization validation
+      const response = await fetch(`/api/stream/conversation/${selectedLead.id}?phoneNumber=${encodeURIComponent(selectedLead.phoneNumber)}&load=true&organizationId=${encodeURIComponent(organization.id)}`);
       
       if (!response.ok) {
         throw new Error(`Failed to load conversation history: ${response.status}`);

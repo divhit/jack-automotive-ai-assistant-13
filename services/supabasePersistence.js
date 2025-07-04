@@ -565,24 +565,34 @@ class SupabasePersistenceService {
     }
   }
 
-  async getAllLeadsWithAnalytics(limit = 100) {
+  async getAllLeadsWithAnalytics(limit = 100, organizationId = null) {
     if (!this.isEnabled || !this.isConnected) return [];
     
     try {
+      // SECURITY: organizationId is now REQUIRED
+      if (!organizationId) {
+        console.error('🚨 SECURITY: getAllLeadsWithAnalytics() requires organizationId to prevent cross-organization data leakage');
+        return [];
+      }
+      
       const { data, error } = await this.supabase
         .from('lead_analytics')
         .select('*')
+        .eq('organization_id', organizationId) // SECURITY: Always filter by organization
         .order('last_activity', { ascending: false })
         .limit(limit);
 
       if (error) throw error;
-      return data;
+      
+      console.log(`🗄️ Retrieved ${data?.length || 0} leads with analytics from Supabase for organization: ${organizationId}`);
+      return data || [];
       
     } catch (error) {
       console.error(`❌ Failed to retrieve leads with analytics:`, error);
       return [];
     }
   }
+
   // DELETE OPERATIONS
   async deleteLead(leadId) {
     if (!this.isEnabled || !this.isConnected) return;
@@ -714,7 +724,37 @@ class SupabasePersistenceService {
   }
 
   // CONVENIENCE METHODS FOR API
-  async getAllLeads(limit = 100) {
+  async getAllLeads(limit = 100, organizationId = null) {
+    if (!this.isEnabled || !this.isConnected) return [];
+    
+    try {
+      // SECURITY: organizationId is now REQUIRED to prevent cross-organization data leakage
+      if (!organizationId) {
+        console.error('🚨 SECURITY: getAllLeads() requires organizationId to prevent cross-organization data leakage');
+        return [];
+      }
+      
+      const { data: leads, error } = await this.supabase
+        .from('leads')
+        .select('*')
+        .eq('organization_id', organizationId) // SECURITY: Always filter by organization
+        .order('updated_at', { ascending: false })
+        .limit(limit);
+
+      if (error) throw error;
+      
+      console.log(`🗄️ Retrieved ${leads?.length || 0} leads from Supabase for organization: ${organizationId}`);
+      return leads || [];
+    } catch (error) {
+      console.error('❌ Failed to get all leads:', error);
+      return [];
+    }
+  }
+
+  // DEPRECATED: Use getAllLeads(limit, organizationId) instead
+  async getAllLeadsUnsafe(limit = 100) {
+    console.warn('⚠️ DEPRECATED: getAllLeadsUnsafe() is deprecated. Use getAllLeads(limit, organizationId) instead for security.');
+    
     if (!this.isEnabled || !this.isConnected) return [];
     
     try {
@@ -726,7 +766,7 @@ class SupabasePersistenceService {
 
       if (error) throw error;
       
-      console.log(`🗄️ Retrieved ${leads?.length || 0} leads from Supabase`);
+      console.log(`🗄️ Retrieved ${leads?.length || 0} leads from Supabase (UNSAFE - no organization filtering)`);
       return leads || [];
     } catch (error) {
       console.error('❌ Failed to get all leads:', error);

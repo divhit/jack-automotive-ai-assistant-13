@@ -34,10 +34,16 @@ try {
   console.error('❌ Supabase client initialization failed:', error);
 }
 
-// Function to load existing leads from Supabase into memory
-async function loadExistingLeadsIntoMemory() {
+// Function to load existing leads from Supabase into memory (ORGANIZATION-AWARE)
+async function loadExistingLeadsIntoMemory(organizationId = null) {
   try {
-    console.log('🔄 Loading existing leads from Supabase into memory...');
+    if (!organizationId) {
+      console.log('🔒 SECURITY: Skipping global lead loading - leads will be loaded on-demand per organization');
+      console.log('📋 Starting with empty lead storage (system will load leads per organization as needed)');
+      return;
+    }
+    
+    console.log(`🔄 Loading existing leads from Supabase into memory for organization: ${organizationId}`);
     
     if (supabasePersistence.isEnabled) {
       // Wait for connection with retries
@@ -62,7 +68,8 @@ async function loadExistingLeadsIntoMemory() {
       }
       
       if (supabasePersistence.isConnected) {
-        const existingLeads = await supabasePersistence.getAllLeads(500); // Load up to 500 leads
+        // SECURITY: Only load leads for the specified organization
+        const existingLeads = await supabasePersistence.getAllLeads(500, organizationId);
         
         for (const dbLead of existingLeads) {
           // Convert Supabase format back to dynamicLeads format
@@ -71,6 +78,7 @@ async function loadExistingLeadsIntoMemory() {
             customerName: dbLead.customer_name,
             phoneNumber: dbLead.phone_number,
             email: dbLead.email,
+            organizationId: dbLead.organization_id, // SECURITY: Store organization context
             chaseStatus: dbLead.chase_status,
             fundingReadiness: dbLead.funding_readiness,
             fundingReadinessReason: dbLead.funding_readiness_reason,
@@ -96,15 +104,15 @@ async function loadExistingLeadsIntoMemory() {
             }
           };
           
-          // Store in memory
+          // Store in memory with organization context
           dynamicLeads.set(dbLead.id, memoryLead);
           
-          // Set up phone mapping
+          // Set up phone mapping (organization-aware)
           const normalizedPhone = normalizePhoneNumber(dbLead.phone_number);
           phoneToLeadMapping.set(normalizedPhone, dbLead.id);
         }
         
-        console.log(`✅ Loaded ${existingLeads.length} existing leads into memory`);
+        console.log(`✅ Loaded ${existingLeads.length} existing leads into memory for organization: ${organizationId}`);
         console.log(`🔗 Set up ${phoneToLeadMapping.size} phone mappings`);
       } else {
         console.log('📋 Supabase connection failed, starting with empty lead storage');
@@ -2894,10 +2902,20 @@ app.post('/api/subprime/create-lead', async (req, res) => {
 // API endpoint to get all dynamic leads (smart: tries Supabase first, then memory)
 app.get('/api/subprime/leads', async (req, res) => {
   try {
+    // SECURITY: Get organization ID from query params
+    const { organization_id } = req.query;
+    
+    if (!organization_id) {
+      return res.status(400).json({ 
+        error: 'organization_id is required for lead retrieval to prevent cross-organization data access' 
+      });
+    }
+    
     // Try Supabase first (in case initialization failed but Supabase is working)
     if (supabasePersistence.isEnabled) {
       try {
-        const dbLeads = await supabasePersistence.getAllLeads(500);
+        // SECURITY: Pass organizationId to prevent cross-organization data leakage
+        const dbLeads = await supabasePersistence.getAllLeads(500, organization_id);
         if (dbLeads && dbLeads.length > 0) {
           // Convert to frontend format
           const formattedLeads = dbLeads.map(dbLead => ({
@@ -2905,6 +2923,7 @@ app.get('/api/subprime/leads', async (req, res) => {
             customerName: dbLead.customer_name,
             phoneNumber: dbLead.phone_number,
             email: dbLead.email,
+            organizationId: dbLead.organization_id, // SECURITY: Include organization context
             chaseStatus: dbLead.chase_status,
             fundingReadiness: dbLead.funding_readiness,
             fundingReadinessReason: dbLead.funding_readiness_reason,
@@ -2944,7 +2963,8 @@ app.get('/api/subprime/leads', async (req, res) => {
             success: true,
             leads: formattedLeads,
             count: formattedLeads.length,
-            source: 'database'
+            source: 'database',
+            organization_id: organization_id
           });
         }
       } catch (dbError) {
@@ -2952,15 +2972,17 @@ app.get('/api/subprime/leads', async (req, res) => {
       }
     }
     
-    // Fallback to memory
-    const leads = Array.from(dynamicLeads.values());
-    console.log(`📋 Retrieved ${leads.length} dynamic leads from memory`);
+    // Fallback to memory (filter by organization)
+    const leads = Array.from(dynamicLeads.values())
+      .filter(lead => lead.organizationId === organization_id);
+    console.log(`📋 Retrieved ${leads.length} dynamic leads from memory for organization: ${organization_id}`);
     
     res.json({
       success: true,
       leads: leads,
       count: leads.length,
-      source: 'memory'
+      source: 'memory',
+      organization_id: organization_id
     });
   } catch (error) {
     console.error('❌ Error retrieving leads:', error);
@@ -3626,8 +3648,16 @@ try {
   app.listen(PORT, async () => {
     console.log(`🚀 Webhook server running on port ${PORT}`);
     
-    // Initialize leads from Supabase after server starts
-    await loadExistingLeadsIntoMemory();
+    // SECURITY: Skip global lead loading - leads will be loaded on-demand per organization
+    await loadExistingLeadsIntoMemory(); // This will log security message and skip loading
+    
+    console.log('==> Your service is live 🎉');
+    console.log('==> ');
+    console.log('==> ///////////////////////////////////////////////////////////');
+    console.log('==> ');
+    console.log(`==> Available at your primary URL https://jack-automotive-ai-assistant-13.onrender.com`);
+    console.log('==> ');
+    console.log('==> ///////////////////////////////////////////////////////////');
   });
 } catch (error) {
   console.error('❌ Error starting server:', error);
