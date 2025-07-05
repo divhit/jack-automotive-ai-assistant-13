@@ -2529,23 +2529,45 @@ async function getOrganizationByPhoneNumber(phoneNumber) {
 
 async function purchaseTwilioNumberForOrganization(organizationId, areaCode = null) {
   try {
-    const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+    // Validate Twilio credentials
+    if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
+      throw new Error('Missing Twilio credentials. Please configure TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN.');
+    }
+    
+    const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+    
+    // Build search parameters - only include areaCode if it's provided
+    const searchParams = { limit: 5 };
+    if (areaCode && areaCode.toString().trim()) {
+      searchParams.areaCode = areaCode;
+    }
     
     // Search for available numbers
-    const numbers = await client.availablePhoneNumbers('US')
+    console.log(`🔍 Searching for Twilio numbers with params:`, searchParams);
+    
+    let numbers = await twilioClient.availablePhoneNumbers('US')
       .local
-      .list({
-        areaCode: areaCode,
-        limit: 5
-      });
+      .list(searchParams);
+    
+    // If no numbers found with area code, try without area code as fallback
+    if (numbers.length === 0 && searchParams.areaCode) {
+      console.log(`⚠️ No numbers found with area code ${searchParams.areaCode}, trying without area code...`);
+      const fallbackParams = { limit: 5 };
+      numbers = await twilioClient.availablePhoneNumbers('US')
+        .local
+        .list(fallbackParams);
+    }
     
     if (numbers.length === 0) {
-      throw new Error('No available phone numbers found');
+      throw new Error('No available phone numbers found in the US. Please try again later or contact support.');
     }
+    
+    console.log(`✅ Found ${numbers.length} available phone numbers`);
+    console.log(`📞 Selected number: ${numbers[0].phoneNumber}`);
     
     // Purchase the first available number
     const selectedNumber = numbers[0].phoneNumber;
-    const purchasedNumber = await client.incomingPhoneNumbers
+    const purchasedNumber = await twilioClient.incomingPhoneNumbers
       .create({
         phoneNumber: selectedNumber,
         voiceUrl: 'https://api.elevenlabs.io/v1/convai/conversations/twilio/inbound',
@@ -2882,7 +2904,7 @@ app.post('/api/auth/organizations', async (req, res) => {
         organization.phoneNumberError = phoneError.message;
         
         // Create admin notification for manual phone number setup
-        await supabase.from('admin_notifications').insert({
+        await client.from('admin_notifications').insert({
           type: 'phone_number_setup_required',
           organization_id: organization.id,
           message: `Failed to automatically purchase phone number for "${organization.name}". Manual setup required.`,
