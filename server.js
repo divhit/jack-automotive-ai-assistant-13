@@ -1870,6 +1870,59 @@ app.post('/api/admin/organizations/:organizationId/phone-numbers/purchase', asyn
   }
 });
 
+// Manually add phone number to database (Admin only - for fixing missing entries)
+app.post('/api/admin/phone-numbers/manual-add', async (req, res) => {
+  try {
+    const { organizationId, phoneNumber, twilioPhoneSid, elevenLabsPhoneId, isActive } = req.body;
+    
+    if (!organizationId || !phoneNumber) {
+      return res.status(400).json({ 
+        error: 'organizationId and phoneNumber are required'
+      });
+    }
+    
+    console.log(`📞 Manually adding phone number: ${phoneNumber} for organization: ${organizationId}`);
+    
+    // Insert the phone number into the database
+    const { data: phoneRecord, error } = await client
+      .from('organization_phone_numbers')
+      .insert({
+        organization_id: organizationId,
+        phone_number: phoneNumber,
+        twilio_phone_sid: twilioPhoneSid || 'MANUAL_ADD',
+        elevenlabs_phone_id: elevenLabsPhoneId,
+        is_active: isActive || false
+      })
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('❌ Error adding phone number to database:', error);
+      return res.status(500).json({ 
+        error: 'Failed to add phone number to database',
+        details: error.message 
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      message: 'Phone number added to database successfully',
+      phoneNumber,
+      organizationId,
+      elevenLabsPhoneId,
+      isActive: isActive || false,
+      record: phoneRecord
+    });
+    
+  } catch (error) {
+    console.error('❌ Error manually adding phone number:', error);
+    res.status(500).json({ 
+      error: 'Failed to add phone number',
+      details: error.message 
+    });
+  }
+});
+
 // Activate phone number after ElevenLabs import (Admin only)
 app.post('/api/admin/phone-numbers/:phoneNumber/activate', async (req, res) => {
   try {
