@@ -468,6 +468,57 @@ function storeConversationSummary(phoneNumber, summary, organizationId = null) {
     });
 }
 
+// Generate comprehensive summary from voice + SMS conversations
+async function generateComprehensiveSummary(phoneNumber, organizationId) {
+  try {
+    const history = await getConversationHistory(phoneNumber, organizationId);
+    if (history.length === 0) return null;
+    
+    const voiceMessages = history.filter(msg => msg.type === 'voice');
+    const smsMessages = history.filter(msg => msg.type === 'text' || msg.type === 'sms');
+    
+    // Check if we have an ElevenLabs voice summary
+    const existingSummary = await getConversationSummary(phoneNumber, organizationId);
+    
+    if (existingSummary?.summary && smsMessages.length === 0) {
+      // Only voice conversations, use existing summary
+      return existingSummary.summary;
+    }
+    
+    // Generate comprehensive summary including both voice and SMS
+    let comprehensiveSummary = '';
+    
+    if (existingSummary?.summary) {
+      comprehensiveSummary += `VOICE CALL SUMMARY: ${existingSummary.summary}`;
+    }
+    
+    if (smsMessages.length > 0) {
+      const customerSms = smsMessages.filter(m => m.sentBy === 'user');
+      const agentSms = smsMessages.filter(m => m.sentBy === 'agent');
+      
+      if (comprehensiveSummary) comprehensiveSummary += '\n\n';
+      comprehensiveSummary += `SMS CONVERSATION: ${smsMessages.length} messages exchanged. `;
+      
+      if (customerSms.length > 0) {
+        const lastCustomerSms = customerSms[customerSms.length - 1];
+        comprehensiveSummary += `Customer's last SMS: "${lastCustomerSms.content.substring(0, 150)}${lastCustomerSms.content.length > 150 ? '...' : ''}" `;
+      }
+      
+      if (agentSms.length > 0) {
+        const lastAgentSms = agentSms[agentSms.length - 1];
+        comprehensiveSummary += `Agent's last SMS: "${lastAgentSms.content.substring(0, 150)}${lastAgentSms.content.length > 150 ? '...' : ''}"`;
+      }
+    }
+    
+    console.log(`📋 Generated comprehensive summary for ${phoneNumber} (${voiceMessages.length} voice, ${smsMessages.length} SMS):`, comprehensiveSummary.substring(0, 200) + '...');
+    return comprehensiveSummary;
+    
+  } catch (error) {
+    console.error('❌ Error generating comprehensive summary:', error);
+    return null;
+  }
+}
+
 // NEW: Update lead profile from ElevenLabs conversation data
 async function updateLeadFromConversationData(phoneNumber, dataCollectionResults, conversationSummary) {
   try {
@@ -1054,12 +1105,13 @@ function startConversation(phoneNumber, initialMessage) {
     const history = await getConversationHistory(phoneNumber, organizationId);
     const leadStatus = summaryData?.summary ? "Returning Customer" : (history.length > 0 ? "Active Lead" : "New Inquiry");
     
-    // ENHANCED: Use rich summary logic identical to voice call initiation
+    // ENHANCED: Use comprehensive summary (voice + SMS) for better context
     let previousSummary;
-    if (summaryData?.summary && summaryData.summary.length > 20) {
-      // Use the actual ElevenLabs summary - truncate if too long for dynamic variables  
-      previousSummary = summaryData.summary.length > 100000 ? summaryData.summary.substring(0, 100000) + "..." : summaryData.summary;
-      console.log(`📋 SMS using actual ElevenLabs summary (${summaryData.summary.length} chars): ${summaryData.summary.substring(0, 100)}...`);
+    const comprehensiveSummary = await generateComprehensiveSummary(phoneNumber, organizationId);
+    if (comprehensiveSummary && comprehensiveSummary.length > 20) {
+      // Use the comprehensive voice + SMS summary
+      previousSummary = comprehensiveSummary.length > 100000 ? comprehensiveSummary.substring(0, 100000) + "..." : comprehensiveSummary;
+      console.log(`📋 SMS using comprehensive summary (${comprehensiveSummary.length} chars): ${comprehensiveSummary.substring(0, 100)}...`);
     } else if (history.length > 0) {
       // Build a rich summary from recent messages if no ElevenLabs summary
       const recentMessages = history.slice(-6); // Last 6 messages
@@ -1557,12 +1609,13 @@ app.post('/api/elevenlabs/outbound-call', validateOrganizationAccess, async (req
     const customerName = leadData?.customerName || `Customer ${phoneNumber}`;
     const leadStatus = summary?.summary ? "Returning Customer" : (messages.length > 0 ? "Active Lead" : "New Inquiry");
     
-    // ENHANCED: Use actual ElevenLabs summary instead of generic text
+    // ENHANCED: Use comprehensive summary (voice + SMS) for better context
     let previousSummary;
-    if (summary?.summary && summary.summary.length > 20) {
-      // Use the actual ElevenLabs summary - truncate if too long for dynamic variables
-      previousSummary = summary.summary.length > 500 ? summary.summary.substring(0, 500) + "..." : summary.summary;
-      console.log(`📋 Using actual ElevenLabs summary (${summary.summary.length} chars): ${summary.summary.substring(0, 100)}...`);
+    const comprehensiveSummary = await generateComprehensiveSummary(phoneNumber, organizationId);
+    if (comprehensiveSummary && comprehensiveSummary.length > 20) {
+      // Use the comprehensive voice + SMS summary
+      previousSummary = comprehensiveSummary.length > 100000 ? comprehensiveSummary.substring(0, 100000) + "..." : comprehensiveSummary;
+      console.log(`📋 Outbound call using comprehensive summary (${comprehensiveSummary.length} chars): ${comprehensiveSummary.substring(0, 100)}...`);
     } else if (messages.length > 0) {
       // Build a rich summary from recent messages if no ElevenLabs summary
       const recentMessages = messages.slice(-6); // Last 6 messages
@@ -3280,12 +3333,13 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', async (req, res) =>
     const customerName = leadData?.customerName || "Customer";
     const leadStatus = summary?.summary ? "Returning Customer" : (messages.length > 0 ? "Active Lead" : "New Inquiry");
     
-    // ENHANCED: Use actual ElevenLabs summary instead of generic text
+    // ENHANCED: Use comprehensive summary (voice + SMS) for better context
     let previousSummary;
-    if (summary?.summary && summary.summary.length > 20) {
-      // Use the actual ElevenLabs summary - truncate if too long for dynamic variables
-      previousSummary = summary.summary.length > 100000 ? summary.summary.substring(0, 100000) + "..." : summary.summary;
-      console.log(`📋 Using actual ElevenLabs summary (${summary.summary.length} chars): ${summary.summary.substring(0, 100)}...`);
+    const comprehensiveSummary = await generateComprehensiveSummary(caller_id, organizationId);
+    if (comprehensiveSummary && comprehensiveSummary.length > 20) {
+      // Use the comprehensive voice + SMS summary
+      previousSummary = comprehensiveSummary.length > 100000 ? comprehensiveSummary.substring(0, 100000) + "..." : comprehensiveSummary;
+      console.log(`📋 ElevenLabs webhook using comprehensive summary (${comprehensiveSummary.length} chars): ${comprehensiveSummary.substring(0, 100)}...`);
     } else if (messages.length > 0) {
       // Build a rich summary from recent messages if no ElevenLabs summary
       const recentMessages = messages.slice(-6); // Last 6 messages
@@ -3807,6 +3861,198 @@ app.get('/api/analytics/leads', async (req, res) => {
     console.error('❌ Error getting leads analytics:', error);
     res.status(500).json({ 
       error: 'Failed to get leads analytics',
+      details: error.message 
+    });
+  }
+});
+
+// Get global analytics (for RealTimeAnalyticsPanel)
+app.get('/api/analytics/global', async (req, res) => {
+  try {
+    const { organization_id } = req.query;
+    
+    if (!organization_id) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'organization_id is required for analytics data' 
+      });
+    }
+    
+    // Calculate real metrics from actual data
+    const organizationLeads = Array.from(dynamicLeads.values())
+      .filter(lead => lead.organization_id === organization_id);
+    
+    const totalLeads = organizationLeads.length;
+    
+    // Calculate conversation metrics from memory
+    const totalConversations = organizationLeads.reduce((sum, lead) => {
+      return sum + (lead.conversations?.length || 0);
+    }, 0);
+    
+    // Get actual conversation data from memory
+    const orgMemoryKeys = Array.from(conversationContexts.keys())
+      .filter(key => key.startsWith(`${organization_id}:`));
+    
+    const totalMessages = orgMemoryKeys.reduce((sum, key) => {
+      const history = conversationContexts.get(key) || [];
+      return sum + history.length;
+    }, 0);
+    
+    const voiceMessages = orgMemoryKeys.reduce((sum, key) => {
+      const history = conversationContexts.get(key) || [];
+      return sum + history.filter(msg => msg.type === 'voice').length;
+    }, 0);
+    
+    const smsMessages = orgMemoryKeys.reduce((sum, key) => {
+      const history = conversationContexts.get(key) || [];
+      return sum + history.filter(msg => msg.type === 'text' || msg.type === 'sms').length;
+    }, 0);
+    
+    // Calculate sentiment distribution
+    const sentimentCounts = organizationLeads.reduce((counts, lead) => {
+      const sentiment = lead.sentiment || 'Neutral';
+      counts[sentiment] = (counts[sentiment] || 0) + 1;
+      return counts;
+    }, {});
+    
+    // Calculate funding readiness
+    const fundingReadyCounts = organizationLeads.reduce((counts, lead) => {
+      const readiness = lead.fundingReadiness || 'Not Ready';
+      counts[readiness] = (counts[readiness] || 0) + 1;
+      return counts;
+    }, {});
+    
+    // Calculate conversation quality based on actual data
+    const conversationQuality = totalMessages > 0 ? Math.min(95, Math.round(
+      ((voiceMessages * 10) + (smsMessages * 5)) / totalMessages * 10
+    )) : 0;
+    
+    // Calculate high-value leads (those with multiple conversations and good sentiment)
+    const highValueLeads = organizationLeads.filter(lead => {
+      const hasMultipleConversations = (lead.conversations?.length || 0) > 2;
+      const hasGoodSentiment = ['Warm', 'Interested', 'Hot'].includes(lead.sentiment);
+      const isReady = lead.fundingReadiness === 'Ready';
+      return hasMultipleConversations || hasGoodSentiment || isReady;
+    }).length;
+    
+    // Calculate buying signals from conversation content
+    const buyingSignals = orgMemoryKeys.reduce((signals, key) => {
+      const history = conversationContexts.get(key) || [];
+      const conversationText = history.map(msg => msg.content.toLowerCase()).join(' ');
+      
+      // Count buying signal keywords
+      const buyingKeywords = ['buy', 'purchase', 'interested', 'payment', 'financing', 'loan', 'approve', 'ready', 'when can', 'how much', 'budget'];
+      const foundSignals = buyingKeywords.filter(keyword => conversationText.includes(keyword));
+      return signals + foundSignals.length;
+    }, 0);
+    
+    // Calculate conversion rate based on funding readiness
+    const readyLeads = organizationLeads.filter(lead => lead.fundingReadiness === 'Ready').length;
+    const conversionRate = totalLeads > 0 ? Math.round((readyLeads / totalLeads) * 100) : 0;
+    
+    const analytics = {
+      totalLeads,
+      totalConversations: totalMessages,
+      conversationQuality,
+      highValueLeads,
+      buyingSignalsCount: buyingSignals,
+      conversionRate,
+      dataSource: 'live',
+      metrics: {
+        voiceMessages,
+        smsMessages,
+        totalMessages,
+        activeConversations: orgMemoryKeys.length,
+        readyLeads,
+        sentimentBreakdown: sentimentCounts,
+        fundingReadinessBreakdown: fundingReadyCounts
+      }
+    };
+    
+    console.log(`📊 Generated real-time analytics for org ${organization_id}:`, analytics);
+    
+    res.json({
+      success: true,
+      data: analytics,
+      organization_id
+    });
+    
+  } catch (error) {
+    console.error('❌ Error getting global analytics:', error);
+    res.status(500).json({ 
+      error: 'Failed to get global analytics',
+      details: error.message 
+    });
+  }
+});
+
+// Get system status (for CRM Analytics Dashboard)
+app.get('/api/system/status', async (req, res) => {
+  try {
+    const { organization_id } = req.query;
+    
+    // Get real system metrics
+    const sseConnections = sseClients.size;
+    const activeConversations = activeConversations.size;
+    const storedContexts = conversationContexts.size;
+    const dynamicLeadsCount = dynamicLeads.size;
+    const storedSummaries = conversationSummaries.size;
+    
+    // If organization_id provided, get organization-specific metrics
+    let organizationMetrics = {};
+    if (organization_id) {
+      const orgLeads = Array.from(dynamicLeads.values())
+        .filter(lead => lead.organization_id === organization_id);
+      
+      const orgMemoryKeys = Array.from(conversationContexts.keys())
+        .filter(key => key.startsWith(`${organization_id}:`));
+      
+      const orgSummaryKeys = Array.from(conversationSummaries.keys())
+        .filter(key => key.startsWith(`${organization_id}:`));
+      
+      organizationMetrics = {
+        organizationLeads: orgLeads.length,
+        organizationContexts: orgMemoryKeys.length,
+        organizationSummaries: orgSummaryKeys.length,
+        organizationSseConnections: Array.from(sseClients.keys()).filter(key => key.includes(organization_id)).length
+      };
+    }
+    
+    const systemStatus = {
+      memory: {
+        activeConversations,
+        conversationContexts: storedContexts,
+        conversationSummaries: storedSummaries,
+        dynamicLeads: dynamicLeadsCount,
+        sseConnections
+      },
+      persistence: {
+        enabled: supabasePersistence.isEnabled,
+        connected: supabasePersistence.isConnected,
+        service: 'supabase'
+      },
+      features: {
+        telephony: true,
+        sms: true,
+        voice: true,
+        realTimeUpdates: true,
+        analytics: true,
+        crm: true
+      },
+      organization: organizationMetrics,
+      uptime: process.uptime(),
+      lastUpdated: new Date().toISOString()
+    };
+    
+    res.json({
+      success: true,
+      ...systemStatus
+    });
+    
+  } catch (error) {
+    console.error('❌ Error getting system status:', error);
+    res.status(500).json({ 
+      error: 'Failed to get system status',
       details: error.message 
     });
   }
