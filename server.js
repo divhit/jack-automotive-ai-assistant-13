@@ -2567,11 +2567,21 @@ async function purchaseTwilioNumberForOrganization(organizationId, areaCode = nu
     
     // Purchase the first available number
     const selectedNumber = numbers[0].phoneNumber;
+    
+    // Get the proper server URL - fallback to Render deployment URL
+    const serverUrl = process.env.SERVER_URL || 'https://jack-automotive-ai-assistant-13.onrender.com';
+    const smsUrl = `${serverUrl}/api/webhooks/twilio/sms`;
+    
+    console.log(`📞 Purchasing number with webhooks:`, {
+      voiceUrl: 'https://api.elevenlabs.io/v1/convai/conversations/twilio/inbound',
+      smsUrl: smsUrl
+    });
+    
     const purchasedNumber = await twilioClient.incomingPhoneNumbers
       .create({
         phoneNumber: selectedNumber,
         voiceUrl: 'https://api.elevenlabs.io/v1/convai/conversations/twilio/inbound',
-        smsUrl: `${process.env.SERVER_URL}/api/webhooks/twilio/sms`
+        smsUrl: smsUrl
       });
     
     console.log('✅ Purchased Twilio number:', selectedNumber);
