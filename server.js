@@ -360,7 +360,7 @@ async function getConversationHistory(phoneNumber, organizationId = null) {
       if (supabaseHistory && supabaseHistory.length > 0) {
         // Count message types from Supabase
         const voiceCount = supabaseHistory.filter(msg => msg.type === 'voice').length;
-        const smsCount = supabaseHistory.filter(msg => msg.type === 'text').length;
+        const smsCount = supabaseHistory.filter(msg => msg.type === 'text' || msg.type === 'sms').length;
         
         console.log(`📋 Loaded ${supabaseHistory.length} messages from Supabase for ${phoneNumber} (org: ${organizationId}) - ${voiceCount} voice, ${smsCount} SMS`);
         
@@ -381,7 +381,7 @@ async function getConversationHistory(phoneNumber, organizationId = null) {
   
   // Debug: Count message types to understand the voice message issue
   const voiceCount = orgHistory.filter(msg => msg.type === 'voice').length;
-  const smsCount = orgHistory.filter(msg => msg.type === 'text').length;
+  const smsCount = orgHistory.filter(msg => msg.type === 'text' || msg.type === 'sms').length;
   
   console.log(`📋 Found ${orgHistory.length} messages from organization-scoped memory for ${phoneNumber} (org: ${organizationId}) - ${voiceCount} voice, ${smsCount} SMS`);
   
@@ -734,7 +734,7 @@ async function buildConversationContext(phoneNumber, organizationId = null) {
   
   // Separate voice and SMS messages
   const voiceMessages = history.filter(msg => msg.type === 'voice');
-  const smsMessages = history.filter(msg => msg.type === 'text');
+  const smsMessages = history.filter(msg => msg.type === 'text' || msg.type === 'sms');
   
   let contextText = `CONVERSATION CONTEXT for customer ${phoneNumber}:\n\n`;
   
@@ -785,7 +785,7 @@ function buildConversationContextSync(phoneNumber) {
   }
   
   const voiceMessages = history.filter(msg => msg.type === 'voice');
-  const smsMessages = history.filter(msg => msg.type === 'text');
+  const smsMessages = history.filter(msg => msg.type === 'text' || msg.type === 'sms');
   
   let contextText = `CONVERSATION CONTEXT for customer ${phoneNumber}:\n\n`;
   
@@ -1086,7 +1086,7 @@ function startConversation(phoneNumber, initialMessage) {
           total_messages: history.length,
           has_elevenlabs_summary: !!(summaryData?.summary && summaryData.summary.length > 20),
           voice_messages: history.filter(m => m.type === 'voice').length,
-          sms_messages: history.filter(m => m.type === 'text').length,
+          sms_messages: history.filter(m => m.type === 'text' || m.type === 'sms').length,
           last_interaction: history.length > 0 ? history[history.length - 1].timestamp : null
         }
       }
