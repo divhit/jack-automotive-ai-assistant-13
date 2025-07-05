@@ -772,7 +772,68 @@ async function buildConversationContext(phoneNumber, organizationId = null) {
 - DO NOT restart or re-introduce yourself if you've already spoken with this customer`;
   
   console.log(`📋 Built conversation context for ${phoneNumber} (org: ${organizationId}) with summary + ${history.length} total messages (${voiceMessages.length} voice, ${smsMessages.length} SMS):`, contextText.substring(0, 400) + '...');
-  return contextText;
+  
+  // Apply smart truncation if context is too large
+  const finalContext = createSmartContextSummary(contextText, history, summaryData);
+  return finalContext;
+}
+
+// Smart context truncation function
+function createSmartContextSummary(fullContext, history, summaryData) {
+  const CONTEXT_LIMIT = 100000; // 100K character limit
+  
+  if (fullContext.length <= CONTEXT_LIMIT) {
+    return fullContext; // Within limit, return full context
+  }
+  
+  console.log(`📋 Context exceeds ${CONTEXT_LIMIT} chars (${fullContext.length}), creating smart summary`);
+  
+  // Build condensed context with summary + last 3 messages
+  let condensedContext = `CONVERSATION CONTEXT (CONDENSED):\n\n`;
+  
+  // Add conversation summary if available
+  if (summaryData && summaryData.summary) {
+    condensedContext += `CONVERSATION SUMMARY: ${summaryData.summary}\n\n`;
+  }
+  
+  // Separate voice and SMS messages
+  const voiceMessages = history.filter(msg => msg.type === 'voice');
+  const smsMessages = history.filter(msg => msg.type === 'text' || msg.type === 'sms');
+  
+  // Add overview of conversation volume
+  condensedContext += `CONVERSATION OVERVIEW:\n`;
+  condensedContext += `- Total messages: ${history.length}\n`;
+  condensedContext += `- Voice messages: ${voiceMessages.length}\n`;
+  condensedContext += `- SMS messages: ${smsMessages.length}\n\n`;
+  
+  // Add last 3 voice messages if any
+  if (voiceMessages.length > 0) {
+    const recentVoice = voiceMessages.slice(-3);
+    condensedContext += `RECENT VOICE CONVERSATION (last ${recentVoice.length} messages):\n`;
+    condensedContext += recentVoice.map(msg => 
+      `${msg.sentBy === 'user' ? 'Customer' : 'Agent'}: ${msg.content}`
+    ).join('\n') + '\n\n';
+  }
+  
+  // Add last 3 SMS messages if any
+  if (smsMessages.length > 0) {
+    const recentSms = smsMessages.slice(-3);
+    condensedContext += `RECENT SMS CONVERSATION (last ${recentSms.length} messages):\n`;
+    condensedContext += recentSms.map(msg => 
+      `${msg.sentBy === 'user' ? 'Customer' : 'Agent'}: ${msg.content}`
+    ).join('\n') + '\n\n';
+  }
+  
+  condensedContext += `CRITICAL INSTRUCTIONS: 
+- FIRST: Read the CONVERSATION SUMMARY above - it contains essential customer details
+- This is a LONG conversation (${history.length} messages) - focus on recent context above
+- If summary mentions specific vehicle models, budgets, or customer details, DO NOT ask for this information again
+- Continue naturally from the recent messages shown above
+- Reference specific details from the summary and recent messages
+- Be helpful and maintain context from ALL previous interactions`;
+
+  console.log(`📋 Smart summary created: ${condensedContext.length} chars (from ${fullContext.length} chars)`);
+  return condensedContext;
 }
 
 // Synchronous version for backwards compatibility
@@ -1011,7 +1072,7 @@ function startConversation(phoneNumber, initialMessage) {
     let previousSummary;
     if (summaryData?.summary && summaryData.summary.length > 20) {
       // Use the actual ElevenLabs summary - truncate if too long for dynamic variables  
-      previousSummary = summaryData.summary.length > 500 ? summaryData.summary.substring(0, 500) + "..." : summaryData.summary;
+      previousSummary = summaryData.summary.length > 100000 ? summaryData.summary.substring(0, 100000) + "..." : summaryData.summary;
       console.log(`📋 SMS using actual ElevenLabs summary (${summaryData.summary.length} chars): ${summaryData.summary.substring(0, 100)}...`);
     } else if (history.length > 0) {
       // Build a rich summary from recent messages if no ElevenLabs summary
@@ -1056,8 +1117,8 @@ function startConversation(phoneNumber, initialMessage) {
       organization_name: organizationName,
       lead_status: leadStatus,
       previous_summary: previousSummary,
-      // FIXED: Include conversation_context (not conversation_overview) to match system prompt
-      conversation_context: conversationContext.length > 1000 ? conversationContext.substring(0, 1000) + "..." : conversationContext
+      // FIXED: Include conversation_context with smart truncation for very long contexts
+      conversation_context: createSmartContextSummary(conversationContext, history, summaryData)
     };
     
     console.log(`🧪 DEBUG: SMS Dynamic variables being sent:`, {
@@ -1560,7 +1621,7 @@ app.post('/api/elevenlabs/outbound-call', validateOrganizationAccess, async (req
         customer_phone: phoneNumber,
         organization_id: organizationId, // SECURITY: Include organization context
         dynamic_variables: {
-          conversation_context: conversationContext.length > 500 ? conversationContext.substring(0, 500) + "..." : conversationContext,
+          conversation_context: createSmartContextSummary(conversationContext, messages, summary),
           customer_name: customerName,
           lead_status: leadStatus,
           previous_summary: previousSummary,
@@ -3237,7 +3298,7 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', async (req, res) =>
     let previousSummary;
     if (summary?.summary && summary.summary.length > 20) {
       // Use the actual ElevenLabs summary - truncate if too long for dynamic variables
-      previousSummary = summary.summary.length > 500 ? summary.summary.substring(0, 500) + "..." : summary.summary;
+      previousSummary = summary.summary.length > 100000 ? summary.summary.substring(0, 100000) + "..." : summary.summary;
       console.log(`📋 Using actual ElevenLabs summary (${summary.summary.length} chars): ${summary.summary.substring(0, 100)}...`);
     } else if (messages.length > 0) {
       // Build a rich summary from recent messages if no ElevenLabs summary
@@ -3256,8 +3317,8 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', async (req, res) =>
       console.log(`📋 New conversation - no previous history`);
     }
 
-    // Keep the conversation context simple - don't add extra formatting that might break ElevenLabs
-    const finalContext = conversationContext.length > 500 ? conversationContext.substring(0, 500) + "..." : conversationContext;
+    // Keep the conversation context simple but allow much larger contexts with smart truncation
+    const finalContext = createSmartContextSummary(conversationContext, messages, summary);
     
     // Build the response in the format ElevenLabs expects (keeping it simple)
     const response = {
