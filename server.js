@@ -1045,7 +1045,7 @@ function removeActiveLeadForPhone(phoneNumber, leadId) {
 const activeConversationTimeouts = new Map();
 const SMS_CONVERSATION_TIMEOUT = 60000; // 1 minute instead of 5+ minutes
 
-function startConversationWithTimeout(phoneNumber, initialMessage) {
+function startConversationWithTimeout(phoneNumber, initialMessage, organizationId = null) {
   const normalized = normalizePhoneNumber(phoneNumber);
   
   // Clear any existing timeout
@@ -1054,7 +1054,7 @@ function startConversationWithTimeout(phoneNumber, initialMessage) {
   }
   
   // Start the conversation
-  startConversation(phoneNumber, initialMessage);
+  startConversation(phoneNumber, initialMessage, organizationId);
   
   // Set timeout to close idle connection after 1 minute
   const timeoutId = setTimeout(() => {
@@ -1071,7 +1071,7 @@ function startConversationWithTimeout(phoneNumber, initialMessage) {
   console.log(`⏰ Set 1-minute timeout for SMS conversation: ${phoneNumber}`);
 }
 
-function startConversation(phoneNumber, initialMessage) {
+function startConversation(phoneNumber, initialMessage, organizationId = null) {
   const agentId = process.env.ELEVENLABS_AGENT_ID;
   const apiKey = process.env.ELEVENLABS_API_KEY;
   const normalized = normalizePhoneNumber(phoneNumber);
@@ -1090,24 +1090,30 @@ function startConversation(phoneNumber, initialMessage) {
     console.log(`🔗 WebSocket connected for ${phoneNumber} (normalized: ${normalized})`);
     activeConversations.set(normalized, ws);
     
-    // SECURITY FIX: Get organizationId first to prevent cross-organization data leakage
-    const organizationId = await getOrganizationIdFromPhone(phoneNumber);
+    // SECURITY FIX: Use provided organizationId or get from phone if not provided
+    let resolvedOrganizationId = organizationId;
+    if (!resolvedOrganizationId) {
+      console.log(`🔍 No organizationId provided, attempting to resolve from phone ${phoneNumber}`);
+      resolvedOrganizationId = await getOrganizationIdFromPhone(phoneNumber);
+    } else {
+      console.log(`🔍 Using provided organizationId: ${resolvedOrganizationId} for phone ${phoneNumber}`);
+    }
     
     // ENHANCED: Build conversation context with async loading for better context
-    const conversationContext = await buildConversationContext(phoneNumber, organizationId);
+    const conversationContext = await buildConversationContext(phoneNumber, resolvedOrganizationId);
     
     // Get lead data and build dynamic variables like voice calls do
     const leadId = await getActiveLeadForPhone(phoneNumber);
     const leadData = getLeadData(leadId);
     const customerName = leadData?.customerName || `Customer ${phoneNumber}`;
     
-    const summaryData = await getConversationSummary(phoneNumber, organizationId);
-    const history = await getConversationHistory(phoneNumber, organizationId);
+    const summaryData = await getConversationSummary(phoneNumber, resolvedOrganizationId);
+    const history = await getConversationHistory(phoneNumber, resolvedOrganizationId);
     const leadStatus = summaryData?.summary ? "Returning Customer" : (history.length > 0 ? "Active Lead" : "New Inquiry");
     
     // ENHANCED: Use comprehensive summary (voice + SMS) for better context
     let previousSummary;
-    const comprehensiveSummary = await generateComprehensiveSummary(phoneNumber, organizationId);
+    const comprehensiveSummary = await generateComprehensiveSummary(phoneNumber, resolvedOrganizationId);
     if (comprehensiveSummary && comprehensiveSummary.length > 20) {
       // Use the comprehensive voice + SMS summary
       previousSummary = comprehensiveSummary.length > 100000 ? comprehensiveSummary.substring(0, 100000) + "..." : comprehensiveSummary;
@@ -1133,12 +1139,12 @@ function startConversation(phoneNumber, initialMessage) {
     
     // Get organization name for dynamic variables
     let organizationName = "Automarket"; // Default fallback
-    if (organizationId) {
+    if (resolvedOrganizationId) {
       try {
         const { data: orgData, error } = await client
           .from('organizations')
           .select('name')
-          .eq('id', organizationId)
+          .eq('id', resolvedOrganizationId)
           .single();
         
         if (orgData && !error) {
@@ -1180,6 +1186,7 @@ function startConversation(phoneNumber, initialMessage) {
         customer_phone: phoneNumber, // For webhook identification
         channel: 'sms',
         lead_id: leadId,
+        organization_id: resolvedOrganizationId, // Include organization context
         // ADDED: Include metadata about context preservation
         context_metadata: {
           total_messages: history.length,
@@ -1215,10 +1222,14 @@ function startConversation(phoneNumber, initialMessage) {
         if (agentResponse) {
             console.log(`✅ [${phoneNumber}] Agent response received:`, agentResponse);
             
-            // SECURITY FIX: Get organizationId for proper history scoping
-            const organizationId = await getOrganizationIdFromPhone(phoneNumber);
-            addToConversationHistory(phoneNumber, agentResponse, 'agent', 'text', organizationId);
-            sendSMSReply(phoneNumber, agentResponse, organizationId);
+            // SECURITY FIX: Use provided organizationId or get from phone if not provided
+            let resolvedOrganizationId = organizationId;
+            if (!resolvedOrganizationId) {
+              resolvedOrganizationId = await getOrganizationIdFromPhone(phoneNumber);
+            }
+            
+            addToConversationHistory(phoneNumber, agentResponse, 'agent', 'text', resolvedOrganizationId);
+            sendSMSReply(phoneNumber, agentResponse, resolvedOrganizationId);
             
             // Get the active lead ID for this phone number
             const leadId = await getActiveLeadForPhone(phoneNumber);
@@ -1245,35 +1256,36 @@ function startConversation(phoneNumber, initialMessage) {
                 message: agentResponse,
                 timestamp: new Date().toISOString(),
                 sentBy: 'agent',
-                leadId: leadId // Use the active lead ID
+                leadId: leadId,
+                organizationId: resolvedOrganizationId
             });
         }
       } else if (response.type === 'ping') {
-        ws.send(JSON.stringify({
-          type: 'pong',
-          event_id: response.ping_event.event_id
-        }));
+        // Handle ping/pong to keep connection alive
+        console.log(`📨 [${phoneNumber}] Received ping`);
+      } else if (response.type === 'audio') {
+        // Handle audio chunks if needed
+        console.log(`📨 [${phoneNumber}] Received audio`);
+      } else {
+        console.log(`📨 [${phoneNumber}] Received unknown message type:`, response.type);
       }
     } catch (error) {
-        console.error('❌ Error parsing WebSocket message:', error);
-        console.error('❌ Raw message:', data.toString());
+      console.error(`❌ [${phoneNumber}] Error processing message:`, error);
+    }
+  });
+
+  ws.on('close', () => {
+    console.log(`🔌 WebSocket closed for ${phoneNumber}`);
+    activeConversations.delete(normalized);
+    if (activeConversationTimeouts.has(normalized)) {
+      clearTimeout(activeConversationTimeouts.get(normalized));
+      activeConversationTimeouts.delete(normalized);
     }
   });
 
   ws.on('error', (error) => {
-    console.error(`❌ [${phoneNumber}] WebSocket error:`, error);
-    if (activeConversations.has(normalized)) {
-        activeConversations.delete(normalized);
-    }
-  });
-
-  ws.on('close', (code, reason) => {
-    console.log(`🔌 [${phoneNumber}] WebSocket closed. Code: ${code}, Reason: ${reason.toString()}`);
-    if (activeConversations.has(normalized)) {
-        activeConversations.delete(normalized);
-    }
-    
-    // Clean up timeout
+    console.error(`❌ WebSocket error for ${phoneNumber}:`, error);
+    activeConversations.delete(normalized);
     if (activeConversationTimeouts.has(normalized)) {
       clearTimeout(activeConversationTimeouts.get(normalized));
       activeConversationTimeouts.delete(normalized);
@@ -1514,10 +1526,10 @@ app.post('/api/webhooks/twilio/sms/incoming', async (req, res) => {
       
       if (existingHistory.length > 0) {
         console.log(`📞➡️📱 Found ${existingHistory.length} previous messages (voice/SMS history). Starting new SMS conversation with context.`);
-        startConversationWithTimeout(From, Body);
+        startConversationWithTimeout(From, Body, organizationId);
       } else {
         console.log('✨ No existing conversation or history. Creating a new one.');
-        startConversationWithTimeout(From, Body);
+        startConversationWithTimeout(From, Body, organizationId);
       }
     }
     
