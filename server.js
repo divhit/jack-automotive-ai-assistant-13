@@ -736,12 +736,7 @@ async function buildConversationContext(phoneNumber, organizationId = null) {
   const voiceMessages = history.filter(msg => msg.type === 'voice');
   const smsMessages = history.filter(msg => msg.type === 'text' || msg.type === 'sms');
   
-  let contextText = `CONVERSATION CONTEXT for customer ${phoneNumber}:\n\n`;
-  
-  // Add conversation summary if available (this is the key improvement!)
-  if (summaryData && summaryData.summary) {
-    contextText += `CONVERSATION SUMMARY: ${summaryData.summary}\n\n`;
-  }
+  let contextText = `RECENT CONVERSATION HISTORY for customer ${phoneNumber}:\n\n`;
   
   // Add recent voice messages (last 3 only to keep context focused)
   if (voiceMessages.length > 0) {
@@ -762,16 +757,16 @@ async function buildConversationContext(phoneNumber, organizationId = null) {
   }
   
   contextText += `CRITICAL INSTRUCTIONS: 
-- FIRST: Read the CONVERSATION SUMMARY above - it contains essential customer details from previous voice/SMS conversations
-- If summary mentions specific vehicle models, budgets, or customer details, DO NOT ask for this information again
+- Use the PREVIOUS SUMMARY (provided separately) for overall customer context and key details
+- The conversation history above shows the recent message flow between you and the customer
+- If previous summary mentions specific vehicle models, budgets, or customer details, DO NOT ask for this information again
 - This conversation may be RESUMING after a brief timeout - continue naturally from where you left off
-- The customer is texting you via SMS, so respond in SMS format (concise, friendly)
-- Reference specific details from recent messages and conversation summary to show continuity
+- Reference specific details from both the previous summary AND recent messages to show continuity
 - Be helpful and maintain context from ALL previous interactions (voice calls, SMS, etc.)
 - If this feels like a continuation, acknowledge it naturally: "Great to hear from you again" or similar
 - DO NOT restart or re-introduce yourself if you've already spoken with this customer`;
   
-  console.log(`📋 Built conversation context for ${phoneNumber} (org: ${organizationId}) with summary + ${history.length} total messages (${voiceMessages.length} voice, ${smsMessages.length} SMS):`, contextText.substring(0, 400) + '...');
+  console.log(`📋 Built conversation context for ${phoneNumber} (org: ${organizationId}) with ${history.length} total messages (${voiceMessages.length} voice, ${smsMessages.length} SMS):`, contextText.substring(0, 400) + '...');
   
   // Apply smart truncation if context is too large
   const finalContext = createSmartContextSummary(contextText, history, summaryData);
@@ -788,13 +783,8 @@ function createSmartContextSummary(fullContext, history, summaryData) {
   
   console.log(`📋 Context exceeds ${CONTEXT_LIMIT} chars (${fullContext.length}), creating smart summary`);
   
-  // Build condensed context with summary + last 3 messages
-  let condensedContext = `CONVERSATION CONTEXT (CONDENSED):\n\n`;
-  
-  // Add conversation summary if available
-  if (summaryData && summaryData.summary) {
-    condensedContext += `CONVERSATION SUMMARY: ${summaryData.summary}\n\n`;
-  }
+  // Build condensed context with overview + last 3 messages (summary provided separately)
+  let condensedContext = `RECENT CONVERSATION HISTORY (CONDENSED):\n\n`;
   
   // Separate voice and SMS messages
   const voiceMessages = history.filter(msg => msg.type === 'voice');
@@ -825,11 +815,11 @@ function createSmartContextSummary(fullContext, history, summaryData) {
   }
   
   condensedContext += `CRITICAL INSTRUCTIONS: 
-- FIRST: Read the CONVERSATION SUMMARY above - it contains essential customer details
+- Use the PREVIOUS SUMMARY (provided separately) for overall customer context and key details
 - This is a LONG conversation (${history.length} messages) - focus on recent context above
-- If summary mentions specific vehicle models, budgets, or customer details, DO NOT ask for this information again
+- If previous summary mentions specific vehicle models, budgets, or customer details, DO NOT ask for this information again
 - Continue naturally from the recent messages shown above
-- Reference specific details from the summary and recent messages
+- Reference specific details from both the previous summary AND recent messages
 - Be helpful and maintain context from ALL previous interactions`;
 
   console.log(`📋 Smart summary created: ${condensedContext.length} chars (from ${fullContext.length} chars)`);
@@ -848,11 +838,7 @@ function buildConversationContextSync(phoneNumber) {
   const voiceMessages = history.filter(msg => msg.type === 'voice');
   const smsMessages = history.filter(msg => msg.type === 'text' || msg.type === 'sms');
   
-  let contextText = `CONVERSATION CONTEXT for customer ${phoneNumber}:\n\n`;
-  
-  if (summaryData && summaryData.summary) {
-    contextText += `CONVERSATION SUMMARY: ${summaryData.summary}\n\n`;
-  }
+  let contextText = `RECENT CONVERSATION HISTORY for customer ${phoneNumber}:\n\n`;
   
   if (voiceMessages.length > 0) {
     const recentVoiceMessages = voiceMessages.slice(-3);
@@ -871,11 +857,11 @@ function buildConversationContextSync(phoneNumber) {
   }
   
   contextText += `CRITICAL INSTRUCTIONS: 
-- FIRST: Read the CONVERSATION SUMMARY above - it contains essential customer details from previous voice/SMS conversations
-- If summary mentions specific vehicle models, budgets, or customer details, DO NOT ask for this information again
+- Use the PREVIOUS SUMMARY (provided separately) for overall customer context and key details
+- The conversation history above shows the recent message flow between you and the customer
+- If previous summary mentions specific vehicle models, budgets, or customer details, DO NOT ask for this information again
 - This conversation may be RESUMING after a brief timeout - continue naturally from where you left off
-- The customer is texting you via SMS, so respond in SMS format (concise, friendly)
-- Reference specific details from recent messages and conversation summary to show continuity
+- Reference specific details from both the previous summary AND recent messages to show continuity
 - Be helpful and maintain context from ALL previous interactions (voice calls, SMS, etc.)
 - If this feels like a continuation, acknowledge it naturally: "Great to hear from you again" or similar
 - DO NOT restart or re-introduce yourself if you've already spoken with this customer`;
