@@ -2527,7 +2527,7 @@ async function getOrganizationByPhoneNumber(phoneNumber) {
   }
 }
 
-async function purchaseTwilioNumberForOrganization(organizationId, areaCode = null) {
+async function purchaseTwilioNumberForOrganization(organizationId, areaCode = '778') {
   try {
     // Validate Twilio credentials
     if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
@@ -2543,9 +2543,9 @@ async function purchaseTwilioNumberForOrganization(organizationId, areaCode = nu
     }
     
     // Search for available numbers
-    console.log(`🔍 Searching for Twilio numbers with params:`, searchParams);
+    console.log(`🔍 Searching for Vancouver BC numbers with params:`, searchParams);
     
-    let numbers = await twilioClient.availablePhoneNumbers('US')
+    let numbers = await twilioClient.availablePhoneNumbers('CA')
       .local
       .list(searchParams);
     
@@ -2553,7 +2553,7 @@ async function purchaseTwilioNumberForOrganization(organizationId, areaCode = nu
     if (numbers.length === 0 && searchParams.areaCode) {
       console.log(`⚠️ No numbers found with area code ${searchParams.areaCode}, trying without area code...`);
       const fallbackParams = { limit: 5 };
-      numbers = await twilioClient.availablePhoneNumbers('US')
+      numbers = await twilioClient.availablePhoneNumbers('CA')
         .local
         .list(fallbackParams);
     }
@@ -2570,18 +2570,20 @@ async function purchaseTwilioNumberForOrganization(organizationId, areaCode = nu
     
     // Get the proper server URL - fallback to Render deployment URL
     const serverUrl = process.env.SERVER_URL || 'https://jack-automotive-ai-assistant-13.onrender.com';
-    const smsUrl = `${serverUrl}/api/webhooks/twilio/sms`;
+    
+    const voiceUrl = 'https://api.us.elevenlabs.io/twilio/inbound_call';
+    const messagingUrl = `${serverUrl}/api/webhooks/twilio/sms/incoming`;
     
     console.log(`📞 Purchasing number with webhooks:`, {
-      voiceUrl: 'https://api.elevenlabs.io/v1/convai/conversations/twilio/inbound',
-      smsUrl: smsUrl
+      voiceUrl: voiceUrl,
+      smsUrl: messagingUrl
     });
     
     const purchasedNumber = await twilioClient.incomingPhoneNumbers
       .create({
         phoneNumber: selectedNumber,
-        voiceUrl: 'https://api.elevenlabs.io/v1/convai/conversations/twilio/inbound',
-        smsUrl: smsUrl
+        voiceUrl: voiceUrl,
+        smsUrl: messagingUrl
       });
     
     console.log('✅ Purchased Twilio number:', selectedNumber);
