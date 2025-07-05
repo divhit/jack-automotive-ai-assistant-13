@@ -2274,13 +2274,16 @@ app.post('/api/webhooks/elevenlabs/post-call', async (req, res) => {
       });
     }
 
+    // SECURITY FIX: Get organizationId for proper scoping (used for both history and summary)
+    let organizationId = null;
+    if (phoneNumber) {
+      organizationId = await getOrganizationIdFromPhone(phoneNumber);
+    }
+
     // Store conversation history if we have transcript and phone number
     if (transcript && phoneNumber && Array.isArray(transcript)) {
       const normalizedForStorage = normalizePhoneNumber(phoneNumber);
       console.log('📝 Storing post-call conversation history for:', phoneNumber, '(normalized:', normalizedForStorage + ')');
-      
-      // SECURITY FIX: Get organizationId for proper scoping
-      const organizationId = await getOrganizationIdFromPhone(phoneNumber);
       
       transcript.forEach(message => {
         if (message.role && message.message) {
@@ -2289,9 +2292,9 @@ app.post('/api/webhooks/elevenlabs/post-call', async (req, res) => {
       });
     }
 
-    // Store conversation summary if we have one
+    // Store conversation summary if we have one - SECURITY FIX: Now includes organizationId
     if (summary && phoneNumber) {
-      storeConversationSummary(phoneNumber, summary);
+      storeConversationSummary(phoneNumber, summary, organizationId);
     }
 
     // ENHANCED: Extract and update lead profile from ElevenLabs data collection results
