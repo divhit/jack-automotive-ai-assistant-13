@@ -1575,20 +1575,34 @@ app.post('/api/elevenlabs/outbound-call', validateOrganizationAccess, async (req
     }
 
     // GET ORGANIZATION-SPECIFIC PHONE NUMBER
-    const orgPhone = await getOrganizationPhoneNumber(organizationId);
-    const phoneNumberId = orgPhone.elevenLabsPhoneId;
-    
-    console.log(`📞 Using organization phone number: ${orgPhone.phoneNumber} (ElevenLabs ID: ${phoneNumberId})`);
-    
-    if (!phoneNumberId) {
-      console.error('❌ No ElevenLabs phone number ID found for organization');
-      return res.status(500).json({ 
-        error: 'Organization phone number not configured. Please contact admin to set up phone number.',
+    let orgPhone;
+    try {
+      orgPhone = await getOrganizationPhoneNumber(organizationId);
+    } catch (phoneError) {
+      console.error(`🚨 CRITICAL: Organization phone number not configured for ${organizationId}:`, phoneError.message);
+      
+      // Provide clear workflow guidance
+      return res.status(400).json({ 
+        error: 'Organization phone number not configured',
+        message: phoneError.message,
         requiresSetup: true,
         organizationId,
-        fallbackUsed: orgPhone.phoneNumber === process.env.TWILIO_PHONE_NUMBER
+        workflowSteps: [
+          "1. Purchase Twilio number: POST /api/admin/organizations/{organizationId}/phone-numbers/purchase",
+          "2. Import number to ElevenLabs dashboard manually",
+          "3. Activate number: POST /api/admin/phone-numbers/{phoneNumber}/activate",
+          "4. Then try making calls again"
+        ],
+        adminEndpoints: {
+          purchaseNumber: `/api/admin/organizations/${organizationId}/phone-numbers/purchase`,
+          checkNotifications: `/api/admin/notifications?type=elevenlabs_import_required`,
+          activateNumber: `/api/admin/phone-numbers/{phoneNumber}/activate`
+        }
       });
     }
+    
+    const phoneNumberId = orgPhone.elevenLabsPhoneId;
+    console.log(`📞 Using organization phone number: ${orgPhone.phoneNumber} (ElevenLabs ID: ${phoneNumberId})`);
 
     // Use the exact API specification from ElevenLabs documentation
     const elevenlabsApiUrl = 'https://api.elevenlabs.io/v1/convai/twilio/outbound-call';
@@ -1863,10 +1877,12 @@ app.post('/api/admin/phone-numbers/:phoneNumber/activate', async (req, res) => {
     const { elevenLabsPhoneId } = req.body;
     
     if (!elevenLabsPhoneId) {
-      return res.status(400).json({ error: 'ElevenLabs phone ID is required' });
+      return res.status(400).json({ 
+        error: 'elevenLabsPhoneId is required',
+        message: 'Please provide the ElevenLabs phone ID from the dashboard'
+      });
     }
     
-    // TODO: Add admin authentication check
     console.log(`📞 Activating phone number: ${phoneNumber} with ElevenLabs ID: ${elevenLabsPhoneId}`);
     
     const result = await activateOrganizationPhoneNumber(phoneNumber, elevenLabsPhoneId);
@@ -1876,8 +1892,8 @@ app.post('/api/admin/phone-numbers/:phoneNumber/activate', async (req, res) => {
       message: 'Phone number activated successfully',
       phoneNumber,
       elevenLabsPhoneId,
-      organizationId: result.organization_id,
-      isActive: result.is_active
+      isActive: true,
+      result
     });
     
   } catch (error) {
@@ -1889,12 +1905,49 @@ app.post('/api/admin/phone-numbers/:phoneNumber/activate', async (req, res) => {
   }
 });
 
+// Get admin notifications (for manual steps)
+app.get('/api/admin/notifications', async (req, res) => {
+  try {
+    const { status = 'pending', type } = req.query;
+    
+    let query = client.from('admin_notifications').select('*');
+    
+    if (status) {
+      query = query.eq('status', status);
+    }
+    
+    if (type) {
+      query = query.eq('type', type);
+    }
+    
+    const { data: notifications, error } = await query.order('created_at', { ascending: false });
+    
+    if (error) {
+      console.error('❌ Error fetching admin notifications:', error);
+      return res.status(500).json({ error: 'Failed to fetch notifications' });
+    }
+    
+    res.status(200).json({
+      success: true,
+      notifications,
+      count: notifications.length
+    });
+    
+  } catch (error) {
+    console.error('❌ Error fetching admin notifications:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch notifications',
+      details: error.message 
+    });
+  }
+});
+
 // List organization phone numbers
 app.get('/api/organizations/:organizationId/phone-numbers', validateOrganizationAccess, async (req, res) => {
   try {
     const { organizationId } = req.params;
     
-    const { data: phoneNumbers, error } = await supabase
+    const { data: phoneNumbers, error } = await client
       .from('organization_phone_numbers')
       .select('*')
       .eq('organization_id', organizationId)
@@ -1915,45 +1968,6 @@ app.get('/api/organizations/:organizationId/phone-numbers', validateOrganization
     console.error('❌ Error listing phone numbers:', error);
     res.status(500).json({ 
       error: 'Failed to list phone numbers',
-      details: error.message 
-    });
-  }
-});
-
-// Get admin notifications (Admin only)
-app.get('/api/admin/notifications', async (req, res) => {
-  try {
-    const { status = 'pending', type } = req.query;
-    
-    // TODO: Add admin authentication check
-    
-    let query = supabase
-      .from('admin_notifications')
-      .select('*')
-      .eq('status', status)
-      .order('created_at', { ascending: false });
-    
-    if (type) {
-      query = query.eq('type', type);
-    }
-    
-    const { data: notifications, error } = await query;
-    
-    if (error) {
-      console.error('❌ Error fetching admin notifications:', error);
-      return res.status(500).json({ error: 'Failed to fetch notifications' });
-    }
-    
-    res.status(200).json({
-      success: true,
-      notifications: notifications || [],
-      filters: { status, type }
-    });
-    
-  } catch (error) {
-    console.error('❌ Error fetching admin notifications:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch notifications',
       details: error.message 
     });
   }
@@ -2473,12 +2487,13 @@ async function getOrganizationPhoneNumber(organizationId) {
       .single();
     
     if (error || !phoneRecord) {
-      // FALLBACK: Use default phone number if no organization-specific number
-      console.warn(`⚠️ No organization phone number found for ${organizationId}, using default`);
-      return {
-        phoneNumber: process.env.TWILIO_PHONE_NUMBER,
-        elevenLabsPhoneId: process.env.ELEVENLABS_PHONE_NUMBER_ID
-      };
+      console.error(`🚨 CRITICAL: No active phone number found for organization ${organizationId}`);
+      throw new Error(`Organization ${organizationId} does not have an active phone number configured. Please purchase and configure a phone number first.`);
+    }
+    
+    if (!phoneRecord.elevenlabs_phone_id) {
+      console.error(`🚨 CRITICAL: Phone number ${phoneRecord.phone_number} for organization ${organizationId} is not configured in ElevenLabs`);
+      throw new Error(`Phone number ${phoneRecord.phone_number} needs to be imported to ElevenLabs dashboard and activated.`);
     }
     
     return {
@@ -2487,11 +2502,7 @@ async function getOrganizationPhoneNumber(organizationId) {
     };
   } catch (error) {
     console.error('❌ Error getting organization phone number:', error);
-    // FALLBACK: Use default phone number
-    return {
-      phoneNumber: process.env.TWILIO_PHONE_NUMBER,
-      elevenLabsPhoneId: process.env.ELEVENLABS_PHONE_NUMBER_ID
-    };
+    throw error; // Don't mask the error - let it bubble up
   }
 }
 
@@ -2637,11 +2648,17 @@ async function sendSMSReply(to, message, organizationId = null) {
     // GET ORGANIZATION-SPECIFIC PHONE NUMBER
     let fromNumber;
     if (organizationId) {
-      const orgPhone = await getOrganizationPhoneNumber(organizationId);
-      fromNumber = orgPhone.phoneNumber;
-      console.log(`📞 Using organization phone number for SMS reply: ${fromNumber}`);
+      try {
+        const orgPhone = await getOrganizationPhoneNumber(organizationId);
+        fromNumber = orgPhone.phoneNumber;
+        console.log(`📞 Using organization phone number for SMS reply: ${fromNumber}`);
+      } catch (phoneError) {
+        console.error(`🚨 CRITICAL: Cannot send SMS - organization phone number not configured for ${organizationId}:`, phoneError.message);
+        console.error(`📱 SMS reply blocked to prevent cross-organization confusion`);
+        return; // Don't send SMS without proper organization phone number
+      }
     } else {
-      // FALLBACK: Use default phone number
+      // FALLBACK: Use default phone number (only for legacy scenarios)
       fromNumber = process.env.TWILIO_PHONE_NUMBER;
       console.log(`📞 Using default phone number for SMS reply: ${fromNumber}`);
     }
