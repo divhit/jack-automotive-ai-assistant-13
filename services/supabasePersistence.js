@@ -588,17 +588,38 @@ class SupabasePersistenceService {
         return [];
       }
       
-      const { data, error } = await this.supabase
-        .from('lead_analytics')
-        .select('*')
+      // Query leads table and compute analytics on-the-fly
+      const { data: leads, error } = await this.supabase
+        .from('leads')
+        .select(`
+          *,
+          conversations:conversations(count)
+        `)
         .eq('organization_id', organizationId) // SECURITY: Always filter by organization
         .order('last_activity', { ascending: false })
         .limit(limit);
 
       if (error) throw error;
       
-      console.log(`🗄️ Retrieved ${data?.length || 0} leads with analytics from Supabase for organization: ${organizationId}`);
-      return data || [];
+      // Transform data to match expected analytics format
+      const leadsWithAnalytics = leads?.map(lead => ({
+        id: lead.id,
+        customer_name: lead.customer_name,
+        phone_number: lead.phone_number,
+        sentiment: lead.sentiment,
+        funding_readiness: lead.funding_readiness,
+        lead_score: lead.lead_score || 50, // Default score
+        total_conversations: lead.conversations?.[0]?.count || 0,
+        total_sms_messages: 0, // Could be calculated from conversations
+        total_voice_calls: 0, // Could be calculated from conversations
+        last_activity: lead.last_activity || lead.updated_at,
+        created_at: lead.created_at,
+        updated_at: lead.updated_at,
+        organization_id: lead.organization_id
+      })) || [];
+      
+      console.log(`🗄️ Retrieved ${leadsWithAnalytics.length} leads with analytics from Supabase for organization: ${organizationId}`);
+      return leadsWithAnalytics;
       
     } catch (error) {
       console.error(`❌ Failed to retrieve leads with analytics:`, error);

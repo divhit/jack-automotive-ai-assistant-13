@@ -3952,7 +3952,7 @@ app.get('/api/analytics/leads', async (req, res) => {
     } else {
       // Fallback to memory data (filtered by organization)
       const memoryLeads = Array.from(dynamicLeads.values())
-        .filter(lead => lead.organization_id === organization_id)
+        .filter(lead => lead.organizationId === organization_id)
         .map(lead => ({
           id: lead.id,
           customer_name: lead.customerName,
@@ -3998,7 +3998,7 @@ app.get('/api/analytics/global', async (req, res) => {
     
     // Calculate real metrics from actual data
     const organizationLeads = Array.from(dynamicLeads.values())
-      .filter(lead => lead.organization_id === organization_id);
+      .filter(lead => lead.organizationId === organization_id);
     
     const totalLeads = organizationLeads.length;
     
@@ -4110,8 +4110,8 @@ app.get('/api/system/status', async (req, res) => {
     const { organization_id } = req.query;
     
     // Get real system metrics
-    const sseConnections = sseClients.size;
-    const activeConversations = activeConversations.size;
+    const sseConnectionsCount = sseConnections.size;
+    const activeConversationsCount = activeConversations.size;
     const storedContexts = conversationContexts.size;
     const dynamicLeadsCount = dynamicLeads.size;
     const storedSummaries = conversationSummaries.size;
@@ -4120,7 +4120,7 @@ app.get('/api/system/status', async (req, res) => {
     let organizationMetrics = {};
     if (organization_id) {
       const orgLeads = Array.from(dynamicLeads.values())
-        .filter(lead => lead.organization_id === organization_id);
+        .filter(lead => lead.organizationId === organization_id);
       
       const orgMemoryKeys = Array.from(conversationContexts.keys())
         .filter(key => key.startsWith(`${organization_id}:`));
@@ -4132,17 +4132,17 @@ app.get('/api/system/status', async (req, res) => {
         organizationLeads: orgLeads.length,
         organizationContexts: orgMemoryKeys.length,
         organizationSummaries: orgSummaryKeys.length,
-        organizationSseConnections: Array.from(sseClients.keys()).filter(key => key.includes(organization_id)).length
+        organizationSseConnections: Array.from(sseConnections.keys()).filter(key => key.includes(organization_id)).length
       };
     }
     
     const systemStatus = {
       memory: {
-        activeConversations,
+        activeConversations: activeConversationsCount,
         conversationContexts: storedContexts,
         conversationSummaries: storedSummaries,
         dynamicLeads: dynamicLeadsCount,
-        sseConnections
+        sseConnections: sseConnectionsCount
       },
       persistence: {
         enabled: supabasePersistence.isEnabled,
@@ -4269,7 +4269,7 @@ app.get('/api/analytics/global', async (req, res) => {
       
       // Filter memory data by organization_id
       const organizationLeads = Array.from(dynamicLeads.values())
-        .filter(lead => lead.organization_id === organization_id);
+        .filter(lead => lead.organizationId === organization_id);
         
       const organizationMemoryKeys = getOrganizationMemoryKeys(organization_id);
       
@@ -4281,7 +4281,7 @@ app.get('/api/analytics/global', async (req, res) => {
       const buyingKeywords = ['financing', 'payment', 'monthly', 'qualify', 'credit', 'approve', 'rate', 'price', 'cost', 'interested'];
       
       // Analyze only this organization's conversations
-      organizationMemoryKeys.forEach(key => {
+      organizationMemoryKeys.conversations.forEach(key => {
         const messages = conversationContexts.get(key) || [];
         totalMessages += messages.length;
         
@@ -4299,7 +4299,7 @@ app.get('/api/analytics/global', async (req, res) => {
       });
       
       // Calculate organization-specific metrics
-      const totalConversations = organizationMemoryKeys.length;
+      const totalConversations = organizationMemoryKeys.conversations.length;
       const avgMessagesPerConv = totalConversations > 0 ? totalMessages / totalConversations : 0;
       const conversationQuality = Math.min(95, Math.max(30, avgMessagesPerConv * 12));
       const conversionRate = totalConversations > 0 ? 
@@ -4335,17 +4335,17 @@ app.get('/api/analytics/global', async (req, res) => {
     try {
       // Get organization-specific data from memory
       const organizationLeads = Array.from(dynamicLeads.values())
-        .filter(lead => lead.organization_id === organization_id);
+        .filter(lead => lead.organizationId === organization_id);
         
       const organizationMemoryKeys = getOrganizationMemoryKeys(organization_id);
       
       // Count conversations from memory for this organization only
-      totalConversations = organizationMemoryKeys.length;
+      totalConversations = organizationMemoryKeys.conversations.length;
       
       // Analyze messages from memory for buying signals (organization-filtered)
       const buyingKeywords = ['financing', 'payment', 'monthly', 'qualify', 'credit', 'approve', 'rate', 'price', 'cost', 'interested'];
       
-      organizationMemoryKeys.forEach(key => {
+      organizationMemoryKeys.conversations.forEach(key => {
         const messages = conversationContexts.get(key) || [];
         totalMessages += messages.length;
         
@@ -4389,7 +4389,7 @@ app.get('/api/analytics/global', async (req, res) => {
 
     // Get organization-specific lead count
     const organizationLeads = Array.from(dynamicLeads.values())
-      .filter(lead => lead.organization_id === organization_id);
+      .filter(lead => lead.organizationId === organization_id);
 
     const analyticsData = {
       conversationQuality: Math.round(qualityScore),
@@ -4412,7 +4412,7 @@ app.get('/api/analytics/global', async (req, res) => {
     
     // Return organization-specific fallback data
     const organizationLeads = Array.from(dynamicLeads.values())
-      .filter(lead => lead.organization_id === req.query.organization_id);
+      .filter(lead => lead.organizationId === req.query.organization_id);
     
     res.json({
       success: true,
