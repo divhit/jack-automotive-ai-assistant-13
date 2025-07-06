@@ -48,8 +48,21 @@ export const ElevenLabsAnalyticsOverview: React.FC = () => {
     try {
       const response = await fetch(`/api/analytics/global?organization_id=${organization.id}`);
       if (response.ok) {
-        const data = await response.json();
-        setAnalytics(data);
+        const result = await response.json();
+        console.log('📊 Analytics response:', result);
+        
+        // Extract data from the API response structure
+        const data = result.data || result;
+        setAnalytics({
+          totalLeads: data.activeLeads || 0,
+          avgLeadScore: 0, // Not provided by this endpoint
+          totalConversations: data.totalConversations || 0,
+          highValueLeads: data.activeLeads || 0,
+          conversationQuality: data.conversationQuality || 0,
+          buyingSignalsCount: data.buyingSignals || 0,
+          conversionRate: data.conversionRate || 0,
+          dataSource: data.connectionStatus || 'live'
+        });
         setLastRefresh(new Date());
       } else {
         console.error('Failed to fetch analytics:', response.statusText);

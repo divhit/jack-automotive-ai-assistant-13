@@ -109,8 +109,10 @@ export const LeadAnalyticsDashboard: React.FC = () => {
   };
 
   const fetchSystemStatus = async () => {
+    if (!organization?.id) return;
+    
     try {
-      const response = await fetch('/api/system/status');
+      const response = await fetch(`/api/system/status?organization_id=${organization.id}`);
       const data = await response.json();
       
       if (data.success) {

@@ -24,10 +24,10 @@ interface RealAnalytics {
 
 export class RealAnalyticsService {
   
-  async getLeadAnalytics(leadId: string): Promise<RealAnalytics> {
+  async getLeadAnalytics(leadId: string, organizationId?: string): Promise<RealAnalytics> {
     try {
-      // Fetch real conversation data from Supabase
-      const { data: conversations, error: convError } = await supabase
+      // Build query with organization filter if provided
+      let query = supabase
         .from('conversations')
         .select(`
           *,
@@ -42,6 +42,13 @@ export class RealAnalyticsService {
         `)
         .eq('lead_id', leadId)
         .order('created_at', { ascending: false });
+
+      // Add organization filter if provided
+      if (organizationId) {
+        query = query.eq('organization_id', organizationId);
+      }
+
+      const { data: conversations, error: convError } = await query;
 
       if (convError) {
         console.error('Error fetching conversations:', convError);
@@ -77,7 +84,7 @@ export class RealAnalyticsService {
     }
   }
 
-  async getGlobalAnalytics(): Promise<{
+  async getGlobalAnalytics(organizationId?: string): Promise<{
     totalLeads: number;
     avgLeadScore: number;
     totalConversations: number;
@@ -87,60 +94,99 @@ export class RealAnalyticsService {
     conversionRate: number;
   }> {
     try {
-      // Get total leads
+      // SECURITY FIX: All queries must be filtered by organization_id
+      if (!organizationId) {
+        console.error('🚨 SECURITY: getGlobalAnalytics called without organization_id');
+        return {
+          totalLeads: 0,
+          avgLeadScore: 0,
+          totalConversations: 0,
+          highValueLeads: 0,
+          conversationQuality: 0,
+          buyingSignalsCount: 0,
+          conversionRate: 0
+        };
+      }
+
+      // Get total leads for this organization ONLY
       const { count: totalLeads } = await supabase
         .from('leads')
-        .select('*', { count: 'exact', head: true });
+        .select('*', { count: 'exact', head: true })
+        .eq('organization_id', organizationId);
 
-      // Get average lead score
+      // Get average lead score for this organization ONLY
       const { data: avgScoreData } = await supabase
         .from('leads')
         .select('lead_score')
+        .eq('organization_id', organizationId)
         .not('lead_score', 'is', null);
 
       const avgLeadScore = avgScoreData?.length 
         ? avgScoreData.reduce((sum, lead) => sum + (lead.lead_score || 0), 0) / avgScoreData.length
         : 0;
 
-      // Get conversation stats
+      // Get conversation stats for this organization ONLY
       const { count: totalConversations } = await supabase
         .from('conversations')
-        .select('*', { count: 'exact', head: true });
+        .select('*', { count: 'exact', head: true })
+        .eq('organization_id', organizationId);
 
-      // Get high-value leads (score > 70)
+      // Get high-value leads (score > 70) for this organization ONLY
       const { count: highValueLeads } = await supabase
         .from('leads')
         .select('*', { count: 'exact', head: true })
+        .eq('organization_id', organizationId)
         .gt('lead_score', 70);
 
-      // Get recent buying signals from ElevenLabs analytics
+      // Get recent buying signals from ElevenLabs analytics for this organization ONLY
       const { data: analyticsData } = await supabase
         .from('conversation_analytics')
-        .select('buying_signals')
-        .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
+        .select('buying_signals, conversation_id')
+        .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+        .in('conversation_id', 
+          supabase.from('conversations')
+            .select('id')
+            .eq('organization_id', organizationId)
+        );
 
       const buyingSignalsCount = analyticsData?.reduce((total, record) => {
         const signals = record.buying_signals || [];
         return total + (Array.isArray(signals) ? signals.length : 0);
       }, 0) || 0;
 
-      // Calculate conversation quality average
+      // Calculate conversation quality average for this organization ONLY
       const { data: qualityData } = await supabase
         .from('conversation_analytics')
-        .select('conversation_quality_score')
-        .not('conversation_quality_score', 'is', null);
+        .select('conversation_quality_score, conversation_id')
+        .not('conversation_quality_score', 'is', null)
+        .in('conversation_id', 
+          supabase.from('conversations')
+            .select('id')
+            .eq('organization_id', organizationId)
+        );
 
       const conversationQuality = qualityData?.length
         ? qualityData.reduce((sum, record) => sum + (record.conversation_quality_score || 0), 0) / qualityData.length
         : 0;
 
-      // Calculate conversion rate (leads with status 'converted' or 'closed-won')
+      // Calculate conversion rate for this organization ONLY
       const { count: convertedLeads } = await supabase
         .from('leads')
         .select('*', { count: 'exact', head: true })
+        .eq('organization_id', organizationId)
         .in('status', ['converted', 'closed-won']);
 
       const conversionRate = totalLeads ? (convertedLeads || 0) / totalLeads * 100 : 0;
+
+      console.log(`📊 Organization ${organizationId} analytics:`, {
+        totalLeads: totalLeads || 0,
+        avgLeadScore: Math.round(avgLeadScore * 10) / 10,
+        totalConversations: totalConversations || 0,
+        highValueLeads: highValueLeads || 0,
+        conversationQuality: Math.round(conversationQuality * 100),
+        buyingSignalsCount,
+        conversionRate: Math.round(conversionRate)
+      });
 
       return {
         totalLeads: totalLeads || 0,

@@ -3950,9 +3950,9 @@ app.get('/api/analytics/leads', async (req, res) => {
         organization_id
       });
     } else {
-      // Fallback to memory data (filtered by organization if possible)
+      // Fallback to memory data (filtered by organization)
       const memoryLeads = Array.from(dynamicLeads.values())
-        .filter(lead => !organization_id || lead.organization_id === organization_id)
+        .filter(lead => lead.organization_id === organization_id)
         .map(lead => ({
           id: lead.id,
           customer_name: lead.customerName,
@@ -3963,6 +3963,8 @@ app.get('/api/analytics/leads', async (req, res) => {
           last_activity: lead.lastTouchpoint,
           lead_score: 50
         }));
+      
+      console.log(`📊 Memory leads analytics for org ${organization_id}: ${memoryLeads.length} leads`);
       
       res.json({
         success: true,
@@ -4263,34 +4265,88 @@ app.get('/api/analytics/global', async (req, res) => {
     
     // FIXED: Use property access instead of function call
     if (!supabasePersistence.isEnabled || !supabasePersistence.isConnected) {
-      console.log('📊 Supabase not available, returning mock analytics');
+      console.log('📊 Supabase not available, calculating from memory with organization filter');
+      
+      // Filter memory data by organization_id
+      const organizationLeads = Array.from(dynamicLeads.values())
+        .filter(lead => lead.organization_id === organization_id);
+        
+      const organizationMemoryKeys = getOrganizationMemoryKeys(organization_id);
+      
+      let totalMessages = 0;
+      let voiceMessages = 0;
+      let smsMessages = 0;
+      let buyingSignalsCount = 0;
+      
+      const buyingKeywords = ['financing', 'payment', 'monthly', 'qualify', 'credit', 'approve', 'rate', 'price', 'cost', 'interested'];
+      
+      // Analyze only this organization's conversations
+      organizationMemoryKeys.forEach(key => {
+        const messages = conversationContexts.get(key) || [];
+        totalMessages += messages.length;
+        
+        messages.forEach(msg => {
+          if (msg.type === 'voice') voiceMessages++;
+          else if (msg.type === 'text' || msg.type === 'sms') smsMessages++;
+          
+          if (msg.sentBy === 'user' && msg.content) {
+            const content = msg.content.toLowerCase();
+            if (buyingKeywords.some(keyword => content.includes(keyword))) {
+              buyingSignalsCount++;
+            }
+          }
+        });
+      });
+      
+      // Calculate organization-specific metrics
+      const totalConversations = organizationMemoryKeys.length;
+      const avgMessagesPerConv = totalConversations > 0 ? totalMessages / totalConversations : 0;
+      const conversationQuality = Math.min(95, Math.max(30, avgMessagesPerConv * 12));
+      const conversionRate = totalConversations > 0 ? 
+        Math.min(25, Math.max(5, (buyingSignalsCount / totalConversations) * 100)) : 8;
+      
+      console.log(`📊 Memory analytics for org ${organization_id}:`, {
+        totalLeads: organizationLeads.length,
+        totalConversations,
+        totalMessages,
+        buyingSignalsCount,
+        conversationQuality: Math.round(conversationQuality)
+      });
+      
       return res.json({
         success: true,
         data: {
-          conversationQuality: 73,
-          buyingSignals: 8,
-          conversionRate: 12,
-          totalConversations: 24,
-          activeLeads: 6,
-          connectionStatus: 'mock'
+          conversationQuality: Math.round(conversationQuality),
+          buyingSignals: buyingSignalsCount,
+          conversionRate: Math.round(conversionRate),
+          totalConversations,
+          activeLeads: organizationLeads.length,
+          connectionStatus: 'memory'
         },
-        message: 'Mock analytics data (Supabase offline)'
+        message: 'Organization-filtered analytics from memory (Supabase offline)'
       });
     }
 
-    // Use supabasePersistence service methods instead of direct supabase calls
+    // Use supabasePersistence service methods with organization filtering
     let totalConversations = 0;
     let totalMessages = 0;
     let buyingSignalsCount = 0;
 
     try {
-      // Count conversations from memory and add Supabase data
-      totalConversations = conversationContexts.size;
+      // Get organization-specific data from memory
+      const organizationLeads = Array.from(dynamicLeads.values())
+        .filter(lead => lead.organization_id === organization_id);
+        
+      const organizationMemoryKeys = getOrganizationMemoryKeys(organization_id);
       
-      // Analyze messages from memory for buying signals
+      // Count conversations from memory for this organization only
+      totalConversations = organizationMemoryKeys.length;
+      
+      // Analyze messages from memory for buying signals (organization-filtered)
       const buyingKeywords = ['financing', 'payment', 'monthly', 'qualify', 'credit', 'approve', 'rate', 'price', 'cost', 'interested'];
       
-      for (const [phone, messages] of conversationContexts.entries()) {
+      organizationMemoryKeys.forEach(key => {
+        const messages = conversationContexts.get(key) || [];
         totalMessages += messages.length;
         
         messages.forEach(msg => {
@@ -4301,24 +4357,24 @@ app.get('/api/analytics/global', async (req, res) => {
             }
           }
         });
-      }
+      });
       
-      // Add dynamic leads count
-      totalConversations = Math.max(totalConversations, dynamicLeads.size);
+      // Ensure we have at least the leads count
+      totalConversations = Math.max(totalConversations, organizationLeads.length);
       
-      console.log('📊 Memory analytics:', { 
+      console.log(`📊 Memory analytics for org ${organization_id}:`, { 
         totalConversations, 
         totalMessages, 
         buyingSignalsCount,
-        activeLeads: dynamicLeads.size
+        activeLeads: organizationLeads.length
       });
 
     } catch (dbError) {
-      console.log('📊 Error accessing analytics data:', dbError);
+      console.log('📊 Error accessing organization analytics data:', dbError);
       // Continue with memory-only data
     }
 
-    // Calculate quality score based on engagement
+    // Calculate quality score based on engagement (organization-specific)
     const avgMessagesPerConv = totalConversations > 0 ? totalMessages / totalConversations : 0;
     const baseQuality = Math.min(95, Math.max(30, avgMessagesPerConv * 12));
     
@@ -4331,37 +4387,44 @@ app.get('/api/analytics/global', async (req, res) => {
       ? Math.min(25, Math.max(5, (buyingSignalsCount / totalConversations) * 100))
       : 8;
 
+    // Get organization-specific lead count
+    const organizationLeads = Array.from(dynamicLeads.values())
+      .filter(lead => lead.organization_id === organization_id);
+
     const analyticsData = {
       conversationQuality: Math.round(qualityScore),
       buyingSignals: buyingSignalsCount,
       conversionRate: Math.round(conversionRate),
       totalConversations,
-      activeLeads: dynamicLeads.size,
+      activeLeads: organizationLeads.length,
       connectionStatus: 'live'
     };
 
-    console.log('📊 Returning calculated analytics:', analyticsData);
+    console.log(`📊 Returning organization-filtered analytics for ${organization_id}:`, analyticsData);
     res.json({
       success: true,
       data: analyticsData,
-      message: 'Analytics from memory and database'
+      message: 'Organization-filtered analytics from memory and database'
     });
 
   } catch (error) {
     console.error('📊 Analytics error:', error);
     
-    // Return enhanced mock data on error
+    // Return organization-specific fallback data
+    const organizationLeads = Array.from(dynamicLeads.values())
+      .filter(lead => lead.organization_id === req.query.organization_id);
+    
     res.json({
       success: true,
       data: {
         conversationQuality: 67,
-        buyingSignals: 5,
+        buyingSignals: 2,
         conversionRate: 15,
-        totalConversations: 18,
-        activeLeads: 4,
+        totalConversations: Math.max(1, organizationLeads.length),
+        activeLeads: organizationLeads.length,
         connectionStatus: 'fallback'
       },
-      message: 'Fallback analytics data'
+      message: 'Organization-filtered fallback analytics data'
     });
   }
 });

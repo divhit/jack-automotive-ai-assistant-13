@@ -31,6 +31,7 @@ import { toast } from 'sonner';
 import { elevenLabsAnalytics, ConversationAnalytics, LiveCoachingUpdate } from '@/services/elevenLabsMcpAnalytics';
 import { SubprimeLead } from '@/data/subprime/subprimeLeads';
 import { realAnalyticsService } from '@/services/realAnalyticsService';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface ConversationMessage {
   id: string;
@@ -58,6 +59,8 @@ export const ElevenLabsAnalyticsPanel: React.FC<ElevenLabsAnalyticsPanelProps> =
   conversationId,
   className
 }) => {
+  const { organization } = useAuth();
+  
   // State management
   const [analytics, setAnalytics] = useState({
     conversationQuality: 0,
@@ -130,15 +133,15 @@ export const ElevenLabsAnalyticsPanel: React.FC<ElevenLabsAnalyticsPanelProps> =
 
   // Fetch real analytics when selectedLead changes
   useEffect(() => {
-    if (selectedLead?.id) {
+    if (selectedLead?.id && organization?.id) {
       setLoading(true);
-      realAnalyticsService.getLeadAnalytics(selectedLead.id.toString())
+      realAnalyticsService.getLeadAnalytics(selectedLead.id.toString(), organization.id)
         .then(realAnalytics => {
           setAnalytics({
             conversationQuality: realAnalytics.conversationQuality,
             sentimentScore: realAnalytics.sentimentScore,
             buyingSignals: realAnalytics.buyingSignals,
-            engagementLevel: realAnalytics.engagementLevel,
+            engagementLevel: realAnalytics.engagementLevel as 'low' | 'medium' | 'high',
             messageCount: realAnalytics.messageCount,
             userMessages: realAnalytics.userMessages,
             agentMessages: realAnalytics.agentMessages,
@@ -158,7 +161,7 @@ export const ElevenLabsAnalyticsPanel: React.FC<ElevenLabsAnalyticsPanelProps> =
       const fallbackAnalytics = analyzeFallbackData(conversationHistory);
       setAnalytics(fallbackAnalytics);
     }
-  }, [selectedLead?.id, conversationHistory]);
+  }, [selectedLead?.id, conversationHistory, organization?.id]);
 
   const loadConversationAnalytics = async () => {
     if (!conversationId) return;
@@ -236,7 +239,7 @@ export const ElevenLabsAnalyticsPanel: React.FC<ElevenLabsAnalyticsPanelProps> =
     
     const sentimentScore = Math.max(0.3, Math.min(0.95, (positiveScore + 1) / (positiveScore + negativeScore + 2)));
     const qualityScore = Math.min(0.95, (messages.length * 0.1 + sentimentScore * 0.7 + buyingSignals.length * 0.2));
-    const engagementLevel = buyingSignals.length > 2 ? 'high' : buyingSignals.length > 0 ? 'medium' : 'low';
+    const engagementLevel: 'low' | 'medium' | 'high' = buyingSignals.length > 2 ? 'high' : buyingSignals.length > 0 ? 'medium' : 'low';
 
     return {
       conversationQuality: qualityScore,
