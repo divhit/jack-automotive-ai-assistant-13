@@ -2822,6 +2822,18 @@ function broadcastConversationUpdate(data) {
         console.log(`🗄️ Activity logging failed (system continues normally):`, error.message);
       });
     }
+
+    // ENHANCED: Broadcast to analytics clients for real-time dashboard updates
+    if (data.organizationId && data.leadId) {
+      broadcastAnalyticsUpdate(data.organizationId, {
+        type: 'conversation_update',
+        leadId: data.leadId,
+        phoneNumber: data.phoneNumber,
+        messageCount: data.messages?.length || 0,
+        lastActivity: new Date().toISOString(),
+        messageType: data.type
+      });
+    }
   } else {
     // Broadcast to all connections if no specific leadId
     console.log(`📡 Broadcasting to all ${sseConnections.size} connections`);
@@ -4469,6 +4481,90 @@ app.get('/api/analytics/lead/:id', async (req, res) => {
     });
   }
 });
+
+// SSE endpoint for real-time analytics updates
+app.get('/api/analytics/stream', (req, res) => {
+  const { organizationId } = req.query;
+  
+  if (!organizationId) {
+    return res.status(400).json({ 
+      error: 'organizationId is required for real-time analytics stream' 
+    });
+  }
+  
+  // Set up SSE headers
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Cache-Control'
+  });
+  
+  const clientId = Date.now();
+  console.log(`📡 Analytics SSE client connected: ${clientId} for org: ${organizationId}`);
+  
+  // Store the connection for broadcasting updates
+  if (!global.analyticsSSEClients) {
+    global.analyticsSSEClients = new Map();
+  }
+  global.analyticsSSEClients.set(clientId, { res, organizationId });
+  
+  // Send initial connection message
+  res.write(`data: ${JSON.stringify({
+    type: 'connection',
+    message: 'Real-time analytics connected',
+    organizationId,
+    timestamp: new Date().toISOString()
+  })}\n\n`);
+  
+  // Set up periodic heartbeat to keep connection alive
+  const heartbeat = setInterval(() => {
+    res.write(`data: ${JSON.stringify({
+      type: 'heartbeat',
+      timestamp: new Date().toISOString()
+    })}\n\n`);
+  }, 30000);
+  
+  // Handle client disconnect
+  req.on('close', () => {
+    console.log(`📡 Analytics SSE client disconnected: ${clientId}`);
+    clearInterval(heartbeat);
+    if (global.analyticsSSEClients) {
+      global.analyticsSSEClients.delete(clientId);
+    }
+  });
+  
+  req.on('error', (error) => {
+    console.error(`📡 Analytics SSE error for client ${clientId}:`, error);
+    clearInterval(heartbeat);
+    if (global.analyticsSSEClients) {
+      global.analyticsSSEClients.delete(clientId);
+    }
+  });
+});
+
+// Function to broadcast real-time updates to analytics clients
+function broadcastAnalyticsUpdate(organizationId, updateData) {
+  if (!global.analyticsSSEClients) return;
+  
+  const message = JSON.stringify({
+    ...updateData,
+    timestamp: new Date().toISOString()
+  });
+  
+  // Broadcast to all clients for this organization
+  for (const [clientId, client] of global.analyticsSSEClients.entries()) {
+    if (client.organizationId === organizationId) {
+      try {
+        client.res.write(`data: ${message}\n\n`);
+      } catch (error) {
+        console.error(`📡 Error broadcasting to analytics client ${clientId}:`, error);
+        global.analyticsSSEClients.delete(clientId);
+      }
+    }
+  }
+}
 
 // System status endpoint (shows persistence status)
 app.get('/api/system/status', (req, res) => {

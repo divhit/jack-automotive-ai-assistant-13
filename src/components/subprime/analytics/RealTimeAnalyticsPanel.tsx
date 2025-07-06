@@ -81,6 +81,48 @@ export const RealTimeAnalyticsPanel: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
+  // Real-time updates via SSE
+  useEffect(() => {
+    if (!organization?.id) return;
+
+    let eventSource: EventSource | null = null;
+    
+    try {
+      eventSource = new EventSource(`/api/analytics/stream?organizationId=${organization.id}`);
+      
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'conversation_update') {
+            console.log('📡 Received real-time analytics update:', data);
+            // Refresh analytics when conversation updates occur
+            fetchAnalytics();
+          }
+        } catch (error) {
+          console.error('Error parsing SSE data:', error);
+        }
+      };
+      
+      eventSource.onerror = (error) => {
+        console.error('SSE connection error:', error);
+        // Fallback to polling if SSE fails
+        setTimeout(() => {
+          if (organization?.id) {
+            fetchAnalytics();
+          }
+        }, 5000);
+      };
+    } catch (error) {
+      console.error('Failed to establish SSE connection:', error);
+    }
+    
+    return () => {
+      if (eventSource) {
+        eventSource.close();
+      }
+    };
+  }, [organization?.id]);
+
   const getStatusColor = () => {
     if (analytics.error) return 'text-red-600';
     if (analytics.dataSource === 'live' || analytics.dataSource === 'supabase') return 'text-green-600';

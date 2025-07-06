@@ -81,12 +81,41 @@ const SubprimeDashboard = () => {
   const [scriptProgressFilter, setScriptProgressFilter] = useState<string>("all");
   const [showOverdueOnly, setShowOverdueOnly] = useState(false);
 
-  // Use useMemo to prevent infinite recalculation of metrics
+  // Real-time update state
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
+  const [refreshInterval, setRefreshInterval] = useState(30000); // 30 seconds
+
+  // Enhanced metrics calculation with better error handling
   const metrics = useMemo(() => {
+    const totalLeads = allLeads.length;
+    const readyForFunding = allLeads.filter(lead => lead.fundingReadiness === 'Ready').length;
+    const partialFunding = allLeads.filter(lead => lead.fundingReadiness === 'Partial').length;
+    const notReady = allLeads.filter(lead => lead.fundingReadiness === 'Not Ready').length;
+    const activeChases = allLeads.filter(lead => lead.chaseStatus === 'Auto Chase Running').length;
+    const overdueActions = allLeads.filter(lead => lead.nextAction?.isOverdue).length;
+    const inProgress = readyForFunding + partialFunding;
+    
+    // Calculate percentages with safe division
+    const calculatePercentage = (value: number, total: number) => {
+      return total > 0 ? Math.round((value / total) * 100) : 0;
+    };
+    
     return {
-      totalLeads: allLeads.length,
-      readyForFunding: allLeads.filter(lead => lead.fundingReadiness === 'Ready').length,
-      activeChases: allLeads.filter(lead => lead.chaseStatus === 'Auto Chase Running').length
+      totalLeads,
+      readyForFunding,
+      partialFunding,
+      notReady,
+      inProgress,
+      activeChases,
+      overdueActions,
+      // Safe percentage calculations
+      percentages: {
+        readyForFunding: calculatePercentage(readyForFunding, totalLeads),
+        partialFunding: calculatePercentage(partialFunding, totalLeads),
+        notReady: calculatePercentage(notReady, totalLeads),
+        inProgress: calculatePercentage(inProgress, totalLeads),
+        overdueActions: calculatePercentage(overdueActions, totalLeads)
+      }
     };
   }, [allLeads]);
 
@@ -129,7 +158,7 @@ const SubprimeDashboard = () => {
     
     // Apply overdue filter
     if (showOverdueOnly) {
-      filtered = filtered.filter(lead => lead.nextAction.isOverdue);
+      filtered = filtered.filter(lead => lead.nextAction?.isOverdue);
     }
     
     return filtered;
@@ -148,6 +177,117 @@ const SubprimeDashboard = () => {
       loadLeadsFromServer();
     }
   }, [organization?.id]);
+
+  // Auto-refresh effect
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout;
+    
+    if (autoRefreshEnabled && organization?.id) {
+      intervalId = setInterval(() => {
+        console.log('🔄 Auto-refreshing dashboard data...');
+        loadLeadsFromServer();
+      }, refreshInterval);
+    }
+    
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [autoRefreshEnabled, refreshInterval, organization?.id]);
+
+  // Real-time updates via Server-Sent Events
+  useEffect(() => {
+    let eventSource: EventSource | null = null;
+    
+    if (organization?.id) {
+      // Connect to SSE endpoint for real-time updates
+      eventSource = new EventSource(`/api/analytics/stream?organizationId=${organization.id}`);
+      
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'lead_update') {
+            console.log('📡 Received real-time lead update:', data);
+            updateLeadInState(data.leadId, data.updates);
+          } else if (data.type === 'conversation_update') {
+            console.log('📡 Received real-time conversation update:', data);
+            handleConversationUpdate(data);
+          }
+        } catch (error) {
+          console.error('Error parsing SSE data:', error);
+        }
+      };
+      
+      eventSource.onerror = (error) => {
+        console.error('SSE connection error:', error);
+        // Reconnect after a delay
+        setTimeout(() => {
+          if (organization?.id) {
+            loadLeadsFromServer();
+          }
+        }, 5000);
+      };
+    }
+    
+    return () => {
+      if (eventSource) {
+        eventSource.close();
+      }
+    };
+  }, [organization?.id]);
+
+  // Update lead in state (real-time updates)
+  const updateLeadInState = useCallback((leadId: string, updates: Partial<SubprimeLead>) => {
+    setAllLeads(prevLeads => 
+      prevLeads.map(lead => 
+        lead.id === leadId 
+          ? { ...lead, ...updates, lastTouchpoint: new Date().toISOString() }
+          : lead
+      )
+    );
+  }, []);
+
+  // Handle conversation updates from real-time events
+  const handleConversationUpdate = useCallback((data: any) => {
+    const { leadId, phoneNumber, sentiment, messageCount, lastActivity } = data;
+    
+    // Update lead based on conversation progress
+    const updates: Partial<SubprimeLead> = {
+      lastTouchpoint: lastActivity || new Date().toISOString()
+    };
+    
+    // Update sentiment if provided
+    if (sentiment) {
+      updates.sentiment = sentiment;
+    }
+    
+    // Update conversation count
+    if (messageCount !== undefined) {
+      updates.conversations = Array.from({ length: messageCount }, (_, i) => ({
+        id: `msg-${i}`,
+        type: 'system',
+        content: `Message ${i + 1}`,
+        timestamp: new Date().toISOString(),
+        sentBy: i % 2 === 0 ? 'lead' : 'agent'
+      }));
+    }
+    
+    // Auto-update lead status based on conversation progress
+    if (messageCount >= 5) {
+      updates.scriptProgress = {
+        currentStep: 'qualification',
+        completedSteps: ['contacted', 'screening']
+      };
+    } else if (messageCount >= 2) {
+      updates.scriptProgress = {
+        currentStep: 'screening',
+        completedSteps: ['contacted']
+      };
+    }
+    
+    updateLeadInState(leadId, updates);
+  }, [updateLeadInState]);
 
   const loadLeadsFromServer = async () => {
     if (!organization?.id) {
@@ -535,6 +675,13 @@ const SubprimeDashboard = () => {
           <Badge variant="outline" className="text-xs">
             {hasRole('admin') ? 'Admin Access' : hasRole('manager') ? 'Manager Access' : 'Agent Access'}
           </Badge>
+          {/* Real-time status indicator */}
+          <div className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${autoRefreshEnabled ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></div>
+            <span className="text-xs text-muted-foreground">
+              {autoRefreshEnabled ? 'Live Updates' : 'Manual Refresh'}
+            </span>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <div className="w-64">
@@ -545,6 +692,17 @@ const SubprimeDashboard = () => {
               className="w-full"
             />
           </div>
+
+          {/* Real-time toggle */}
+          <Button
+            variant={autoRefreshEnabled ? "default" : "outline"}
+            size="sm"
+            onClick={() => setAutoRefreshEnabled(!autoRefreshEnabled)}
+            className="gap-2"
+          >
+            <div className={`w-2 h-2 rounded-full ${autoRefreshEnabled ? 'bg-white' : 'bg-green-500'}`}></div>
+            {autoRefreshEnabled ? 'Live' : 'Manual'}
+          </Button>
 
           <Button
             variant="outline"
@@ -601,13 +759,13 @@ const SubprimeDashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
-              <div className="text-xl font-bold">{metrics.readyForFunding}</div>
+              <div className="text-xl font-bold">{metrics.inProgress}</div>
               <div className="bg-yellow-100 p-1.5 rounded-full">
                 <MessageSquare className="h-3.5 w-3.5 text-yellow-600" />
               </div>
             </div>
             <div className="flex items-center mt-3 text-xs">
-              <span className="text-muted-foreground">{Math.round((metrics.readyForFunding / metrics.totalLeads) * 100)}% of all leads</span>
+              <span className="text-muted-foreground">{metrics.percentages.inProgress}% of all leads</span>
             </div>
           </CardContent>
         </Card>
@@ -623,13 +781,13 @@ const SubprimeDashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
-              <div className="text-xl font-bold">{allLeads.filter(l => l.fundingReadiness === "Not Ready").length}</div>
+              <div className="text-xl font-bold">{metrics.notReady}</div>
               <div className="bg-red-100 p-1.5 rounded-full">
                 <Users className="h-3.5 w-3.5 text-red-600" />
               </div>
             </div>
             <div className="flex items-center mt-3 text-xs">
-              <span className="text-muted-foreground">{Math.round((allLeads.filter(l => l.fundingReadiness === "Not Ready").length / metrics.totalLeads) * 100)}% of all leads</span>
+              <span className="text-muted-foreground">{metrics.percentages.notReady}% of all leads</span>
             </div>
           </CardContent>
         </Card>
@@ -645,13 +803,13 @@ const SubprimeDashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
-              <div className="text-xl font-bold">{allLeads.filter(l => l.nextAction.isOverdue).length}</div>
+              <div className="text-xl font-bold">{metrics.overdueActions}</div>
               <div className="bg-purple-100 p-1.5 rounded-full">
                 <Clock className="h-3.5 w-3.5 text-purple-600" />
               </div>
             </div>
             <Badge variant="outline" className="mt-3 text-xs bg-red-50 text-red-700 border-red-200">
-              {allLeads.filter(l => l.nextAction.isOverdue).length} overdue actions
+              {metrics.overdueActions} overdue actions
             </Badge>
           </CardContent>
         </Card>
@@ -673,7 +831,7 @@ const SubprimeDashboard = () => {
               </div>
             </div>
             <div className="flex items-center mt-3 text-xs">
-              <span className="text-muted-foreground">{Math.round((metrics.readyForFunding / metrics.totalLeads) * 100)}% of all leads</span>
+              <span className="text-muted-foreground">{metrics.percentages.readyForFunding}% of all leads</span>
             </div>
           </CardContent>
         </Card>
