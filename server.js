@@ -3953,16 +3953,34 @@ app.get('/api/analytics/leads', async (req, res) => {
       // Fallback to memory data (filtered by organization)
       const memoryLeads = Array.from(dynamicLeads.values())
         .filter(lead => lead.organizationId === organization_id)
-        .map(lead => ({
-          id: lead.id,
-          customer_name: lead.customerName,
-          phone_number: lead.phoneNumber,
-          sentiment: lead.sentiment,
-          funding_readiness: lead.fundingReadiness,
-          total_conversations: lead.conversations?.length || 0,
-          last_activity: lead.lastTouchpoint,
-          lead_score: 50
-        }));
+        .map(lead => {
+          // Calculate message type breakdown from conversation history
+          const phoneNumber = lead.phoneNumber;
+          const normalizedPhone = normalizePhoneNumber(phoneNumber);
+          const memoryKey = createOrgMemoryKey(organization_id, normalizedPhone);
+          const conversationHistory = conversationContexts.get(memoryKey) || [];
+          
+          const totalVoiceCalls = conversationHistory.filter(msg => 
+            msg.type === 'voice' || msg.messageType === 'voice'
+          ).length;
+          
+          const totalSmsMessages = conversationHistory.filter(msg => 
+            msg.type === 'text' || msg.type === 'sms' || msg.messageType === 'sms'
+          ).length;
+          
+          return {
+            id: lead.id,
+            customer_name: lead.customerName,
+            phone_number: lead.phoneNumber,
+            sentiment: lead.sentiment,
+            funding_readiness: lead.fundingReadiness,
+            total_conversations: totalVoiceCalls + totalSmsMessages,
+            total_voice_calls: totalVoiceCalls,
+            total_sms_messages: totalSmsMessages,
+            last_activity: lead.lastTouchpoint,
+            lead_score: 50
+          };
+        });
       
       console.log(`📊 Memory leads analytics for org ${organization_id}: ${memoryLeads.length} leads`);
       
@@ -4188,26 +4206,23 @@ app.get('/api/conversations/:leadId', async (req, res) => {
       return res.status(404).json({ error: 'Lead not found' });
     }
     
-    // Try Supabase first, fallback to memory
+    // Get conversation history from Supabase only - no fallbacks
     const dbHistory = await supabasePersistence.getConversationHistory(lead.phoneNumber, parseInt(limit));
     
-    if (dbHistory && dbHistory.length > 0) {
-      res.json({
-        success: true,
-        conversations: dbHistory,
-        count: dbHistory.length,
-        source: 'database'
-      });
-    } else {
-      // Fallback to memory
-      const memoryHistory = getConversationHistorySync(lead.phoneNumber);
-      res.json({
-        success: true,
-        conversations: memoryHistory,
-        count: memoryHistory.length,
-        source: 'memory'
+    if (!dbHistory || dbHistory.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: `No conversation history found for lead ${leadId}`,
+        details: `Phone: ${lead.phoneNumber}, searched limit: ${limit}`
       });
     }
+    
+    res.json({
+      success: true,
+      conversations: dbHistory,
+      count: dbHistory.length,
+      source: 'database'
+    });
     
   } catch (error) {
     console.error('❌ Error getting conversation history:', error);
@@ -4265,65 +4280,10 @@ app.get('/api/analytics/global', async (req, res) => {
     
     // FIXED: Use property access instead of function call
     if (!supabasePersistence.isEnabled || !supabasePersistence.isConnected) {
-      console.log('📊 Supabase not available, calculating from memory with organization filter');
-      
-      // Filter memory data by organization_id
-      const organizationLeads = Array.from(dynamicLeads.values())
-        .filter(lead => lead.organizationId === organization_id);
-        
-      const organizationMemoryKeys = getOrganizationMemoryKeys(organization_id);
-      
-      let totalMessages = 0;
-      let voiceMessages = 0;
-      let smsMessages = 0;
-      let buyingSignalsCount = 0;
-      
-      const buyingKeywords = ['financing', 'payment', 'monthly', 'qualify', 'credit', 'approve', 'rate', 'price', 'cost', 'interested'];
-      
-      // Analyze only this organization's conversations
-      organizationMemoryKeys.conversations.forEach(key => {
-        const messages = conversationContexts.get(key) || [];
-        totalMessages += messages.length;
-        
-        messages.forEach(msg => {
-          if (msg.type === 'voice') voiceMessages++;
-          else if (msg.type === 'text' || msg.type === 'sms') smsMessages++;
-          
-          if (msg.sentBy === 'user' && msg.content) {
-            const content = msg.content.toLowerCase();
-            if (buyingKeywords.some(keyword => content.includes(keyword))) {
-              buyingSignalsCount++;
-            }
-          }
-        });
-      });
-      
-      // Calculate organization-specific metrics
-      const totalConversations = organizationMemoryKeys.conversations.length;
-      const avgMessagesPerConv = totalConversations > 0 ? totalMessages / totalConversations : 0;
-      const conversationQuality = Math.min(95, Math.max(30, avgMessagesPerConv * 12));
-      const conversionRate = totalConversations > 0 ? 
-        Math.min(25, Math.max(5, (buyingSignalsCount / totalConversations) * 100)) : 8;
-      
-      console.log(`📊 Memory analytics for org ${organization_id}:`, {
-        totalLeads: organizationLeads.length,
-        totalConversations,
-        totalMessages,
-        buyingSignalsCount,
-        conversationQuality: Math.round(conversationQuality)
-      });
-      
-      return res.json({
-        success: true,
-        data: {
-          conversationQuality: Math.round(conversationQuality),
-          buyingSignals: buyingSignalsCount,
-          conversionRate: Math.round(conversionRate),
-          totalConversations,
-          activeLeads: organizationLeads.length,
-          connectionStatus: 'memory'
-        },
-        message: 'Organization-filtered analytics from memory (Supabase offline)'
+      return res.status(500).json({
+        success: false,
+        error: 'Supabase persistence is not available for analytics',
+        details: `isEnabled: ${supabasePersistence.isEnabled}, isConnected: ${supabasePersistence.isConnected}`
       });
     }
 
@@ -4408,23 +4368,12 @@ app.get('/api/analytics/global', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('📊 Analytics error:', error);
-    
-    // Return organization-specific fallback data
-    const organizationLeads = Array.from(dynamicLeads.values())
-      .filter(lead => lead.organizationId === req.query.organization_id);
-    
-    res.json({
-      success: true,
-      data: {
-        conversationQuality: 67,
-        buyingSignals: 2,
-        conversionRate: 15,
-        totalConversations: Math.max(1, organizationLeads.length),
-        activeLeads: organizationLeads.length,
-        connectionStatus: 'fallback'
-      },
-      message: 'Organization-filtered fallback analytics data'
+    console.error('❌ Global analytics error:', error);
+    res.status(500).json({
+      success: false,
+      error: `Global analytics failed: ${error.message}`,
+      details: error.stack,
+      organization_id
     });
   }
 });
@@ -4436,32 +4385,20 @@ app.get('/api/analytics/lead/:id', async (req, res) => {
     
     // FIXED: Use property access instead of function call
     if (!supabasePersistence.isEnabled || !supabasePersistence.isConnected) {
-      return res.json({
-        success: true,
-        data: {
-          conversationQuality: 78,
-          buyingSignals: ['Asked about financing', 'Discussed monthly payments'],
-          sentimentScore: 0.7,
-          engagementLevel: 'high',
-          messageCount: 12,
-          connectionStatus: 'mock'
-        }
+      return res.status(500).json({
+        success: false,
+        error: 'Supabase persistence is not enabled or connected',
+        details: `isEnabled: ${supabasePersistence.isEnabled}, isConnected: ${supabasePersistence.isConnected}`
       });
     }
 
     // Get lead data from memory to find phone number
     const leadData = getLeadData(leadId);
     if (!leadData || !leadData.phoneNumber) {
-      return res.json({
-        success: true,
-        data: {
-          conversationQuality: 50,
-          buyingSignals: [],
-          sentimentScore: 0.5,
-          engagementLevel: 'low',
-          messageCount: 0,
-          connectionStatus: 'no_data'
-        }
+      return res.status(404).json({
+        success: false,
+        error: `Lead ${leadId} not found in memory`,
+        details: `leadData: ${leadData ? 'exists but no phone' : 'not found'}`
       });
     }
 
@@ -4524,17 +4461,11 @@ app.get('/api/analytics/lead/:id', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('📊 Lead analytics error:', error);
-    res.json({
-      success: true,
-      data: {
-        conversationQuality: 65,
-        buyingSignals: ['Interest expressed'],
-        sentimentScore: 0.6,
-        engagementLevel: 'medium',
-        messageCount: 8,
-        connectionStatus: 'fallback'
-      }
+    console.error('❌ Lead analytics error:', error);
+    res.status(500).json({
+      success: false,
+      error: `Lead analytics failed: ${error.message}`,
+      details: error.stack
     });
   }
 });

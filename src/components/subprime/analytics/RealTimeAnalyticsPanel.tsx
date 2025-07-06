@@ -39,28 +39,34 @@ export const RealTimeAnalyticsPanel: React.FC = () => {
       const response = await fetch(`/api/analytics/global?organization_id=${organization?.id}`);
       if (response.ok) {
         const data = await response.json();
+        console.log('🔍 RealTimeAnalyticsPanel API response:', data);
+        
+        if (!data.success) {
+          throw new Error(data.error || 'API returned success: false');
+        }
+        
         setAnalytics({
-          conversationQuality: data.data?.conversationQuality || data.conversationQuality || 73,
-          buyingSignalsCount: data.data?.buyingSignals || data.buyingSignalsCount || 8,
-          conversionRate: data.data?.conversionRate || data.conversionRate || 12,
-          highValueLeads: data.data?.activeLeads || data.highValueLeads || 4,
-          totalConversations: data.data?.totalConversations || data.totalConversations || 24,
-          dataSource: data.data?.connectionStatus || data.dataSource || 'live'
+          conversationQuality: data.data?.conversationQuality || data.conversationQuality || 0,
+          buyingSignalsCount: data.data?.buyingSignalsCount || data.buyingSignalsCount || 0,
+          conversionRate: data.data?.conversionRate || data.conversionRate || 0,
+          highValueLeads: data.data?.highValueLeads || data.highValueLeads || 0,
+          totalConversations: data.data?.totalConversations || data.totalConversations || 0,
+          dataSource: data.data?.dataSource || data.dataSource || 'unknown'
         });
         setLastUpdated(new Date());
       } else {
         throw new Error('API not available');
       }
     } catch (error) {
-      console.error('Analytics API not available, using fallback data:', error);
-      // Use enhanced fallback data instead of showing error
+      console.error('❌ Analytics API failed:', error);
       setAnalytics({
-        conversationQuality: 73,
-        buyingSignalsCount: 8,
-        conversionRate: 12,
-        highValueLeads: 4,
-        totalConversations: 24,
-        dataSource: 'fallback'
+        conversationQuality: 0,
+        buyingSignalsCount: 0,
+        conversionRate: 0,
+        highValueLeads: 0,
+        totalConversations: 0,
+        dataSource: 'error',
+        error: `API Error: ${error.message}`
       });
       setLastUpdated(new Date());
     } finally {
@@ -83,9 +89,9 @@ export const RealTimeAnalyticsPanel: React.FC = () => {
   };
 
   const getStatusText = () => {
-    if (analytics.error) return 'Connection Error';
+    if (analytics.error) return 'API Error';
     if (analytics.dataSource === 'live' || analytics.dataSource === 'supabase') return 'Live Data';
-    if (analytics.dataSource === 'fallback') return 'Demo Data';
+    if (analytics.dataSource === 'error') return 'System Error';
     return 'Loading...';
   };
 

@@ -588,35 +588,46 @@ class SupabasePersistenceService {
         return [];
       }
       
-      // Query leads table and compute analytics on-the-fly
+      // Query leads table with conversation details for analytics
       const { data: leads, error } = await this.supabase
         .from('leads')
         .select(`
           *,
-          conversations:conversations(count)
+          conversations:conversations!inner(
+            id,
+            message_type,
+            organization_id
+          )
         `)
         .eq('organization_id', organizationId) // SECURITY: Always filter by organization
+        .eq('conversations.organization_id', organizationId) // SECURITY: Double-check conversations are org-scoped
         .order('last_activity', { ascending: false })
         .limit(limit);
 
       if (error) throw error;
       
-      // Transform data to match expected analytics format
-      const leadsWithAnalytics = leads?.map(lead => ({
-        id: lead.id,
-        customer_name: lead.customer_name,
-        phone_number: lead.phone_number,
-        sentiment: lead.sentiment,
-        funding_readiness: lead.funding_readiness,
-        lead_score: lead.lead_score || 50, // Default score
-        total_conversations: lead.conversations?.[0]?.count || 0,
-        total_sms_messages: 0, // Could be calculated from conversations
-        total_voice_calls: 0, // Could be calculated from conversations
-        last_activity: lead.last_activity || lead.updated_at,
-        created_at: lead.created_at,
-        updated_at: lead.updated_at,
-        organization_id: lead.organization_id
-      })) || [];
+      // Transform data to match expected analytics format with proper message type breakdown
+      const leadsWithAnalytics = leads?.map(lead => {
+        const conversations = lead.conversations || [];
+        const totalVoiceCalls = conversations.filter(c => c.message_type === 'voice').length;
+        const totalSmsMessages = conversations.filter(c => c.message_type === 'sms' || c.message_type === 'text').length;
+        
+        return {
+          id: lead.id,
+          customer_name: lead.customer_name,
+          phone_number: lead.phone_number,
+          sentiment: lead.sentiment,
+          funding_readiness: lead.funding_readiness,
+          lead_score: lead.lead_score || 50,
+          total_conversations: conversations.length,
+          total_voice_calls: totalVoiceCalls,
+          total_sms_messages: totalSmsMessages,
+          last_activity: lead.last_activity || lead.updated_at,
+          created_at: lead.created_at,
+          updated_at: lead.updated_at,
+          organization_id: lead.organization_id
+        };
+      }) || [];
       
       console.log(`🗄️ Retrieved ${leadsWithAnalytics.length} leads with analytics from Supabase for organization: ${organizationId}`);
       return leadsWithAnalytics;
