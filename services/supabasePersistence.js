@@ -595,7 +595,7 @@ class SupabasePersistenceService {
           *,
           conversations:conversations!inner(
             id,
-            message_type,
+            type,
             organization_id
           )
         `)
@@ -609,8 +609,8 @@ class SupabasePersistenceService {
       // Transform data to match expected analytics format with proper message type breakdown
       const leadsWithAnalytics = leads?.map(lead => {
         const conversations = lead.conversations || [];
-        const totalVoiceCalls = conversations.filter(c => c.message_type === 'voice').length;
-        const totalSmsMessages = conversations.filter(c => c.message_type === 'sms' || c.message_type === 'text').length;
+        const totalVoiceCalls = conversations.filter(c => c.type === 'voice').length;
+        const totalSmsMessages = conversations.filter(c => c.type === 'sms' || c.type === 'text').length;
         
         return {
           id: lead.id,
