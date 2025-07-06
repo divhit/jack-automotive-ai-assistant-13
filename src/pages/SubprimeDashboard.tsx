@@ -196,14 +196,13 @@ const SubprimeDashboard = () => {
 
     // Persist changes to server with organization context
     try {
-      const response = await fetch('/api/subprime/update-lead', {
+      const response = await fetch(`/api/subprime/update-lead/${leadId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ 
-          leadId, 
-          updates,
+          ...updates,
           organization_id: organization?.id,
           updated_by: user?.id
         })
