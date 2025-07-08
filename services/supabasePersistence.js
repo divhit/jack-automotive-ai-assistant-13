@@ -588,7 +588,7 @@ class SupabasePersistenceService {
         return [];
       }
       
-      // Query leads table with conversation details for analytics
+      // Query leads table with full conversation details for proper analytics
       const { data: leads, error } = await this.supabase
         .from('leads')
         .select(`
@@ -596,6 +596,8 @@ class SupabasePersistenceService {
           conversations:conversations!inner(
             id,
             type,
+            content,
+            sent_by,
             organization_id
           )
         `)
@@ -609,8 +611,17 @@ class SupabasePersistenceService {
       // Transform data to match expected analytics format with proper message type breakdown
       const leadsWithAnalytics = leads?.map(lead => {
         const conversations = lead.conversations || [];
-        const totalVoiceCalls = conversations.filter(c => c.type === 'voice').length;
-        const totalSmsMessages = conversations.filter(c => c.type === 'sms' || c.type === 'text').length;
+        
+        // Count actual messages by type (like global analytics does)
+        const totalVoiceCalls = conversations.filter(c => 
+          c.type === 'voice' || c.type === 'call' || (c.sent_by === 'agent' && c.type === 'voice')
+        ).length;
+        
+        const totalSmsMessages = conversations.filter(c => 
+          c.type === 'sms' || c.type === 'text' || (c.sent_by === 'agent' && c.type === 'text')
+        ).length;
+        
+        console.log(`📊 Lead ${lead.customer_name}: ${totalVoiceCalls} voice, ${totalSmsMessages} SMS from ${conversations.length} total conversations`);
         
         return {
           id: lead.id,

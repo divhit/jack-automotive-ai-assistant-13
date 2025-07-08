@@ -26,7 +26,7 @@ export const RealTimeAnalyticsPanel: React.FC = () => {
     totalConversations: 0,
     dataSource: 'loading'
   });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
   const fetchAnalytics = async () => {
@@ -75,11 +75,17 @@ export const RealTimeAnalyticsPanel: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchAnalytics();
+    if (organization?.id) {
+      fetchAnalytics();
+    }
     // Auto-refresh every 2 minutes
-    const interval = setInterval(fetchAnalytics, 2 * 60 * 1000);
+    const interval = setInterval(() => {
+      if (organization?.id) {
+        fetchAnalytics();
+      }
+    }, 2 * 60 * 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [organization?.id]);
 
   // Real-time updates via SSE
   useEffect(() => {
