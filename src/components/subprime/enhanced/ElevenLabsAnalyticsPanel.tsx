@@ -303,7 +303,7 @@ export const ElevenLabsAnalyticsPanel: React.FC<ElevenLabsAnalyticsPanelProps> =
         <CardHeader className="pb-3">
           <CardTitle className="text-lg flex items-center gap-2">
             <Brain className="h-5 w-5 text-purple-600" />
-            ElevenLabs Analytics
+            CRM Analytics
             {isCallActive && (
               <Badge variant="outline" className="ml-auto animate-pulse bg-red-50 text-red-700 border-red-200">
                 🔴 Live

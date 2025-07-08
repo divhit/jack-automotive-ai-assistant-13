@@ -113,9 +113,9 @@ export const ElevenLabsAnalyticsOverview: React.FC = () => {
             <Brain className="h-6 w-6 text-purple-600" />
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-purple-900">ElevenLabs Analytics</h3>
+            <h3 className="text-lg font-semibold text-purple-900">CRM Analytics</h3>
             <div className="flex items-center gap-2">
-              <p className="text-sm text-purple-600">AI-powered conversation insights</p>
+                              <p className="text-sm text-purple-600">Real-time lead management insights</p>
               <Badge className={getDataSourceColor(analytics.dataSource)}>
                 {getDataSourceText(analytics.dataSource)}
               </Badge>

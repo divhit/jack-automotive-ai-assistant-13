@@ -150,7 +150,7 @@ export const RealTimeAnalyticsPanel: React.FC = () => {
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <Brain className="h-5 w-5 text-purple-600" />
-              ElevenLabs Analytics
+              CRM Analytics
             </CardTitle>
             <div className="flex items-center gap-2">
               <Badge variant="outline" className={getStatusColor()}>
@@ -209,7 +209,7 @@ export const RealTimeAnalyticsPanel: React.FC = () => {
                   {loading ? '...' : `${analytics.conversionRate}%`}
                 </div>
                 <div className="text-xs text-purple-600">
-                  {analytics.dataSource === 'supabase' ? 'Real conversion data' : 'With ElevenLabs MCP'}
+                  {analytics.dataSource === 'supabase' ? 'Real conversion data' : 'CRM Analytics'}
                 </div>
               </div>
             </div>

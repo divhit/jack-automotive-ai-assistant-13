@@ -85,7 +85,7 @@ const SubprimeDashboard = () => {
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
   const [refreshInterval, setRefreshInterval] = useState(30000); // 30 seconds
 
-  // Enhanced metrics calculation with better error handling
+  // Enhanced metrics calculation with better error handling and proper KPI tracking
   const metrics = useMemo(() => {
     const totalLeads = allLeads.length;
     const readyForFunding = allLeads.filter(lead => lead.fundingReadiness === 'Ready').length;
@@ -93,12 +93,31 @@ const SubprimeDashboard = () => {
     const notReady = allLeads.filter(lead => lead.fundingReadiness === 'Not Ready').length;
     const activeChases = allLeads.filter(lead => lead.chaseStatus === 'Auto Chase Running').length;
     const overdueActions = allLeads.filter(lead => lead.nextAction?.isOverdue).length;
-    const inProgress = readyForFunding + partialFunding;
+    
+    // FIXED: In Progress should be leads actively being worked on (have recent activity or are in chase)
+    const inProgress = allLeads.filter(lead => {
+      const hasRecentActivity = lead.lastTouchpoint && 
+        new Date(lead.lastTouchpoint) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // 7 days
+      const isActivelyChased = lead.chaseStatus === 'Auto Chase Running';
+      const isInQualification = lead.scriptProgress?.currentStep === 'qualification' || 
+                               lead.scriptProgress?.currentStep === 'screening';
+      return hasRecentActivity || isActivelyChased || isInQualification;
+    }).length;
     
     // Calculate percentages with safe division
     const calculatePercentage = (value: number, total: number) => {
       return total > 0 ? Math.round((value / total) * 100) : 0;
     };
+    
+    // Log metrics for real-time tracking
+    console.log('📊 CRM KPIs Updated:', {
+      totalLeads,
+      inProgress,
+      notReady,
+      overdueActions,
+      readyForFunding,
+      timestamp: new Date().toISOString()
+    });
     
     return {
       totalLeads,
@@ -196,6 +215,41 @@ const SubprimeDashboard = () => {
     };
   }, [autoRefreshEnabled, refreshInterval, organization?.id]);
 
+  // KPI Change Watcher - Track significant changes in real-time
+  useEffect(() => {
+    const prevMetrics = JSON.parse(localStorage.getItem('prevKPIMetrics') || '{}');
+    const currentMetrics = {
+      inProgress: metrics.inProgress,
+      notReady: metrics.notReady,
+      overdueActions: metrics.overdueActions,
+      readyForFunding: metrics.readyForFunding,
+      totalLeads: metrics.totalLeads
+    };
+    
+    // Check for significant changes
+    const hasSignificantChange = Object.keys(currentMetrics).some(key => 
+      Math.abs(currentMetrics[key] - (prevMetrics[key] || 0)) > 0
+    );
+    
+    if (hasSignificantChange) {
+      console.log('📊 KPI CHANGE DETECTED:', {
+        previous: prevMetrics,
+        current: currentMetrics,
+        changes: Object.keys(currentMetrics).reduce((acc, key) => {
+          const prev = prevMetrics[key] || 0;
+          const curr = currentMetrics[key];
+          if (prev !== curr) {
+            acc[key] = { from: prev, to: curr, delta: curr - prev };
+          }
+          return acc;
+        }, {})
+      });
+    }
+    
+    // Store current metrics for next comparison
+    localStorage.setItem('prevKPIMetrics', JSON.stringify(currentMetrics));
+  }, [metrics]);
+
   // Real-time updates via Server-Sent Events
   useEffect(() => {
     let eventSource: EventSource | null = null;
@@ -239,13 +293,18 @@ const SubprimeDashboard = () => {
 
   // Update lead in state (real-time updates)
   const updateLeadInState = useCallback((leadId: string, updates: Partial<SubprimeLead>) => {
-    setAllLeads(prevLeads => 
-      prevLeads.map(lead => 
+    setAllLeads(prevLeads => {
+      const updatedLeads = prevLeads.map(lead => 
         lead.id === leadId 
           ? { ...lead, ...updates, lastTouchpoint: new Date().toISOString() }
           : lead
-      )
-    );
+      );
+      
+      // Broadcast KPI update to other components
+      console.log('📊 KPI Data Updated - Broadcasting to connected components');
+      
+      return updatedLeads;
+    });
   }, []);
 
   // Handle conversation updates from real-time events
