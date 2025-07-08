@@ -638,6 +638,38 @@ class SupabasePersistenceService {
     }
   }
 
+  // Get conversation data for analytics
+  async getConversationAnalytics(organizationId, limit = 100) {
+    if (!this.isEnabled || !this.isConnected) return null;
+    
+    try {
+      // SECURITY: organizationId is REQUIRED
+      if (!organizationId) {
+        console.error('🚨 SECURITY: getConversationAnalytics() requires organizationId to prevent cross-organization data leakage');
+        return [];
+      }
+      
+      console.log(`📊 Querying conversations table for organization: ${organizationId}`);
+      
+      // Query conversations table directly for this organization
+      const { data: conversations, error } = await this.supabase
+        .from('conversations')
+        .select('*')
+        .eq('organization_id', organizationId) // SECURITY: Filter by organization
+        .order('timestamp', { ascending: false })
+        .limit(limit);
+
+      if (error) throw error;
+      
+      console.log(`📊 Found ${conversations?.length || 0} conversations in database for org ${organizationId}`);
+      return conversations || [];
+      
+    } catch (error) {
+      console.error(`❌ Failed to retrieve conversation analytics for org ${organizationId}:`, error);
+      return [];
+    }
+  }
+
   // DELETE OPERATIONS
   async deleteLead(leadId) {
     if (!this.isEnabled || !this.isConnected) return;

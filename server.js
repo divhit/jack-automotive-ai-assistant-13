@@ -4299,47 +4299,81 @@ app.get('/api/analytics/global', async (req, res) => {
       });
     }
 
-    // Use supabasePersistence service methods with organization filtering
+    // FIXED: Query database first, then fallback to memory
     let totalConversations = 0;
     let totalMessages = 0;
     let buyingSignalsCount = 0;
 
     try {
-      // Get organization-specific data from memory
-      const organizationLeads = Array.from(dynamicLeads.values())
-        .filter(lead => lead.organizationId === organization_id);
+      // First, try to get conversation data from Supabase database
+      console.log(`📊 Querying Supabase for conversation data for org ${organization_id}`);
+      
+      const conversationData = await supabasePersistence.getConversationAnalytics(organization_id);
+      
+      if (conversationData && conversationData.length > 0) {
+        console.log(`📊 Found ${conversationData.length} conversations in database for org ${organization_id}`);
         
-      const organizationMemoryKeys = getOrganizationMemoryKeys(organization_id);
-      
-      // Count conversations from memory for this organization only
-      totalConversations = organizationMemoryKeys.conversations.length;
-      
-      // Analyze messages from memory for buying signals (organization-filtered)
-      const buyingKeywords = ['financing', 'payment', 'monthly', 'qualify', 'credit', 'approve', 'rate', 'price', 'cost', 'interested'];
-      
-      organizationMemoryKeys.conversations.forEach(key => {
-        const messages = conversationContexts.get(key) || [];
-        totalMessages += messages.length;
+        totalConversations = conversationData.length;
+        totalMessages = conversationData.reduce((sum, conv) => sum + 1, 0); // Each conversation is a message
         
-        messages.forEach(msg => {
-          if (msg.sentBy === 'user' && msg.content) {
-            const content = msg.content.toLowerCase();
+        // Analyze database conversations for buying signals
+        const buyingKeywords = ['financing', 'payment', 'monthly', 'qualify', 'credit', 'approve', 'rate', 'price', 'cost', 'interested'];
+        
+        conversationData.forEach(conv => {
+          if (conv.sent_by === 'user' && conv.content) {
+            const content = conv.content.toLowerCase();
             if (buyingKeywords.some(keyword => content.includes(keyword))) {
               buyingSignalsCount++;
             }
           }
         });
-      });
-      
-      // Ensure we have at least the leads count
-      totalConversations = Math.max(totalConversations, organizationLeads.length);
-      
-      console.log(`📊 Memory analytics for org ${organization_id}:`, { 
-        totalConversations, 
-        totalMessages, 
-        buyingSignalsCount,
-        activeLeads: organizationLeads.length
-      });
+        
+        console.log(`📊 Database analytics for org ${organization_id}:`, { 
+          totalConversations, 
+          totalMessages, 
+          buyingSignalsCount,
+          source: 'database'
+        });
+      } else {
+        console.log(`📊 No conversations found in database for org ${organization_id}, falling back to memory`);
+        
+        // Fallback to memory data
+        const organizationLeads = Array.from(dynamicLeads.values())
+          .filter(lead => lead.organizationId === organization_id);
+          
+        const organizationMemoryKeys = getOrganizationMemoryKeys(organization_id);
+        
+        // Count conversations from memory for this organization only
+        totalConversations = organizationMemoryKeys.conversations.length;
+        
+        // Analyze messages from memory for buying signals (organization-filtered)
+        const buyingKeywords = ['financing', 'payment', 'monthly', 'qualify', 'credit', 'approve', 'rate', 'price', 'cost', 'interested'];
+        
+        organizationMemoryKeys.conversations.forEach(key => {
+          const messages = conversationContexts.get(key) || [];
+          totalMessages += messages.length;
+          
+          messages.forEach(msg => {
+            if (msg.sentBy === 'user' && msg.content) {
+              const content = msg.content.toLowerCase();
+              if (buyingKeywords.some(keyword => content.includes(keyword))) {
+                buyingSignalsCount++;
+              }
+            }
+          });
+        });
+        
+        // Ensure we have at least the leads count
+        totalConversations = Math.max(totalConversations, organizationLeads.length);
+        
+        console.log(`📊 Memory analytics for org ${organization_id}:`, { 
+          totalConversations, 
+          totalMessages, 
+          buyingSignalsCount,
+          activeLeads: organizationLeads.length,
+          source: 'memory'
+        });
+      }
 
     } catch (dbError) {
       console.log('📊 Error accessing organization analytics data:', dbError);
@@ -4368,15 +4402,18 @@ app.get('/api/analytics/global', async (req, res) => {
       buyingSignals: buyingSignalsCount,
       conversionRate: Math.round(conversionRate),
       totalConversations,
+      totalMessages,
       activeLeads: organizationLeads.length,
-      connectionStatus: 'live'
+      connectionStatus: 'live',
+      dataSource: totalConversations > 0 ? 'database' : 'memory'
     };
 
     console.log(`📊 Returning organization-filtered analytics for ${organization_id}:`, analyticsData);
     res.json({
       success: true,
       data: analyticsData,
-      message: 'Organization-filtered analytics from memory and database'
+      message: `Analytics from ${analyticsData.dataSource} - ${totalConversations} conversations found`,
+      organization_id
     });
 
   } catch (error) {
