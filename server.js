@@ -4032,13 +4032,14 @@ app.get('/api/analytics/global', async (req, res) => {
     let buyingSignalsCount = 0;
     let conversationQuality = 0;
     let dataSource = 'memory';
+    let conversationData = null; // Define conversationData outside try/catch for later use
     
     try {
       if (supabasePersistence.isEnabled && supabasePersistence.isConnected) {
         console.log(`📊 Querying ElevenLabs conversation analytics for org ${organization_id}`);
         
         // Get conversation data from database
-        const conversationData = await supabasePersistence.getConversationAnalytics(organization_id);
+        conversationData = await supabasePersistence.getConversationAnalytics(organization_id);
         
         if (conversationData && conversationData.length > 0) {
           console.log(`📊 Found ${conversationData.length} conversations in database for org ${organization_id}`);
