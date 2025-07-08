@@ -30,7 +30,7 @@ export class RealAnalyticsService {
       // For now, return default analytics since the database schema doesn't match TypeScript types
       // The actual analytics are being calculated correctly by the memory-based system
       console.log('📊 Using fallback analytics calculation for lead:', leadId);
-      return this.getDefaultAnalytics();
+        return this.getDefaultAnalytics();
 
     } catch (error) {
       console.error('Error getting lead analytics:', error);
@@ -50,7 +50,7 @@ export class RealAnalyticsService {
     // Return fallback analytics to avoid TypeScript schema mismatches
     // The actual analytics are handled by the memory-based system in server.js
     console.log('📊 Using fallback global analytics for organization:', organizationId);
-    return {
+      return {
       totalLeads: 0,
       avgLeadScore: 0,
       totalConversations: 0,
@@ -58,7 +58,7 @@ export class RealAnalyticsService {
       conversationQuality: 0,
       buyingSignalsCount: 0,
       conversionRate: 0
-    };
+      };
 
     } catch (error) {
       console.error('Error getting global analytics:', error);

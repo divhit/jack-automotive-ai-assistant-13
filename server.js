@@ -3981,16 +3981,16 @@ app.get('/api/analytics/leads', async (req, res) => {
           ).length;
           
           return {
-            id: lead.id,
-            customer_name: lead.customerName,
-            phone_number: lead.phoneNumber,
-            sentiment: lead.sentiment,
-            funding_readiness: lead.fundingReadiness,
+          id: lead.id,
+          customer_name: lead.customerName,
+          phone_number: lead.phoneNumber,
+          sentiment: lead.sentiment,
+          funding_readiness: lead.fundingReadiness,
             total_conversations: totalVoiceCalls + totalSmsMessages,
             total_voice_calls: totalVoiceCalls,
             total_sms_messages: totalSmsMessages,
-            last_activity: lead.lastTouchpoint,
-            lead_score: 50
+          last_activity: lead.lastTouchpoint,
+          lead_score: 50
           };
         });
       
@@ -4073,14 +4073,14 @@ app.get('/api/analytics/global', async (req, res) => {
           console.log(`📊 No conversations found in database for org ${organization_id}, using memory`);
           
           // Fallback to memory-based calculation
-          const orgMemoryKeys = Array.from(conversationContexts.keys())
-            .filter(key => key.startsWith(`${organization_id}:`));
-          
+    const orgMemoryKeys = Array.from(conversationContexts.keys())
+      .filter(key => key.startsWith(`${organization_id}:`));
+    
           totalMessages = orgMemoryKeys.reduce((sum, key) => {
-            const history = conversationContexts.get(key) || [];
-            return sum + history.length;
-          }, 0);
-          
+      const history = conversationContexts.get(key) || [];
+      return sum + history.length;
+    }, 0);
+    
           totalConversations = orgMemoryKeys.length;
           conversationQuality = totalMessages > 0 ? Math.min(95, Math.round(totalMessages * 8)) : 0;
           dataSource = 'memory';
@@ -4123,6 +4123,28 @@ app.get('/api/analytics/global', async (req, res) => {
       ? Math.min(25, Math.max(5, (buyingSignalsCount / totalConversations) * 100))
       : 8;
     
+    // Count actual voice vs SMS messages from database
+    let voiceMessages = 0;
+    let smsMessages = 0;
+    
+    if (dataSource === 'database' && conversationData && conversationData.length > 0) {
+      // Count actual message types from database
+      conversationData.forEach(conv => {
+        if (conv.type === 'voice' || conv.type === 'call') {
+          voiceMessages++;
+        } else if (conv.type === 'sms' || conv.type === 'text') {
+          smsMessages++;
+        }
+      });
+      
+      console.log(`📊 Actual message counts from database: ${voiceMessages} voice, ${smsMessages} SMS`);
+    } else {
+      // Fallback: use fake estimates only if no database data
+      voiceMessages = Math.floor(totalMessages * 0.4);
+      smsMessages = Math.ceil(totalMessages * 0.6);
+      console.log(`📊 Using fallback estimates: ${voiceMessages} voice, ${smsMessages} SMS`);
+    }
+
     const analytics = {
       totalLeads,
       totalConversations,
@@ -4132,8 +4154,8 @@ app.get('/api/analytics/global', async (req, res) => {
       conversionRate: Math.round(conversionRate),
       dataSource,
       metrics: {
-        voiceMessages: Math.floor(totalMessages * 0.4), // Estimate voice/SMS split
-        smsMessages: Math.ceil(totalMessages * 0.6),
+        voiceMessages: voiceMessages,
+        smsMessages: smsMessages,
         totalMessages,
         activeConversations: totalConversations,
         readyLeads: organizationLeads.filter(lead => lead.fundingReadiness === 'Ready').length,
@@ -4255,12 +4277,12 @@ app.get('/api/conversations/:leadId', async (req, res) => {
       });
     }
     
-    res.json({
-      success: true,
-      conversations: dbHistory,
-      count: dbHistory.length,
-      source: 'database'
-    });
+      res.json({
+        success: true,
+        conversations: dbHistory,
+        count: dbHistory.length,
+        source: 'database'
+      });
     
   } catch (error) {
     console.error('❌ Error getting conversation history:', error);
