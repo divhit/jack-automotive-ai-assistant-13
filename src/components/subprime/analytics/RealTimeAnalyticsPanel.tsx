@@ -146,29 +146,18 @@ export const RealTimeAnalyticsPanel: React.FC = () => {
   return (
     <div>
       <Card className="h-full">
-        <CardHeader>
+        <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Brain className="h-5 w-5 text-purple-600" />
-              CRM Analytics
-            </CardTitle>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className={getStatusColor()}>
-                {getStatusText()}
-              </Badge>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={fetchAnalytics}
-                disabled={loading}
-                className="h-8 w-8 p-0"
-              >
-                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-              </Button>
-            </div>
-          </div>
-          <div className="text-xs text-muted-foreground">
-            Last updated: {lastUpdated.toLocaleTimeString()}
+            <CardTitle className="text-base">Real-Time Metrics</CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchAnalytics}
+              disabled={loading}
+              className="h-8 w-8 p-0"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            </Button>
           </div>
         </CardHeader>
         <CardContent>

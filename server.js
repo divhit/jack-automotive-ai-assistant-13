@@ -3734,6 +3734,14 @@ app.put('/api/subprime/update-lead/:leadId', async (req, res) => {
     const { leadId } = req.params;
     const updates = req.body;
     
+    // CRITICAL SECURITY: Validate organization_id from request
+    const organizationId = updates.organization_id;
+    if (!organizationId) {
+      return res.status(400).json({ 
+        error: 'Organization ID is required for lead updates' 
+      });
+    }
+    
     if (!dynamicLeads.has(leadId)) {
       return res.status(404).json({ 
         error: `Lead ${leadId} not found in dynamic storage` 
@@ -3741,14 +3749,30 @@ app.put('/api/subprime/update-lead/:leadId', async (req, res) => {
     }
 
     const currentLead = dynamicLeads.get(leadId);
-    const updatedLead = { ...currentLead, ...updates };
+    
+    // CRITICAL SECURITY: Verify lead belongs to the requesting organization
+    if (currentLead.organizationId !== organizationId) {
+      console.warn(`🚨 SECURITY: Attempted cross-organization lead update blocked - Lead ${leadId} belongs to ${currentLead.organizationId}, requested by ${organizationId}`);
+      return res.status(403).json({ 
+        error: 'Access denied: Lead belongs to different organization' 
+      });
+    }
+    
+    // Apply updates while preserving organization ownership
+    const updatedLead = { 
+      ...currentLead, 
+      ...updates,
+      organizationId: currentLead.organizationId, // Preserve original organization
+      lastTouchpoint: new Date().toISOString()
+    };
     
     dynamicLeads.set(leadId, updatedLead);
     
-    console.log(`✅ Updated lead ${leadId}:`, {
+    console.log(`✅ Updated lead ${leadId} for org ${organizationId}:`, {
       customerName: updatedLead.customerName,
       sentiment: updatedLead.sentiment,
-      fundingReadiness: updatedLead.fundingReadiness
+      fundingReadiness: updatedLead.fundingReadiness,
+      organizationId: updatedLead.organizationId
     });
 
     // ENHANCED: Persist lead updates to Supabase (non-blocking)
@@ -3761,6 +3785,7 @@ app.put('/api/subprime/update-lead/:leadId', async (req, res) => {
       success: true, 
       message: 'Lead updated successfully',
       leadId: leadId,
+      organizationId: updatedLead.organizationId,
       updatedFields: Object.keys(updates)
     });
 
@@ -3777,6 +3802,7 @@ app.put('/api/subprime/update-lead/:leadId', async (req, res) => {
 app.delete('/api/subprime/delete-lead', async (req, res) => {
   try {
     const leadId = req.query.id;
+    const organizationId = req.query.organization_id;
     
     if (!leadId) {
       return res.status(400).json({ 
@@ -3785,7 +3811,19 @@ app.delete('/api/subprime/delete-lead', async (req, res) => {
       });
     }
 
-    console.log('🗑️ Deleting lead:', leadId);
+    // CRITICAL SECURITY: Validate organization access for delete operations
+    if (dynamicLeads.has(leadId)) {
+      const currentLead = dynamicLeads.get(leadId);
+      if (organizationId && currentLead.organizationId !== organizationId) {
+        console.warn(`🚨 SECURITY: Attempted cross-organization lead delete blocked - Lead ${leadId} belongs to ${currentLead.organizationId}, requested by ${organizationId}`);
+        return res.status(403).json({ 
+          success: false,
+          error: 'Access denied: Lead belongs to different organization' 
+        });
+      }
+    }
+
+    console.log('🗑️ Deleting lead:', leadId, 'for org:', organizationId);
 
     // Try to delete from database first
     try {

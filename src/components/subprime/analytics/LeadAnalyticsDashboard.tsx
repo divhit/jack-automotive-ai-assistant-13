@@ -173,72 +173,11 @@ export const LeadAnalyticsDashboard: React.FC = () => {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">CRM Analytics Dashboard</h1>
-          <p className="text-muted-foreground">
-            Lead performance and system insights
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge variant={systemStatus?.persistence.enabled ? 'default' : 'secondary'}>
-            {systemStatus?.persistence.enabled ? (
-              <>
-                <Database className="h-3 w-3 mr-1" />
-                Database + Memory
-              </>
-            ) : (
-              <>
-                <Cpu className="h-3 w-3 mr-1" />
-                Memory Only
-              </>
-            )}
-          </Badge>
-          <Button variant="outline" size="sm" onClick={fetchAllData}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
-        </div>
-      </div>
+    <div className="space-y-6">
+      {/* Removed redundant header - parent component handles this */}
 
-      {/* System Status */}
-      {systemStatus && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Activity className="h-5 w-5" />
-              System Status
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div>
-                <p className="text-sm font-medium">Active SSE Connections</p>
-                <p className="text-2xl font-bold text-green-600">{systemStatus.memory.sseConnections}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium">Active Conversations</p>
-                <p className="text-2xl font-bold text-blue-600">{systemStatus.memory.activeConversations}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium">Stored Contexts</p>
-                <p className="text-2xl font-bold text-purple-600">{systemStatus.memory.conversationContexts}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium">Persistence</p>
-                <p className={`text-2xl font-bold ${systemStatus.persistence.enabled ? 'text-green-600' : 'text-orange-600'}`}>
-                  {systemStatus.persistence.enabled ? 'ENABLED' : 'DISABLED'}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Overview Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {/* Condensed System & Lead Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center">
@@ -288,18 +227,38 @@ export const LeadAnalyticsDashboard: React.FC = () => {
         </Card>
       </div>
 
-      {/* Detailed Analytics */}
+      {/* Lead Analytics Summary */}
       <Card>
         <CardHeader>
-          <CardTitle>Lead Performance Overview</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Top Performing Leads</CardTitle>
+            <div className="flex items-center gap-2">
+              <Badge variant={dataSource === 'database' ? 'default' : 'secondary'}>
+                {dataSource === 'database' ? (
+                  <>
+                    <Database className="h-3 w-3 mr-1" />
+                    Database
+                  </>
+                ) : (
+                  <>
+                    <Cpu className="h-3 w-3 mr-1" />
+                    Memory
+                  </>
+                )}
+              </Badge>
+              <Button variant="outline" size="sm" onClick={fetchAllData}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
+              </Button>
+            </div>
+          </div>
           <p className="text-sm text-muted-foreground">
-            Data source: {dataSource === 'database' ? 'Supabase Database' : 'In-Memory Storage'} • 
-            Last updated: {lastRefresh.toLocaleTimeString()}
+            Organization: {organization?.name} • Last updated: {lastRefresh.toLocaleTimeString()}
           </p>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {leadsAnalytics.slice(0, 10).map((lead) => (
+            {leadsAnalytics.slice(0, 5).map((lead) => (
               <div key={lead.id} className="flex items-center justify-between p-4 border rounded-lg">
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
@@ -345,37 +304,12 @@ export const LeadAnalyticsDashboard: React.FC = () => {
               </div>
             ))}
             
-            {leadsAnalytics.length > 10 && (
-              <div className="text-center py-4">
-                <p className="text-muted-foreground">
-                  Showing 10 of {leadsAnalytics.length} leads
-                </p>
+            {leadsAnalytics.length === 0 && (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>No leads found for organization: {organization?.name}</p>
+                <p className="text-sm mt-2">Check your organization filter and data source</p>
               </div>
             )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Data Source Info */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              {dataSource === 'database' ? (
-                <Database className="h-4 w-4 text-green-600" />
-              ) : (
-                <Cpu className="h-4 w-4 text-blue-600" />
-              )}
-              <span className="text-sm">
-                {dataSource === 'database' 
-                  ? 'Data loaded from Supabase database with full CRM features'
-                  : 'Data loaded from in-memory storage (limited CRM features)'
-                }
-              </span>
-            </div>
-            <Badge variant="outline">
-              {systemStatus?.persistence.enabled ? 'Persistence Active' : 'Memory Only'}
-            </Badge>
           </div>
         </CardContent>
       </Card>

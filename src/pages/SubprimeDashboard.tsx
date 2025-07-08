@@ -459,7 +459,7 @@ const SubprimeDashboard = () => {
       console.log(`🗑️ Deleting lead ${leadId}...`);
       
       // Use API endpoint for consistency with other operations
-      const response = await fetch(`/api/subprime/delete-lead?id=${leadId}`, {
+      const response = await fetch(`/api/subprime/delete-lead?id=${leadId}&organization_id=${organization?.id}`, {
         method: 'DELETE'
       });
 
@@ -940,11 +940,16 @@ const SubprimeDashboard = () => {
         </TabsContent>
         
         <TabsContent value="analytics" className="mt-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
-            <div className="lg:col-span-2">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            {/* Core Metrics - Condensed */}
+            <div className="lg:col-span-1">
+              <RealTimeAnalyticsPanel />
+            </div>
+            
+            {/* Lead Performance Summary */}
+            <div className="lg:col-span-3">
               <LeadAnalyticsDashboard />
             </div>
-            <RealTimeAnalyticsPanel />
           </div>
         </TabsContent>
       </Tabs>
