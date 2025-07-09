@@ -2481,6 +2481,28 @@ app.post('/api/webhooks/elevenlabs/post-call', async (req, res) => {
       await updateLeadFromConversationData(phoneNumber, eventData.analysis.data_collection_results, summary);
     }
 
+    // FIX: Update call session in database with final transcript and summary
+    // This is crucial for incoming calls to have their context persisted
+    if (conversationId && phoneNumber) {
+      supabasePersistence.persistCallSession({
+        id: conversationId,
+        leadId: leadId,
+        elevenlabsConversationId: conversationId,
+        phoneNumber: phoneNumber,
+        endedAt: new Date().toISOString(),
+        durationSeconds: duration ? Math.floor(duration / 1000) : null,
+        transcript: transcript,
+        summary: summary,
+        callOutcome: eventData.call_ended_reason || 'completed',
+        organizationId: organizationId,
+        // Update with final conversation context
+        conversationContext: await buildConversationContext(phoneNumber, organizationId),
+        dynamicVariables: eventData.conversation_initiation_client_data || {}
+      }).catch(error => {
+        console.log(`🗄️ Call session update failed (system continues normally):`, error.message);
+      });
+    }
+
     // CRITICAL FIX: Close existing SMS WebSocket conversation after voice call
     // This forces the next SMS to start fresh with full voice + SMS context
     if (phoneNumber) {
