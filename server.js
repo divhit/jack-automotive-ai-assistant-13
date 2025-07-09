@@ -3519,6 +3519,44 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', async (req, res) =>
       organizationId
     });
 
+    // FIX: Persist incoming call session data like outbound calls
+    // Generate conversation ID for incoming call tracking
+    const conversationId = call_sid || `incoming_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Store conversation metadata for webhook processing
+    if (activeLead) {
+      storeConversationMetadata(conversationId, caller_id, activeLead.id);
+    }
+    
+    // ENHANCED: Persist incoming call session to Supabase (non-blocking)
+    supabasePersistence.persistCallSession({
+      id: conversationId,
+      leadId: activeLead?.id,
+      elevenlabsConversationId: conversationId, // Will be updated later if different
+      twilioCallSid: call_sid,
+      phoneNumber: caller_id,
+      callDirection: 'inbound',
+      startedAt: new Date().toISOString(),
+      conversationContext: conversationContext,
+      dynamicVariables: response.dynamic_variables,
+      organizationId: organizationId
+    }).catch(error => {
+      console.log(`🗄️ Incoming call session persistence failed (system continues normally):`, error.message);
+    });
+
+    // Broadcast incoming call event
+    if (activeLead) {
+      broadcastConversationUpdate({
+        type: 'call_initiated',
+        phoneNumber: caller_id,
+        leadId: activeLead.id,
+        conversationId,
+        timestamp: new Date().toISOString(),
+        organizationId,
+        callDirection: 'inbound'
+      });
+    }
+
     res.status(200).json(response);
   } catch (error) {
     console.error('❌ Error processing conversation initiation webhook:', error);
