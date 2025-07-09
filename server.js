@@ -2411,6 +2411,16 @@ app.post('/api/webhooks/elevenlabs/post-call', async (req, res) => {
       }
     }
 
+    // ENHANCED: Also try to find metadata using call_sid from the new payload structure
+    if (!leadId && eventData.data?.call_sid) {
+      const callSidMetadata = getConversationMetadata(eventData.data.call_sid);
+      if (callSidMetadata) {
+        leadId = callSidMetadata.leadId;
+        phoneNumber = phoneNumber || callSidMetadata.phoneNumber;
+        console.log('📞 Found metadata using call_sid:', { callSid: eventData.data.call_sid, leadId, phoneNumber });
+      }
+    }
+
     // ENHANCED: Try to extract phone number from call_sid or conversation_id if still missing
     if (!phoneNumber && conversationId) {
       console.log('🔍 Trying to extract phone number from conversationId:', conversationId);
@@ -2433,6 +2443,18 @@ app.post('/api/webhooks/elevenlabs/post-call', async (req, res) => {
     if (!phoneNumber && eventData.data?.caller_id) {
       phoneNumber = eventData.data.caller_id;
       console.log('📞 Using caller_id as phone number:', phoneNumber);
+    }
+
+    // DEBUG: If we still don't have phoneNumber, try to search all conversation metadata
+    if (!phoneNumber && conversationId) {
+      console.log('🔍 Searching all conversation metadata for phone number...');
+      for (const [metadataId, metadata] of conversationMetadata.entries()) {
+        if (metadataId.includes(conversationId) || (metadata.phoneNumber && metadata.leadId)) {
+          console.log('📞 Found potential match in metadata:', { metadataId, metadata });
+          if (!phoneNumber) phoneNumber = metadata.phoneNumber;
+          if (!leadId) leadId = metadata.leadId;
+        }
+      }
     }
 
     // Extract transcript if available
@@ -3452,7 +3474,7 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', async (req, res) =>
     // GET ORGANIZATION NAME for agent prompt
     let organizationName = "Jack Automotive";
     try {
-      const { data: orgData, error } = await supabase
+      const { data: orgData, error } = await client
         .from('organizations')
         .select('name')
         .eq('id', organizationId)
@@ -3547,13 +3569,13 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', async (req, res) =>
     
     // Store conversation metadata for webhook processing
     if (activeLead) {
-      storeConversationMetadata(conversationId, caller_id, activeLead.id);
+      storeConversationMetadata(conversationId, caller_id, activeLead);
     }
     
     // ENHANCED: Persist incoming call session to Supabase (non-blocking)
     supabasePersistence.persistCallSession({
       id: conversationId,
-      leadId: activeLead?.id,
+      leadId: activeLead,
       elevenlabsConversationId: conversationId, // Will be updated later if different
       twilioCallSid: call_sid,
       phoneNumber: caller_id,
@@ -3571,7 +3593,7 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', async (req, res) =>
       broadcastConversationUpdate({
         type: 'call_initiated',
         phoneNumber: caller_id,
-        leadId: activeLead.id,
+        leadId: activeLead,
         conversationId,
         timestamp: new Date().toISOString(),
         organizationId,
