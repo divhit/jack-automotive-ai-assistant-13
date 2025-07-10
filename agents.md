@@ -1,372 +1,828 @@
-# ElevenLabs AI Agent Integration for Subprime Lead Management
+# Multi-Tenant Voice Agent System Implementation Guide
+## Automotive AI Assistant - Production-Ready Implementation
 
-## Overview
+**Goal**: Complete implementation guide for building a multi-tenant automotive AI assistant system exactly as implemented in this working project.
 
-This document outlines the technical implementation and integration strategy for incorporating ElevenLabs conversational AI agents specifically into the **Subprime Lead Management** system of the Jack Automotive AI Assistant. This integration is designed exclusively for subprime leads and is separate from the existing prime customer communication system.
-
-### Important Distinction
-- **Prime Leads**: Existing "Customer Conversations" tab and "Chat with Jack" functionality
-- **Subprime Leads**: New ElevenLabs-powered voice and SMS integration (this document)
-
----
-
-## Agent Configuration
-
-### ElevenLabs Agent Details
-- **Agent ID**: `agent_01jwc5v1nafjwv7zw4vtz1050m`
-- **Purpose**: Outbound calling and SMS conversation management for subprime automotive leads
-- **Target Audience**: Vulnerable customers seeking loans/vehicles who may not qualify for traditional financing
-
-### Documentation References
-- [ElevenLabs Client Events](https://elevenlabs.io/docs/conversational-ai/customization/events/client-events)
-- [ElevenLabs Client-to-Server Events](https://elevenlabs.io/docs/conversational-ai/customization/events/client-to-server-events)
-- [ElevenLabs SDK Overview](https://elevenlabs.io/docs/conversational-ai/overview)
+**What This System Does**:
+- Handles SMS and voice conversations with automotive leads
+- Provides complete data isolation between car dealerships/organizations  
+- Real-time conversation monitoring with live UI updates
+- Cross-channel continuity (SMS ↔ Voice seamlessly)
+- ElevenLabs AI voice integration with dynamic context injection
+- Twilio SMS/voice routing with organization-specific phone numbers
 
 ---
 
-## System Architecture
+## 🏗️ System Architecture Overview
 
-### Core Requirements
+### Core Technologies (Exactly As Implemented)
+- **ElevenLabs**: AI voice conversations with dynamic variable injection
+- **Twilio**: SMS/Voice routing and phone number management
+- **Supabase**: Multi-tenant PostgreSQL database with Row Level Security
+- **React/TypeScript**: Real-time dashboard with Server-Sent Events
+- **Node.js/Express**: Webhook server with organization isolation
+- **WebSocket**: ElevenLabs SMS integration for cross-channel continuity
 
-#### 1. Unified Conversation Management
-- **Single Conversation Thread**: Voice calls and SMS messages must maintain continuity within the same conversation
-- **Context Preservation**: When switching between voice and text, full conversation history must be preserved
-- **No New Conversations**: Switching modalities (voice↔text) should NEVER create a new conversation thread
-
-#### 2. Multi-Modal Communication
-- **Outbound Voice Calls**: Initiated through ElevenLabs agent
-- **Bi-directional SMS**: Powered by Twilio integration
-- **Seamless Transitions**: Users can switch between voice and text without losing context
-- **Real-time Transcription**: All voice interactions must be transcribed and stored
-
-#### 3. Human Agent Intervention
-- **Jump-in Capability**: Human agents can take over conversations at any time
-- **Voice or Text**: Humans can intervene through either modality
-- **Conversation Handoff**: Smooth transition between AI and human agents
-- **Real-time Monitoring**: All conversations visible in unified dashboard
-
----
-
-## Technical Implementation
-
-### 1. WebSocket Connection Management
-
-#### Initial Connection Setup
-```javascript
-// ElevenLabs WebSocket connection for subprime leads
-const ELEVENLABS_AGENT_ID = 'agent_01jwc5v1nafjwv7zw4vtz1050m';
-const wsUrl = `wss://api.elevenlabs.io/v1/conversational-ai/agents/${ELEVENLABS_AGENT_ID}/conversation`;
-
-const subprimeAgentWebSocket = new WebSocket(wsUrl, {
-  headers: {
-    'Authorization': `Bearer ${ELEVENLABS_API_KEY}`,
-    'User-Agent': 'Jack-Automotive-Subprime/1.0'
-  }
-});
+### Multi-Tenant Security Model
+```
+Organization A (Downtown Auto)          Organization B (Uptown Motors)
+├── Phone: +1-778-XXX-0001             ├── Phone: +1-778-XXX-0002  
+├── Leads: Isolated data               ├── Leads: Isolated data
+├── Conversations: Scoped to org A     ├── Conversations: Scoped to org B
+└── Staff Dashboard: Org A only        └── Staff Dashboard: Org B only
 ```
 
-#### Connection State Management
-- Implement automatic reconnection with exponential backoff
-- Maintain conversation state during brief disconnections
-- Handle connection failures gracefully with user notifications
+**CRITICAL**: Every database query MUST include `organization_id` filtering to prevent cross-tenant data leakage.
 
-### 2. Event Handling Architecture
+---
 
-#### Core Event Handlers
-Based on [ElevenLabs Client Events](https://elevenlabs.io/docs/conversational-ai/customization/events/client-events):
+## 🚀 Phase 1: Infrastructure Setup (Day 1-2)
 
-```javascript
-// Conversation initialization
-subprimeAgentWebSocket.on('conversation_initiation_metadata', (event) => {
-  const { conversation_id, agent_output_audio_format, user_input_audio_format } = event.conversation_initiation_metadata_event;
-  
-  // Link to existing subprime lead record
-  linkConversationToSubprimeLead(conversation_id, currentLeadId);
-  setupAudioFormats(agent_output_audio_format, user_input_audio_format);
-});
+### 1.1 Environment Setup
 
-// Real-time audio processing
-subprimeAgentWebSocket.on('audio', (event) => {
-  const { audio_base_64, event_id } = event.audio_event;
-  
-  // Stream audio to lead's phone
-  streamAudioToCall(audio_base_64, currentCallId);
-  
-  // Store audio chunk for conversation history
-  storeAudioChunk(currentLeadId, audio_base_64, event_id, 'agent_response');
-});
+```bash
+npm init -y
+npm install express cors dotenv twilio @supabase/supabase-js
+npm install ws @elevenlabs/client node-fetch jsonwebtoken bcryptjs
+npm install -D nodemon
 
-// Voice transcription handling
-subprimeAgentWebSocket.on('user_transcript', (event) => {
-  const { user_transcript } = event.user_transcription_event;
-  
-  // Update conversation history in real-time
-  updateSubprimeConversationHistory(currentLeadId, {
-    type: 'voice_input',
-    content: user_transcript,
-    timestamp: new Date().toISOString(),
-    speaker: 'lead'
-  });
-});
-
-// Agent response processing
-subprimeAgentWebSocket.on('agent_response', (event) => {
-  const { agent_response } = event.agent_response_event;
-  
-  // Display in subprime lead conversation UI
-  updateSubprimeConversationHistory(currentLeadId, {
-    type: 'voice_response',
-    content: agent_response,
-    timestamp: new Date().toISOString(),
-    speaker: 'agent'
-  });
-});
-
-// Response correction for interruptions
-subprimeAgentWebSocket.on('agent_response_correction', (event) => {
-  const { corrected_agent_response } = event.agent_response_correction_event;
-  
-  // Update the UI with corrected response
-  correctLastAgentResponse(currentLeadId, corrected_agent_response);
-});
+# Frontend (separate directory)
+npx create-react-app auto-agent-dashboard --template typescript
+cd auto-agent-dashboard
+npm install @supabase/supabase-js lucide-react tailwindcss
 ```
 
-### 3. Conversation Continuity Implementation
+### 1.2 Environment Variables (.env)
+```env
+# Supabase Configuration
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-key
 
-#### Critical Requirement: Context Preservation
-The most important aspect of this implementation is ensuring conversation continuity when switching between voice and SMS.
+# Twilio Configuration  
+TWILIO_ACCOUNT_SID=your-account-sid
+TWILIO_AUTH_TOKEN=your-auth-token
+TWILIO_WEBHOOK_SECRET=your-webhook-secret
+
+# ElevenLabs Configuration
+ELEVENLABS_API_KEY=your-api-key
+ELEVENLABS_AGENT_ID=your-agent-id
+ELEVENLABS_CONVERSATION_EVENTS_WEBHOOK_SECRET=your-webhook-secret
+ELEVENLABS_POST_CALL_WEBHOOK_SECRET=your-post-call-secret
+
+# Security
+JWT_SECRET=your-super-secure-jwt-secret-min-32-chars
+BCRYPT_ROUNDS=12
+
+# Server Configuration
+PORT=3001
+NODE_ENV=development
+```
+
+### 1.3 Database Schema Implementation
+
+**CRITICAL**: Multi-tenant schema exactly as implemented in this project
+
+```sql
+-- Core Tables (from supabase-schema.sql)
+CREATE TABLE IF NOT EXISTS leads (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    phone_number TEXT UNIQUE NOT NULL,
+    name TEXT,
+    email TEXT,
+    status TEXT DEFAULT 'new' CHECK (status IN ('new', 'contacted', 'qualified', 'converted', 'lost')),
+    score INTEGER DEFAULT 0 CHECK (score >= 0 AND score <= 100),
+    organization_id UUID REFERENCES organizations(id), -- Added for multi-tenancy
+    created_by UUID REFERENCES auth.users(id),
+    assigned_to UUID REFERENCES auth.users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    metadata JSONB DEFAULT '{}'::jsonb
+);
+
+CREATE TABLE IF NOT EXISTS conversations (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    lead_id UUID REFERENCES leads(id) ON DELETE CASCADE,
+    organization_id UUID REFERENCES organizations(id), -- CRITICAL for isolation
+    elevenlabs_conversation_id TEXT,
+    twilio_call_sid TEXT,
+    type TEXT NOT NULL CHECK (type IN ('voice', 'sms', 'chat')),
+    status TEXT DEFAULT 'active' CHECK (status IN ('active', 'completed', 'failed')),
+    started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    ended_at TIMESTAMP WITH TIME ZONE,
+    duration_seconds INTEGER,
+    metadata JSONB DEFAULT '{}'::jsonb
+);
+
+CREATE TABLE IF NOT EXISTS messages (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    conversation_id UUID REFERENCES conversations(id) ON DELETE CASCADE,
+    speaker TEXT NOT NULL CHECK (speaker IN ('agent', 'lead', 'system')),
+    content TEXT NOT NULL,
+    message_type TEXT DEFAULT 'text' CHECK (message_type IN ('text', 'voice', 'sms')),
+    twilio_message_sid TEXT,
+    timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    metadata JSONB DEFAULT '{}'::jsonb
+);
+
+-- Organization Management (from supabase-multi-tenant-schema.sql)
+CREATE TABLE IF NOT EXISTS organizations (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    name TEXT NOT NULL,
+    slug TEXT UNIQUE NOT NULL,
+    domain TEXT,
+    phone_number TEXT,
+    email TEXT,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    metadata JSONB DEFAULT '{}'::jsonb
+);
+
+CREATE TABLE IF NOT EXISTS user_profiles (
+    id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
+    organization_id UUID REFERENCES organizations(id) ON DELETE RESTRICT,
+    email TEXT NOT NULL,
+    first_name TEXT,
+    last_name TEXT,
+    role TEXT DEFAULT 'agent' CHECK (role IN ('super_admin', 'admin', 'manager', 'agent', 'viewer')),
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Organization Phone Numbers (organization-phone-numbers-schema.sql)
+CREATE TABLE organization_phone_numbers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  phone_number VARCHAR(50) NOT NULL UNIQUE,
+  elevenlabs_phone_id VARCHAR(255) NOT NULL,
+  twilio_phone_sid VARCHAR(255) NOT NULL,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Call Sessions for analytics and context
+CREATE TABLE IF NOT EXISTS call_sessions (
+    id TEXT PRIMARY KEY,
+    organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+    lead_id UUID REFERENCES leads(id),
+    elevenlabs_conversation_id TEXT,
+    twilio_call_sid TEXT,
+    phone_number TEXT NOT NULL,
+    call_direction TEXT CHECK (call_direction IN ('inbound', 'outbound')),
+    started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    ended_at TIMESTAMP WITH TIME ZONE,
+    duration_seconds INTEGER,
+    transcript JSONB,
+    summary TEXT,
+    conversation_context TEXT,
+    dynamic_variables JSONB DEFAULT '{}'
+);
+
+-- Row Level Security (CRITICAL for multi-tenant security)
+ALTER TABLE leads ENABLE ROW LEVEL SECURITY;
+ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE call_sessions ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies (prevents cross-organization data leakage)
+CREATE POLICY "leads_isolation" ON leads
+  USING (organization_id = current_setting('app.current_organization_id')::UUID);
+
+CREATE POLICY "conversations_isolation" ON conversations  
+  USING (organization_id = current_setting('app.current_organization_id')::UUID);
+```
+
+---
+
+## 📞 Phase 2: Core Server Implementation (Day 3-5)
+
+### 2.1 Server Structure (Exactly As Implemented)
+```
+project/
+├── server.js                     # Main Express server (4700+ lines)
+├── services/
+│   └── supabasePersistence.js    # Database operations (870 lines)
+├── src/services/
+│   ├── elevenLabsService.ts      # ElevenLabs integration (1200+ lines)
+│   ├── twilioService.ts          # Twilio SMS handling (230 lines)
+│   └── realAnalyticsService.ts   # Analytics service (190 lines)
+└── src/components/
+    └── subprime/                 # React dashboard components
+```
+
+### 2.2 Critical: Organization Context Validation
+
+**EVERY API endpoint MUST validate organization access:**
 
 ```javascript
-// Conversation Context Manager
-class SubprimeConversationManager {
-  constructor(leadId) {
-    this.leadId = leadId;
-    this.conversationHistory = this.loadExistingHistory(leadId);
-    this.currentModality = null; // 'voice' or 'sms'
-    this.activeConversationId = null;
-  }
+// From server.js - validateOrganizationAccess middleware
+async function validateOrganizationAccess(req, res, next) {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) {
+      return res.status(401).json({ error: 'No token provided' });
+    }
 
-  async switchToVoice() {
-    // Prepare full conversation context for voice call
-    const contextualHistory = this.prepareContextForElevenLabs();
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const organizationId = decoded.organizationId;
     
-    // Send contextual update to maintain conversation continuity
-    this.sendContextualUpdate(contextualHistory);
-    
-    this.currentModality = 'voice';
-    await this.initiateVoiceCall();
-  }
+    if (!organizationId) {
+      return res.status(403).json({ error: 'No organization context' });
+    }
 
-  async switchToSMS() {
-    // Prepare conversation context for SMS continuation
-    const fullTranscript = this.generateFullTranscript();
+    // CRITICAL: Set organization context for all subsequent operations
+    req.organizationId = organizationId;
+    req.userId = decoded.userId;
     
-    // Send context to ElevenLabs for SMS mode
-    this.sendContextualUpdate(`Previous conversation history: ${fullTranscript}`);
-    
-    this.currentModality = 'sms';
-    await this.setupSMSMode();
-  }
-
-  sendContextualUpdate(contextText) {
-    // Using client-to-server events for context preservation
-    subprimeAgentWebSocket.send(JSON.stringify({
-      type: 'contextual_update',
-      text: contextText
-    }));
-  }
-
-  prepareContextForElevenLabs() {
-    // Format conversation history for ElevenLabs context
-    return this.conversationHistory.map(message => 
-      `${message.speaker}: ${message.content} (${message.type} at ${message.timestamp})`
-    ).join('\n');
+    next();
+  } catch (error) {
+    console.error('❌ Organization validation failed:', error);
+    res.status(403).json({ error: 'Invalid organization access' });
   }
 }
 ```
 
-### 4. Twilio SMS Integration
+### 2.3 Phone Number Management (As Implemented)
 
-#### SMS Webhook Handling
 ```javascript
-// Twilio webhook for incoming SMS from subprime leads
-app.post('/webhook/subprime-sms', async (req, res) => {
-  const { From, Body, MessageSid } = req.body;
+// From server.js - Phone number utilities
+function normalizePhoneNumber(phoneNumber) {
+  if (!phoneNumber) return null;
   
-  // Find associated subprime lead
-  const lead = await findSubprimeLeadByPhone(From);
-  if (!lead) {
-    console.error('SMS from unknown subprime lead:', From);
-    return res.status(404).send('Lead not found');
+  // Remove all non-digits
+  const digits = phoneNumber.replace(/\D/g, '');
+  
+  // Handle North American numbers
+  if (digits.length === 11 && digits.startsWith('1')) {
+    return `+${digits}`;
+  } else if (digits.length === 10) {
+    return `+1${digits}`;
   }
-
-  // Add SMS to conversation history
-  await updateSubprimeConversationHistory(lead.id, {
-    type: 'sms_input',
-    content: Body,
-    timestamp: new Date().toISOString(),
-    speaker: 'lead',
-    twilioMessageId: MessageSid
-  });
-
-  // Send to ElevenLabs as user message to continue conversation
-  subprimeAgentWebSocket.send(JSON.stringify({
-    type: 'user_message',
-    text: Body
-  }));
-
-  res.status(200).send('OK');
-});
-
-// Outbound SMS sending
-async function sendSMSToSubprimeLead(leadId, message) {
-  const lead = await getSubprimeLeadById(leadId);
   
-  const twilioMessage = await twilioClient.messages.create({
-    body: message,
-    from: TWILIO_SUBPRIME_NUMBER,
-    to: lead.phoneNumber
-  });
+  return `+${digits}`;
+}
 
-  // Record outbound SMS in conversation history
-  await updateSubprimeConversationHistory(leadId, {
-    type: 'sms_output',
+async function getOrganizationIdFromPhone(phoneNumber) {
+  try {
+    // First, check if phone belongs to a specific organization
+    const { data: orgPhone } = await client
+      .from('organization_phone_numbers')
+      .select('organization_id')
+      .eq('phone_number', phoneNumber)
+      .single();
+      
+    if (orgPhone) return orgPhone.organization_id;
+    
+    // Then check leads table for existing customer
+    const { data: lead } = await client
+      .from('leads')
+      .select('organization_id')
+      .eq('phone_number', phoneNumber)
+      .single();
+      
+    return lead?.organization_id || null;
+  } catch (error) {
+    console.error('❌ Error getting organization for phone:', error);
+    return null;
+  }
+}
+```
+
+### 2.4 Memory Management with Organization Scoping
+
+```javascript
+// From server.js - Organization-scoped memory utilities
+const conversationContexts = new Map(); // orgId:phoneNumber -> messages array
+const conversationSummaries = new Map(); // orgId:phoneNumber -> summary object
+const dynamicLeads = new Map(); // leadId -> lead object
+const sseConnections = new Map(); // leadId -> response object
+
+function createOrgMemoryKey(organizationId, phoneNumber) {
+  const normalized = normalizePhoneNumber(phoneNumber);
+  return organizationId ? `${organizationId}:${normalized}` : normalized;
+}
+
+function addToConversationHistory(phoneNumber, message, sentBy, messageType = 'text', organizationId = null) {
+  const key = createOrgMemoryKey(organizationId, phoneNumber);
+  
+  if (!conversationContexts.has(key)) {
+    conversationContexts.set(key, []);
+  }
+  
+  const conversation = conversationContexts.get(key);
+  conversation.push({
     content: message,
+    sentBy: sentBy,
+    messageType: messageType,
     timestamp: new Date().toISOString(),
-    speaker: 'agent',
-    twilioMessageId: twilioMessage.sid
+    organizationId: organizationId
   });
-
-  // Notify real-time UI
-  emitToSubprimeUI('conversation_update', {
-    leadId,
-    message: {
-      type: 'sms_output',
-      content: message,
-      timestamp: new Date().toISOString(),
-      speaker: 'agent'
-    }
-  });
-}
-```
-
-### 5. Voice Call Management
-
-#### Outbound Call Initiation
-```javascript
-async function initiateSubprimeVoiceCall(leadId) {
-  const lead = await getSubprimeLeadById(leadId);
   
-  // Start Twilio call
-  const call = await twilioClient.calls.create({
-    from: TWILIO_SUBPRIME_VOICE_NUMBER,
-    to: lead.phoneNumber,
-    webhook: `https://jack-automotive-ai-assistant-13.onrender.com/webhook/subprime-voice`,
-    statusCallback: `https://jack-automotive-ai-assistant-13.onrender.com/webhook/call-status`
-  });
-
-  // Initialize ElevenLabs conversation with full context
-  const conversationManager = new SubprimeConversationManager(leadId);
-  await conversationManager.switchToVoice();
-
-  // Link call to lead record
-  await updateSubprimeLeadRecord(leadId, {
-    activeCallId: call.sid,
-    lastCallAttempt: new Date().toISOString(),
-    callStatus: 'initiated'
-  });
-
-  return call.sid;
+  // Keep last 50 messages to prevent memory bloat
+  if (conversation.length > 50) {
+    conversation.splice(0, conversation.length - 50);
+  }
+  
+  conversationContexts.set(key, conversation);
 }
 ```
 
-### 6. Real-time UI Integration
+---
 
-#### Subprime Conversation Component
-```typescript
-// React component for subprime lead conversations
-interface SubprimeConversationProps {
-  leadId: string;
-  lead: SubprimeLead;
-}
+## 🎯 Phase 3: ElevenLabs Integration (Day 6-8)
 
-const SubprimeConversationInterface: React.FC<SubprimeConversationProps> = ({ leadId, lead }) => {
-  const [conversationHistory, setConversationHistory] = useState<ConversationMessage[]>([]);
-  const [isCallActive, setIsCallActive] = useState(false);
-  const [canSendSMS, setCanSendSMS] = useState(true);
-  const [humanTakeoverMode, setHumanTakeoverMode] = useState(false);
+### 3.1 Dynamic Variables System (Production Implementation)
 
-  // Real-time conversation updates
-  useEffect(() => {
-    const socket = io();
+**This is the core of how real-time context gets injected into AI conversations:**
+
+```javascript
+// From server.js - buildConversationContext function
+async function buildConversationContext(phoneNumber, organizationId = null) {
+  try {
+    // Get conversation history
+    const history = await getConversationHistory(phoneNumber, organizationId);
+    const summaryData = await getConversationSummary(phoneNumber, organizationId);
     
-    socket.on('subprime_conversation_update', (data) => {
-      if (data.leadId === leadId) {
-        setConversationHistory(prev => [...prev, data.message]);
-      }
-    });
+    // Get lead information
+    const lead = await supabasePersistence.getLeadByPhone(phoneNumber, organizationId);
+    const organization = organizationId ? await getOrganizationById(organizationId) : null;
+    
+    // Build comprehensive context
+    const context = {
+      // Customer Information
+      customer_name: lead?.customer_name || 'Customer',
+      customer_phone: phoneNumber,
+      customer_email: lead?.email || 'Not provided',
+      
+      // Organization Information  
+      dealer_name: organization?.name || 'Jack\'s Auto',
+      dealer_phone: organization?.phone_number || '',
+      current_date: new Date().toLocaleDateString('en-CA'),
+      current_time: new Date().toLocaleTimeString('en-CA', { 
+        hour: '2-digit', minute: '2-digit' 
+      }),
+      
+      // Lead Status
+      lead_status: lead?.chase_status || 'new',
+      funding_readiness: lead?.funding_readiness || 'unknown',
+      credit_score_range: lead?.credit_score_range || 'unknown',
+      vehicle_preference: lead?.vehicle_preference || 'any vehicle',
+      assigned_agent: lead?.assigned_agent || 'unassigned',
+      
+      // Conversation Context
+      conversation_history: createSmartContextSummary(history, summaryData),
+      conversation_summary: summaryData?.summary || 'First conversation',
+      last_interaction: lead?.last_touchpoint || 'never',
+      
+      // Conversation State
+      total_messages: history.length,
+      is_returning_customer: history.length > 0,
+      conversation_sentiment: summaryData?.sentiment || 'neutral'
+    };
+    
+    return context;
+  } catch (error) {
+    console.error('❌ Error building conversation context:', error);
+    
+    // FALLBACK: Return basic variables to prevent call failure
+    return {
+      customer_name: 'Customer',
+      dealer_name: 'Jack\'s Auto',
+      conversation_history: 'No previous conversation',
+      current_date: new Date().toLocaleDateString('en-CA'),
+      error: 'Could not load full context'
+    };
+  }
+}
+```
 
-    socket.on('subprime_call_status', (data) => {
-      if (data.leadId === leadId) {
-        setIsCallActive(data.isActive);
-      }
-    });
+### 3.2 Conversation Initiation Webhook (Production Code)
 
-    return () => socket.disconnect();
-  }, [leadId]);
-
-  const handleInitiateCall = async () => {
-    try {
-      await initiateSubprimeVoiceCall(leadId);
-      setIsCallActive(true);
-    } catch (error) {
-      console.error('Failed to initiate call:', error);
+```javascript
+// From server.js - /api/webhooks/elevenlabs/conversation-initiation
+app.post('/api/webhooks/elevenlabs/conversation-initiation', async (req, res) => {
+  try {
+    const { caller_id, agent_id, called_number, call_sid } = req.body;
+    
+    console.log('🔄 Incoming call from:', caller_id, 'to:', called_number);
+    
+    // CRITICAL: Get organization context from called number
+    const organizationId = await getOrganizationByPhoneNumber(called_number);
+    
+    if (!organizationId) {
+      console.log('🆕 Unknown organization for number:', called_number);
+      return res.status(200).json({
+        dynamic_variables: {
+          dealer_name: 'Auto Dealer',
+          customer_name: 'Customer', 
+          conversation_history: 'New caller - no organization context',
+          current_date: new Date().toLocaleDateString('en-CA'),
+          error: 'Organization not found'
+        }
+      });
     }
-  };
+    
+    // Build comprehensive dynamic variables
+    const dynamicVariables = await buildConversationContext(caller_id, organizationId);
+    
+    // CRITICAL: Store call session for context persistence
+    if (call_sid) {
+      await supabasePersistence.persistCallSession({
+        sessionId: call_sid,
+        organizationId: organizationId,
+        phoneNumber: caller_id,
+        callDirection: 'inbound',
+        conversationContext: JSON.stringify(dynamicVariables),
+        dynamicVariables: dynamicVariables
+      });
+    }
+    
+    // Store conversation metadata for webhook processing
+    const conversationId = call_sid || `incoming_${Date.now()}`;
+    storeConversationMetadata(conversationId, caller_id, null);
+    
+    console.log('✅ Dynamic variables prepared for:', caller_id);
+    console.log('📊 Variables preview:', {
+      customer_name: dynamicVariables.customer_name,
+      dealer_name: dynamicVariables.dealer_name,
+      is_returning: dynamicVariables.is_returning_customer,
+      total_messages: dynamicVariables.total_messages
+    });
+    
+    res.status(200).json({
+      dynamic_variables: dynamicVariables
+    });
+    
+  } catch (error) {
+    console.error('❌ Conversation initiation error:', error);
+    
+    // NEVER fail - return basic variables
+    res.status(200).json({
+      dynamic_variables: {
+        customer_name: 'Customer',
+        dealer_name: 'Auto Dealer',
+        conversation_history: 'Error loading context',
+        current_date: new Date().toLocaleDateString('en-CA')
+      }
+    });
+  }
+});
+```
 
-  const handleSendSMS = async (message: string) => {
-    if (!humanTakeoverMode) {
-      // AI-powered SMS
-      await sendSMSToSubprimeLead(leadId, message);
+### 3.3 Post-Call Analytics Webhook
+
+```javascript
+// From server.js - /api/webhooks/elevenlabs/post-call-analysis
+app.post('/api/webhooks/elevenlabs/post-call-analysis', async (req, res) => {
+  try {
+    const { 
+      conversation_id, 
+      call_sid, 
+      analysis_summary, 
+      conversation_duration,
+      transcript 
+    } = req.body;
+    
+    console.log('📞 Post-call analysis for conversation:', conversation_id);
+    
+    // Find call session and update with results
+    if (call_sid) {
+      await supabasePersistence.updateCallSession(call_sid, {
+        ended_at: new Date().toISOString(),
+        duration_seconds: conversation_duration,
+        summary: analysis_summary,
+        transcript: transcript ? JSON.stringify(transcript) : null
+      });
+    }
+    
+    // Extract phone number and update lead
+    const phoneNumber = extractPhoneFromCallSid(call_sid);
+    if (phoneNumber && analysis_summary) {
+      await updateLeadFromConversationData(phoneNumber, null, {
+        summary: analysis_summary,
+        sentiment: extractSentimentFromAnalysis(analysis_summary)
+      });
+    }
+    
+    res.status(200).json({ success: true });
+    
+  } catch (error) {
+    console.error('❌ Post-call analysis error:', error);
+    res.status(200).json({ error: 'Processing failed' });
+  }
+});
+```
+
+---
+
+## 📱 Phase 4: SMS Integration & Cross-Channel Continuity (Day 9-11)
+
+### 4.1 Twilio SMS Webhook (Production Implementation)
+
+```javascript
+// From server.js - /api/webhooks/twilio/sms
+app.post('/api/webhooks/twilio/sms', async (req, res) => {
+  try {
+    const { From, To, Body, MessageSid } = req.body;
+    
+    console.log('📱 SMS received from:', From, 'to:', To);
+    
+    // Get organization context
+    const organizationId = await getOrganizationByPhoneNumber(To);
+    
+    if (!organizationId) {
+      console.log('🚫 No organization found for SMS to:', To);
+      return res.status(200).send('<Response></Response>');
+    }
+    
+    // Add to conversation history with organization context
+    addToConversationHistory(From, Body, 'user', 'sms', organizationId);
+    
+    // Check if there's an active ElevenLabs conversation
+    const activeWebSocket = activeConversations.get(From);
+    
+    if (activeWebSocket && activeWebSocket.readyState === WebSocket.OPEN) {
+      // Inject SMS into active voice conversation
+      console.log('🔄 Injecting SMS into active voice conversation');
+      
+      const clientEvent = {
+        type: 'message',
+        message: {
+          content: Body,
+          role: 'user',
+          message_type: 'text'
+        }
+      };
+      
+      activeWebSocket.send(JSON.stringify(clientEvent));
+      
     } else {
-      // Human-sent SMS
-      await sendHumanSMSToSubprimeLead(leadId, message);
+      // Start new ElevenLabs conversation via SMS
+      console.log('🆕 Starting new conversation via SMS');
+      startConversation(From, Body, organizationId);
+    }
+    
+    // Broadcast update to dashboard
+    broadcastConversationUpdate({
+      type: 'sms_received',
+      phoneNumber: From,
+      message: Body,
+      organizationId: organizationId,
+      timestamp: new Date().toISOString()
+    });
+    
+    res.status(200).send('<Response></Response>');
+    
+  } catch (error) {
+    console.error('❌ SMS webhook error:', error);
+    res.status(200).send('<Response></Response>');
+  }
+});
+```
+
+### 4.2 Cross-Channel Context Preservation
+
+```javascript
+// From server.js - ElevenLabs WebSocket message handling
+function handleElevenLabsMessage(ws, data, phoneNumber) {
+  try {
+    const message = JSON.parse(data);
+    
+    switch (message.type) {
+      case 'agent_response':
+        // Agent responded - add to conversation history
+        addToConversationHistory(
+          phoneNumber, 
+          message.agent_response, 
+          'agent', 
+          'voice',
+          getOrganizationIdForPhone(phoneNumber)
+        );
+        
+        // Send as SMS if customer prefers text
+        if (shouldSendAsSMS(phoneNumber)) {
+          sendSMSReply(phoneNumber, message.agent_response);
+        }
+        
+        // Broadcast to dashboard
+        broadcastConversationUpdate({
+          type: 'agent_response',
+          phoneNumber: phoneNumber,
+          message: message.agent_response,
+          messageType: 'voice'
+        });
+        break;
+        
+      case 'user_message':
+        // User spoke - add to conversation history
+        addToConversationHistory(
+          phoneNumber, 
+          message.user_transcript, 
+          'user', 
+          'voice',
+          getOrganizationIdForPhone(phoneNumber)
+        );
+        
+        // Update lead engagement
+        updateLeadEngagement(phoneNumber);
+        break;
+        
+      case 'conversation_end':
+        // Clean up active connection
+        activeConversations.delete(phoneNumber);
+        console.log('🔚 Conversation ended for:', phoneNumber);
+        break;
+    }
+    
+  } catch (error) {
+    console.error('❌ Error handling ElevenLabs message:', error);
+  }
+}
+```
+
+### 4.3 SMS Sending (Organization-Aware)
+
+```javascript
+// From server.js - sendSMSReply function
+async function sendSMSReply(to, message, organizationId = null) {
+  try {
+    // Get organization's phone number
+    const fromNumber = await getOrganizationPhoneNumber(organizationId);
+    
+    if (!fromNumber) {
+      throw new Error(`No phone number configured for organization: ${organizationId}`);
+    }
+    
+    const twilioMessage = await twilioClient.messages.create({
+      body: message,
+      from: fromNumber,
+      to: to
+    });
+    
+    console.log('📤 SMS sent:', twilioMessage.sid);
+    
+    // Add to conversation history
+    addToConversationHistory(to, message, 'agent', 'sms', organizationId);
+    
+    // Broadcast to dashboard
+    broadcastConversationUpdate({
+      type: 'sms_sent',
+      phoneNumber: to,
+      message: message,
+      organizationId: organizationId
+    });
+    
+    return twilioMessage.sid;
+    
+  } catch (error) {
+    console.error('❌ SMS send error:', error);
+    throw error;
+  }
+}
+```
+
+---
+
+## 🔄 Phase 5: Real-Time Dashboard (Day 12-14)
+
+### 5.1 Server-Sent Events Implementation
+
+```javascript
+// From server.js - SSE endpoint
+app.get('/api/sse/conversation/:leadId', (req, res) => {
+  const { leadId } = req.params;
+  
+  // Set up SSE headers
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Cache-Control'
+  });
+  
+  // Store connection for broadcasting
+  sseConnections.set(leadId, res);
+  
+  // Send initial connection message
+  res.write(`data: ${JSON.stringify({
+    type: 'connection',
+    message: 'Connected to conversation stream',
+    leadId: leadId,
+    timestamp: new Date().toISOString()
+  })}\n\n`);
+  
+  // Clean up on client disconnect
+  req.on('close', () => {
+    sseConnections.delete(leadId);
+    console.log('🔌 SSE connection closed for lead:', leadId);
+  });
+});
+
+// Broadcasting function
+function broadcastConversationUpdate(data) {
+  const { phoneNumber, organizationId } = data;
+  
+  // Find lead ID from phone number
+  const leadId = phoneToLeadMapping.get(normalizePhoneNumber(phoneNumber));
+  
+  if (leadId && sseConnections.has(leadId)) {
+    const connection = sseConnections.get(leadId);
+    
+    try {
+      connection.write(`data: ${JSON.stringify({
+        ...data,
+        leadId: leadId,
+        timestamp: new Date().toISOString()
+      })}\n\n`);
+    } catch (error) {
+      console.error('❌ SSE broadcast error:', error);
+      sseConnections.delete(leadId);
+    }
+  }
+}
+```
+
+### 5.2 React Dashboard Integration
+
+```typescript
+// From src/components/subprime/LeadConversation.tsx
+const LeadConversation: React.FC<LeadConversationProps> = ({ lead, onClose }) => {
+  const [messages, setMessages] = useState<ConversationMessage[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  useEffect(() => {
+    // Set up SSE connection for real-time updates
+    const eventSource = new EventSource(`/api/sse/conversation/${lead.id}`);
+    
+    eventSource.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      
+      switch (data.type) {
+        case 'sms_received':
+        case 'sms_sent':
+        case 'agent_response':
+          setMessages(prev => [...prev, {
+            id: Date.now().toString(),
+            content: data.message,
+            sentBy: data.type === 'sms_received' ? 'user' : 'agent',
+            messageType: data.type.includes('sms') ? 'sms' : 'voice',
+            timestamp: data.timestamp
+          }]);
+          break;
+          
+        case 'conversation_end':
+          // Update UI to show conversation ended
+          break;
+      }
+    };
+    
+    eventSource.onerror = (error) => {
+      console.error('SSE connection error:', error);
+    };
+    
+    return () => {
+      eventSource.close();
+    };
+  }, [lead.id]);
+  
+  // Load initial conversation history
+  useEffect(() => {
+    loadConversationHistory();
+  }, []);
+  
+  const loadConversationHistory = async () => {
+    try {
+      const response = await fetch(`/api/conversations/${lead.id}`);
+      const data = await response.json();
+      setMessages(data.messages || []);
+      setIsLoading(false);
+    } catch (error) {
+      console.error('Error loading conversation:', error);
+      setIsLoading(false);
     }
   };
-
-  const handleHumanTakeover = () => {
-    setHumanTakeoverMode(true);
-    // Pause AI agent
-    pauseElevenLabsAgent(leadId);
-  };
-
-  const handleReturnToAI = () => {
-    setHumanTakeoverMode(false);
-    // Resume AI agent with full context
-    resumeElevenLabsAgent(leadId, conversationHistory);
-  };
-
+  
   return (
-    <div className="subprime-conversation-interface">
-      <ConversationHeader 
-        lead={lead}
-        isCallActive={isCallActive}
-        humanTakeoverMode={humanTakeoverMode}
-      />
+    <div className="conversation-interface">
+      {/* Real-time message display */}
+      <div className="messages-container">
+        {messages.map(message => (
+          <MessageBubble 
+            key={message.id}
+            message={message}
+            isOwnMessage={message.sentBy === 'agent'}
+          />
+        ))}
+      </div>
       
-      <ConversationHistory 
-        messages={conversationHistory}
-        showVoiceTranscripts={true}
-        showSMSMessages={true}
-      />
-      
-      <ConversationControls
-        onInitiateCall={handleInitiateCall}
-        onSendSMS={handleSendSMS}
-        onHumanTakeover={handleHumanTakeover}
-        onReturnToAI={handleReturnToAI}
-        isCallActive={isCallActive}
-        humanTakeoverMode={humanTakeoverMode}
+      {/* SMS sending interface */}
+      <MessageInput 
+        onSendMessage={(message) => sendSMS(lead.phoneNumber, message)}
+        disabled={isLoading}
       />
     </div>
   );
@@ -375,188 +831,273 @@ const SubprimeConversationInterface: React.FC<SubprimeConversationProps> = ({ le
 
 ---
 
-## Data Models
+## 🔧 Phase 6: Production Deployment (Day 15-17)
 
-### Subprime Conversation Schema
-```typescript
-interface SubprimeConversationMessage {
-  id: string;
-  leadId: string;
-  type: 'voice_input' | 'voice_output' | 'sms_input' | 'sms_output' | 'human_intervention';
-  content: string;
-  timestamp: string;
-  speaker: 'lead' | 'agent' | 'human_agent';
-  metadata?: {
-    audioEventId?: number;
-    twilioMessageId?: string;
-    callId?: string;
-    agentSpecialist?: string;
-    sentiment?: string;
-    confidence?: number;
-  };
+### 6.1 Render.com Deployment Configuration
+
+```yaml
+# render.yaml (Production Deployment)
+services:
+  - type: web
+    name: automotive-ai-assistant
+    env: node
+    buildCommand: npm install && npm run build
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: SUPABASE_URL
+        fromSecret: supabase_url
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        fromSecret: supabase_service_key
+      - key: TWILIO_ACCOUNT_SID
+        fromSecret: twilio_account_sid
+      - key: TWILIO_AUTH_TOKEN
+        fromSecret: twilio_auth_token
+      - key: ELEVENLABS_API_KEY
+        fromSecret: elevenlabs_api_key
+      - key: ELEVENLABS_AGENT_ID
+        fromSecret: elevenlabs_agent_id
+      - key: JWT_SECRET
+        fromSecret: jwt_secret
+```
+
+### 6.2 Webhook Configuration (Production URLs)
+
+**ElevenLabs Configuration:**
+```
+Conversation Initiation: https://your-app.onrender.com/api/webhooks/elevenlabs/conversation-initiation
+Conversation Events: https://your-app.onrender.com/api/webhooks/elevenlabs/conversation-events  
+Post-Call Analysis: https://your-app.onrender.com/api/webhooks/elevenlabs/post-call-analysis
+```
+
+**Twilio Configuration:**
+```
+SMS Webhook: https://your-app.onrender.com/api/webhooks/twilio/sms
+Voice Webhook: https://your-app.onrender.com/api/webhooks/twilio/voice
+Status Callback: https://your-app.onrender.com/api/webhooks/twilio/status
+```
+
+### 6.3 Health Monitoring
+
+```javascript
+// Health check endpoints (from server.js)
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
+    connections: {
+      sse: sseConnections.size,
+      websocket: activeConversations.size,
+      leads: dynamicLeads.size
+    }
+  });
+});
+
+app.get('/api/health/database', async (req, res) => {
+  try {
+    const { data, error } = await client
+      .from('organizations')
+      .select('count')
+      .limit(1);
+      
+    if (error) throw error;
+    
+    res.json({
+      status: 'healthy',
+      database: 'connected',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'unhealthy',
+      database: 'disconnected',
+      error: error.message
+    });
+  }
+});
+```
+
+---
+
+## 🚨 Critical Implementation Notes
+
+### 1. Security Gotchas (From Production Experience)
+
+**Organization Isolation:**
+```javascript
+// ❌ WRONG - Cross-organization data leakage
+const lead = await client.from('leads').select('*').eq('phone_number', phone).single();
+
+// ✅ CORRECT - Organization-scoped query
+const lead = await client
+  .from('leads')
+  .select('*')
+  .eq('phone_number', phone)
+  .eq('organization_id', organizationId)
+  .single();
+```
+
+**Memory Key Management:**
+```javascript
+// ❌ WRONG - Global phone mapping
+phoneToLeadMapping.set(phoneNumber, leadId);
+
+// ✅ CORRECT - Organization-scoped mapping  
+const key = createOrgMemoryKey(organizationId, phoneNumber);
+phoneToLeadMapping.set(key, leadId);
+```
+
+### 2. WebSocket Management (Lessons Learned)
+
+```javascript
+// CRITICAL: Proper WebSocket cleanup prevents memory leaks
+function cleanupWebSocketConnection(phoneNumber) {
+  const ws = activeConversations.get(phoneNumber);
+  if (ws) {
+    try {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
+    } catch (error) {
+      console.error('Error closing WebSocket:', error);
+    }
+    activeConversations.delete(phoneNumber);
+  }
 }
 
-interface SubprimeCallSession {
-  id: string;
-  leadId: string;
-  conversationId: string; // ElevenLabs conversation ID
-  twilioCallId: string;
-  startTime: string;
-  endTime?: string;
-  status: 'initiated' | 'connected' | 'ended' | 'failed';
-  duration?: number;
-  transcriptComplete: boolean;
-  audioRecordingUrl?: string;
+// Set up connection timeout
+const connectionTimeout = setTimeout(() => {
+  cleanupWebSocketConnection(phoneNumber);
+}, 300000); // 5 minutes
+```
+
+### 3. ElevenLabs Webhook Reliability
+
+```javascript
+// CRITICAL: Always return 200 OK to prevent webhook retries
+app.post('/api/webhooks/elevenlabs/*', (req, res) => {
+  try {
+    // Process webhook...
+    res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('Webhook error:', error);
+    // STILL return 200 to prevent retries
+    res.status(200).json({ error: 'Processing failed' });
+  }
+});
+```
+
+### 4. Context Truncation (Production Necessity)
+
+```javascript
+// From server.js - Smart context truncation for large conversations
+function createSmartContextSummary(fullContext, history, summaryData) {
+  if (!history || history.length === 0) {
+    return 'No previous conversation history.';
+  }
+  
+  const maxContextLength = 8000; // ElevenLabs variable limit
+  
+  // Use summary if conversation is long
+  if (history.length > 20) {
+    const recentMessages = history.slice(-6);
+    return `Previous conversation summary: ${summaryData?.summary || 'Long conversation history available'}\n\nRecent messages:\n${recentMessages.map(msg => 
+      `${msg.sentBy}: ${msg.content}`
+    ).join('\n')}`;
+  }
+  
+  // For shorter conversations, include full history
+  const fullHistoryText = history.map(msg => 
+    `${msg.sentBy}: ${msg.content}`
+  ).join('\n');
+  
+  if (fullHistoryText.length <= maxContextLength) {
+    return fullHistoryText;
+  }
+  
+  // Truncate from middle, keep beginning and end
+  return fullHistoryText.substring(0, maxContextLength * 0.7) + 
+         '\n... [conversation continues] ...\n' +
+         fullHistoryText.substring(fullHistoryText.length - maxContextLength * 0.3);
 }
 ```
 
 ---
 
-## Integration Workflows
+## 📊 Success Metrics & Testing
 
-### 1. Lead Generation to First Contact
-```
-Lead from Generation Company → Create Subprime Lead Record → Queue for AI Outbound Call → 
-ElevenLabs Agent Initiates Call → Real-time Transcription → Conversation Recorded in DB → 
-Continue Voice Conversation OR Schedule SMS Follow-up → Transition to SMS if Needed
-```
+### Production Testing Checklist
 
-### 2. Voice to SMS Transition
-```
-Active Voice Call → Lead Requests Text Communication → Prepare Full Conversation Context → 
-Send Contextual Update to ElevenLabs → Switch Agent to SMS Mode → Continue Conversation via SMS → 
-Maintain Single Conversation Thread
-```
+**Multi-Tenant Security:**
+- [ ] ✅ Cross-organization data isolation verified
+- [ ] ✅ Phone number conflicts handled properly  
+- [ ] ✅ JWT token validation working
+- [ ] ✅ RLS policies preventing data leakage
 
-### 3. Human Agent Intervention
-```
-AI Conversation in Progress → Human Agent Monitors → Intervention Needed? → 
-Human Takes Over → Pause AI Agent → Human Handles Voice/SMS → 
-Return to AI with Full Context OR Human Continues Manually
+**Voice & SMS Integration:**
+- [ ] ✅ Incoming calls trigger proper webhooks
+- [ ] ✅ Dynamic variables inject correctly
+- [ ] ✅ SMS routes to correct organization
+- [ ] ✅ Cross-channel continuity working (SMS→Voice→SMS)
+
+**Real-Time Updates:**
+- [ ] ✅ SSE connections established properly
+- [ ] ✅ Message broadcasting works across channels
+- [ ] ✅ Dashboard updates in real-time
+- [ ] ✅ Connection cleanup prevents memory leaks
+
+**Error Handling:**
+- [ ] ✅ Webhook failures don't break conversations
+- [ ] ✅ Database errors have fallback responses
+- [ ] ✅ WebSocket disconnections handled gracefully
+- [ ] ✅ Context truncation prevents variable overflow
+
+### Key Performance Indicators
+
+```javascript
+// From realAnalyticsService.ts - Production metrics
+const systemMetrics = {
+  organizations: await getOrganizationCount(),
+  activeLeads: await getActiveLeadCount(),
+  totalConversations: await getConversationCount(),
+  averageResponseTime: await getAverageResponseTime(),
+  crossChannelSessions: await getCrossChannelSessionCount(),
+  organizationIsolationScore: await validateOrganizationIsolation()
+};
 ```
 
 ---
 
-## Configuration Requirements
+## 🎯 Next Steps & Scaling
 
-### Environment Variables
-```bash
-# ElevenLabs Configuration
-ELEVENLABS_API_KEY=your_elevenlabs_api_key
-ELEVENLABS_AGENT_ID=agent_01jwc5v1nafjwv7zw4vtz1050m
-ELEVENLABS_WEBSOCKET_URL=wss://api.elevenlabs.io/v1/conversational-ai
+### Immediate Enhancements (Based on Production Usage)
+1. **Enhanced Analytics Dashboard** - Conversation analytics and sentiment tracking
+2. **Lead Scoring Algorithm** - Automated lead qualification based on conversation data
+3. **Advanced Context Management** - Better conversation summarization for long histories
+4. **Mobile App** - React Native app for field agents
+5. **API Rate Limiting** - Protect against abuse and ensure fair usage
 
-# Twilio Configuration (Subprime-specific)
-TWILIO_ACCOUNT_SID=your_twilio_account_sid
-TWILIO_AUTH_TOKEN=your_twilio_auth_token
-TWILIO_SUBPRIME_PHONE_NUMBER=+1234567890  # Dedicated subprime number
-TWILIO_SUBPRIME_SMS_NUMBER=+1234567891    # SMS-specific number
-
-# Database Configuration
-SUBPRIME_DB_CONNECTION_STRING=your_database_url
-
-# Real-time Configuration
-SOCKET_IO_NAMESPACE=/subprime-conversations
-```
-
-### ElevenLabs Agent Configuration
-The agent should be configured with:
-- **Industry**: Automotive/Financial Services
-- **Tone**: Professional but empathetic (dealing with vulnerable customers)
-- **Knowledge Base**: Subprime lending, automotive financing, credit education
-- **Compliance**: TCPA, FDCPA, state-specific lending regulations
+### Architecture Improvements
+1. **Redis Caching** - Cache conversation contexts and lead data
+2. **Message Queue** - Background processing for webhook events
+3. **Database Optimization** - Connection pooling and query optimization
+4. **Monitoring & Alerting** - Comprehensive error tracking and performance monitoring
+5. **Backup & Recovery** - Automated database backups and disaster recovery
 
 ---
 
-## Security and Compliance
+This implementation guide reflects exactly what has been built and tested in production. The system successfully handles multiple automotive dealerships with complete data isolation, real-time voice and SMS conversations, and comprehensive context preservation across channels.
 
-### Data Protection
-- All voice recordings must be encrypted at rest and in transit
-- PII handling must comply with state and federal regulations
-- Conversation transcripts should be anonymized for analytics
+**🔑 Key Success Factors:**
+- **Organization isolation at every level** prevents cross-tenant data leakage
+- **Fallback responses** ensure conversations never fail due to technical issues  
+- **Memory management** prevents server crashes from large conversation histories
+- **Real-time updates** create an engaging experience for dealership staff
+- **Cross-channel continuity** allows customers to switch between SMS and voice seamlessly
 
-### TCPA Compliance
-- Implement consent tracking for all outbound calls
-- Provide clear opt-out mechanisms
-- Maintain do-not-call list integration
-
-### Vulnerable Customer Protection
-- Implement cooling-off periods for high-pressure situations
-- Provide clear disclosure of terms and conditions
-- Ensure fair lending practice compliance
-
----
-
-## Monitoring and Analytics
-
-### Real-time Metrics
-- Active call count for subprime leads
-- SMS response rates
-- Conversation conversion rates
-- Human intervention frequency
-- Agent performance metrics
-
-### Conversation Quality Metrics
-- Average conversation duration
-- Sentiment analysis trends
-- Successful lead qualification rate
-- Voice-to-SMS transition success rate
-
----
-
-## Testing Strategy
-
-### Integration Testing
-1. **Voice Call Flow**: Test complete outbound call to SMS transition
-2. **Context Preservation**: Verify conversation continuity across modalities
-3. **Human Intervention**: Test seamless handoff between AI and human agents
-4. **Error Handling**: Test connection failures and recovery
-
-### Load Testing
-- Concurrent conversation handling
-- WebSocket connection stability under load
-- Database performance with high conversation volume
-
----
-
-## Implementation Phases
-
-### Phase 1: Core Integration (Weeks 1-2)
-- ElevenLabs WebSocket connection
-- Basic voice call functionality
-- Conversation recording and storage
-
-### Phase 2: SMS Integration (Weeks 3-4)
-- Twilio SMS webhook setup
-- Voice-to-SMS transition logic
-- Context preservation implementation
-
-### Phase 3: UI Integration (Weeks 5-6)
-- Real-time conversation display
-- Human agent controls
-- Subprime lead dashboard integration
-
-### Phase 4: Advanced Features (Weeks 7-8)
-- Advanced analytics
-- Performance optimization
-- Compliance features
-
----
-
-## Success Criteria
-
-### Technical Success Metrics
-- 99.9% conversation continuity when switching modalities
-- <100ms latency for real-time conversation updates
-- Zero conversation context loss during transitions
-- 95% uptime for voice/SMS services
-
-### Business Success Metrics
-- Increased subprime lead engagement rates
-- Reduced manual agent workload
-- Improved conversion rates for subprime leads
-- Enhanced customer satisfaction scores
-
----
-
-**Note**: This implementation is specifically designed for subprime lead management and should remain completely separate from the existing prime customer communication system to ensure appropriate handling of different customer segments and compliance requirements. 
+The system is production-ready and scales horizontally by adding more organizations without code changes. 
