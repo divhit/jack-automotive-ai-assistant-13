@@ -940,17 +940,36 @@ async function buildConversationContext(phoneNumber, organizationId = null) {
   
   let contextText = `RECENT CONVERSATION HISTORY for customer ${phoneNumber}:\n\n`;
   
-  // Add recent voice messages (last 3 only to keep context focused)
-  if (voiceMessages.length > 0) {
+  // FIXED: Use chronological order instead of separating by channel
+  // Take the most recent messages regardless of channel to maintain conversation flow
+  const recentMessages = history.slice(-6); // Last 6 messages chronologically
+  
+  // Group messages by channel for better organization while maintaining chronological order
+  const hasVoiceMessages = voiceMessages.length > 0;
+  const hasSmsMessages = smsMessages.length > 0;
+  
+  if (hasVoiceMessages && hasSmsMessages) {
+    // Mixed conversation - show channel breakdown for context
+    contextText += `MULTI-CHANNEL CONVERSATION:\n`;
+    contextText += `- Total messages: ${history.length} (${voiceMessages.length} voice, ${smsMessages.length} SMS)\n\n`;
+    
+    // Show most recent messages chronologically
+    contextText += `RECENT MESSAGES (last ${recentMessages.length} messages in chronological order):\n`;
+    contextText += recentMessages.map(msg => {
+      const speaker = msg.sentBy === 'user' ? 'Customer' : 
+                     msg.sentBy === 'human_agent' ? 'Human Agent' : 'Agent';
+      const channel = msg.type === 'voice' ? ' (Voice)' : ' (SMS)';
+      return `${speaker}${channel}: ${msg.content}`;
+    }).join('\n') + '\n\n';
+  } else if (hasVoiceMessages) {
+    // Voice-only conversation
     const recentVoiceMessages = voiceMessages.slice(-3);
     contextText += `RECENT VOICE CONVERSATION (last ${recentVoiceMessages.length} messages):\n`;
     contextText += recentVoiceMessages.map(msg => 
       `${msg.sentBy === 'user' ? 'Customer' : 'Agent'}: ${msg.content}`
     ).join('\n') + '\n\n';
-  }
-  
-  // Add recent SMS messages (last 3 only)
-  if (smsMessages.length > 0) {
+  } else if (hasSmsMessages) {
+    // SMS-only conversation
     const recentSmsMessages = smsMessages.slice(-3);
     contextText += `RECENT SMS CONVERSATION (last ${recentSmsMessages.length} messages):\n`;
     
@@ -967,8 +986,11 @@ async function buildConversationContext(phoneNumber, organizationId = null) {
 - The conversation history above shows the recent message flow between you and the customer
 - If previous summary mentions specific vehicle models, budgets, or customer details, DO NOT ask for this information again
 - This conversation may be RESUMING after a brief timeout - continue naturally from where you left off
+- IMPORTANT: If you see "Human Agent" messages, this means a human agent was helping the customer recently
+- Continue from where the human agent left off - reference their conversation and the customer's responses
+- Do NOT ignore or restart from old topics if there's recent human agent interaction
 - Reference specific details from both the previous summary AND recent messages to show continuity
-- Be helpful and maintain context from ALL previous interactions (voice calls, SMS, etc.)
+- Be helpful and maintain context from ALL previous interactions (voice calls, SMS, human agent handoffs, etc.)
 - If this feels like a continuation, acknowledge it naturally: "Great to hear from you again" or similar
 - DO NOT restart or re-introduce yourself if you've already spoken with this customer`;
   
@@ -1002,17 +1024,29 @@ function createSmartContextSummary(fullContext, history, summaryData) {
   condensedContext += `- Voice messages: ${voiceMessages.length}\n`;
   condensedContext += `- SMS messages: ${smsMessages.length}\n\n`;
   
-  // Add last 3 voice messages if any
-  if (voiceMessages.length > 0) {
+  // FIXED: Use chronological order for condensed context too
+  const recentMessages = history.slice(-6); // Last 6 messages chronologically
+  const hasVoiceMessages = voiceMessages.length > 0;
+  const hasSmsMessages = smsMessages.length > 0;
+  
+  if (hasVoiceMessages && hasSmsMessages) {
+    // Mixed conversation - show most recent messages chronologically
+    condensedContext += `RECENT MESSAGES (last ${recentMessages.length} messages in chronological order):\n`;
+    condensedContext += recentMessages.map(msg => {
+      const speaker = msg.sentBy === 'user' ? 'Customer' : 
+                     msg.sentBy === 'human_agent' ? 'Human Agent' : 'Agent';
+      const channel = msg.type === 'voice' ? ' (Voice)' : ' (SMS)';
+      return `${speaker}${channel}: ${msg.content}`;
+    }).join('\n') + '\n\n';
+  } else if (hasVoiceMessages) {
+    // Voice-only conversation
     const recentVoice = voiceMessages.slice(-3);
     condensedContext += `RECENT VOICE CONVERSATION (last ${recentVoice.length} messages):\n`;
     condensedContext += recentVoice.map(msg => 
       `${msg.sentBy === 'user' ? 'Customer' : 'Agent'}: ${msg.content}`
     ).join('\n') + '\n\n';
-  }
-  
-  // Add last 3 SMS messages if any
-  if (smsMessages.length > 0) {
+  } else if (hasSmsMessages) {
+    // SMS-only conversation
     const recentSms = smsMessages.slice(-3);
     condensedContext += `RECENT SMS CONVERSATION (last ${recentSms.length} messages):\n`;
     
@@ -1029,8 +1063,11 @@ function createSmartContextSummary(fullContext, history, summaryData) {
 - This is a LONG conversation (${history.length} messages) - focus on recent context above
 - If previous summary mentions specific vehicle models, budgets, or customer details, DO NOT ask for this information again
 - Continue naturally from the recent messages shown above
+- IMPORTANT: If you see "Human Agent" messages, this means a human agent was helping the customer recently
+- Continue from where the human agent left off - reference their conversation and the customer's responses
+- Do NOT ignore or restart from old topics if there's recent human agent interaction
 - Reference specific details from both the previous summary AND recent messages
-- Be helpful and maintain context from ALL previous interactions`;
+- Be helpful and maintain context from ALL previous interactions (voice calls, SMS, human agent handoffs, etc.)`;
 
   console.log(`📋 Smart summary created: ${condensedContext.length} chars (from ${fullContext.length} chars)`);
   return condensedContext;
