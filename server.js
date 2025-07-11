@@ -3322,7 +3322,8 @@ function broadcastConversationUpdate(data) {
 // SECURITY: Organization validation middleware
 async function validateOrganizationAccess(req, res, next) {
   try {
-  const { leadId } = req.params;
+  // Check both params and body for leadId (POST endpoints use body, GET endpoints use params)
+  const leadId = req.params.leadId || req.body.leadId;
     // For SSE connections, organizationId comes from query params since headers aren't supported
     // For regular API calls, organizationId comes from headers
     // FIXED: Handle case variations in headers (organizationId vs organizationid)
