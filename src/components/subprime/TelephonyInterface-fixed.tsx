@@ -1017,7 +1017,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
           ...getOrganizationHeaders(organizationId)
         };
         
-        const response = await fetch(`/api/human-control/status/${encodeURIComponent(selectedLead.phoneNumber)}`, {
+        const response = await fetch(`/api/human-control/status/${encodeURIComponent(selectedLead.phoneNumber)}?leadId=${encodeURIComponent(selectedLead.id)}`, {
           headers
         });
         

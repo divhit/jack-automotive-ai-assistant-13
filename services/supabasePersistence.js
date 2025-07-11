@@ -491,7 +491,7 @@ class SupabasePersistenceService {
         .select('*')
         .eq('phone_number_normalized', normalizedPhone)
         .eq('organization_id', organizationId) // ALWAYS filter by organization
-        .order('timestamp', { ascending: true })
+        .order('timestamp', { ascending: false }) // Get newest messages first
         .limit(limit);
 
       console.log(`🔒 Loading conversations for phone ${normalizedPhone} in organization: ${organizationId}`);
@@ -502,16 +502,17 @@ class SupabasePersistenceService {
       
       // DEBUG: Log what we got from database
       console.log(`🔍 DEBUG: Retrieved ${data.length} messages from database for ${normalizedPhone}`);
-      const recentMessages = data.slice(-5);
+      const recentMessages = data.slice(0, 5); // First 5 since we query newest first
       console.log(`🔍 DEBUG: Most recent 5 messages from database:`, recentMessages.map(row => `${row.sent_by}: ${row.content.substring(0, 50)}... (${row.timestamp})`));
       
-      // Convert back to memory format
+      // Convert back to memory format and reverse to chronological order
+      // (since we queried newest first but want oldest first for context)
       return data.map(row => ({
         content: row.content,
         sentBy: row.sent_by,
         timestamp: row.timestamp,
         type: row.type
-      }));
+      })).reverse();
       
     } catch (error) {
       console.error(`❌ Failed to retrieve conversation history:`, error);
