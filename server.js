@@ -466,6 +466,10 @@ async function getConversationHistory(phoneNumber, organizationId = null) {
         
         console.log(`📋 Loaded ${supabaseHistory.length} messages from Supabase for ${phoneNumber} (org: ${organizationId}) - ${voiceCount} voice, ${smsCount} SMS`);
         
+        // DEBUG: Log the most recent 5 messages to see what we're getting
+        const recentMessages = supabaseHistory.slice(-5);
+        console.log(`🔍 DEBUG: Most recent 5 messages from Supabase:`, recentMessages.map(msg => `${msg.sentBy}: ${msg.content.substring(0, 50)}... (${msg.timestamp})`));
+        
         // Sync to organization-scoped memory for faster access
         const orgMemoryKey = createOrgMemoryKey(organizationId, phoneNumber);
         conversationContexts.set(orgMemoryKey, supabaseHistory);
@@ -889,6 +893,10 @@ async function buildConversationContext(phoneNumber, organizationId = null) {
   const voiceMessages = history.filter(msg => msg.type === 'voice');
   const smsMessages = history.filter(msg => msg.type === 'text' || msg.type === 'sms');
   
+  // DEBUG: Log the breakdown of message types
+  console.log(`🔍 DEBUG: Message type breakdown - Total: ${history.length}, Voice: ${voiceMessages.length}, SMS: ${smsMessages.length}`);
+  console.log(`🔍 DEBUG: All message types:`, [...new Set(history.map(msg => msg.type))]);
+  
   let contextText = `RECENT CONVERSATION HISTORY for customer ${phoneNumber}:\n\n`;
   
   // Add recent voice messages (last 3 only to keep context focused)
@@ -904,8 +912,12 @@ async function buildConversationContext(phoneNumber, organizationId = null) {
   if (smsMessages.length > 0) {
     const recentSmsMessages = smsMessages.slice(-3);
     contextText += `RECENT SMS CONVERSATION (last ${recentSmsMessages.length} messages):\n`;
+    
+    // DEBUG: Log the recent SMS messages to see what we're getting
+    console.log(`🔍 DEBUG: Recent SMS messages:`, recentSmsMessages.map(msg => `${msg.sentBy}: ${msg.content.substring(0, 50)}... (${msg.timestamp})`));
+    
     contextText += recentSmsMessages.map(msg => 
-      `${msg.sentBy === 'user' ? 'Customer' : 'Agent'}: ${msg.content}`
+      `${msg.sentBy === 'user' ? 'Customer' : msg.sentBy === 'human_agent' ? 'Human Agent' : 'Agent'}: ${msg.content}`
     ).join('\n') + '\n\n';
   }
   
@@ -962,8 +974,12 @@ function createSmartContextSummary(fullContext, history, summaryData) {
   if (smsMessages.length > 0) {
     const recentSms = smsMessages.slice(-3);
     condensedContext += `RECENT SMS CONVERSATION (last ${recentSms.length} messages):\n`;
+    
+    // DEBUG: Log the recent SMS messages to see what we're getting
+    console.log(`🔍 DEBUG: Recent SMS messages (condensed):`, recentSms.map(msg => `${msg.sentBy}: ${msg.content.substring(0, 50)}... (${msg.timestamp})`));
+    
     condensedContext += recentSms.map(msg => 
-      `${msg.sentBy === 'user' ? 'Customer' : 'Agent'}: ${msg.content}`
+      `${msg.sentBy === 'user' ? 'Customer' : msg.sentBy === 'human_agent' ? 'Human Agent' : 'Agent'}: ${msg.content}`
     ).join('\n') + '\n\n';
   }
   
