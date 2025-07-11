@@ -49,7 +49,7 @@ interface ConversationMessage {
   type: 'sms' | 'call' | 'system' | 'voice';
   content: string;
   timestamp: string;
-  sentBy: 'user' | 'agent' | 'system';
+  sentBy: 'user' | 'agent' | 'system' | 'human_agent';
   status?: 'sent' | 'delivered' | 'failed';
 }
 
@@ -100,6 +100,12 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
   // Smart scrolling state
   const [isNearBottom, setIsNearBottom] = useState(true);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  
+  // Human control state
+  const [isUnderHumanControl, setIsUnderHumanControl] = useState(false);
+  const [humanControlAgent, setHumanControlAgent] = useState<string | null>(null);
+  const [humanControlSession, setHumanControlSession] = useState<any>(null);
+  const [agentName, setAgentName] = useState('Agent'); // Default agent name for human control
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -478,6 +484,54 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
         }
         break;
         
+      case 'human_control_started':
+        setIsUnderHumanControl(true);
+        setHumanControlAgent(data.agentName);
+        setHumanControlSession(data);
+        addConversationMessage({
+          id: `human-control-start-${Date.now()}`,
+          type: 'system',
+          content: `👤 Human agent ${data.agentName} joined the conversation`,
+          timestamp: data.timestamp,
+          sentBy: 'system'
+        });
+        break;
+        
+      case 'human_control_ended':
+        setIsUnderHumanControl(false);
+        setHumanControlAgent(null);
+        setHumanControlSession(null);
+        addConversationMessage({
+          id: `human-control-end-${Date.now()}`,
+          type: 'system',
+          content: `🤖 AI agent resumed control of the conversation`,
+          timestamp: data.timestamp,
+          sentBy: 'system'
+        });
+        break;
+        
+      case 'human_message_sent':
+        addConversationMessage({
+          id: `human-msg-sent-${Date.now()}`,
+          type: 'sms',
+          content: data.message,
+          timestamp: data.timestamp,
+          sentBy: 'agent',
+          status: 'sent'
+        });
+        break;
+        
+      case 'user_message_during_human_control':
+        addConversationMessage({
+          id: `user-msg-human-${Date.now()}`,
+          type: 'sms',
+          content: data.message,
+          timestamp: data.timestamp,
+          sentBy: 'user',
+          status: 'delivered'
+        });
+        break;
+        
       case 'error':
         console.error('SSE Error:', data.message);
         setError(data.message || 'Connection error');
@@ -547,11 +601,11 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
           type: msg.type || 'sms',
           content: msg.content || msg.message || '',
           timestamp: msg.timestamp || new Date().toISOString(),
-          sentBy: msg.sentBy || (msg.direction === 'outbound' ? 'agent' : 'user'),
+          sentBy: msg.sentBy || (msg.direction === 'outbound' ? 'agent' : 'user') as 'user' | 'agent' | 'system' | 'human_agent',
           status: msg.status || 'delivered'
         }));
         
-        setConversationHistory(formattedMessages);
+        setConversationHistory(formattedMessages as ConversationMessage[]);
         console.log('✅ Formatted', formattedMessages.length, 'conversation messages for org:', organizationId);
       }
       
@@ -817,6 +871,170 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
     }
   }, [selectedLead, onLeadUpdate]);
 
+  // Human control functions
+  const handleJoinHumanControl = useCallback(async () => {
+    if (!selectedLead) return;
+    
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const token = localStorage.getItem('auth_token');
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        ...getOrganizationHeaders(organizationId)
+      };
+      
+      const response = await fetch('/api/human-control/join', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          phoneNumber: selectedLead.phoneNumber,
+          agentName: agentName,
+          leadId: selectedLead.id
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to join human control session');
+      }
+      
+      const data = await response.json();
+      setIsUnderHumanControl(true);
+      setHumanControlAgent(agentName);
+      setHumanControlSession(data);
+      
+      toast.success(`${agentName} joined the conversation`);
+      
+    } catch (error) {
+      console.error('Error joining human control:', error);
+      setError(`Failed to join conversation: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error('Failed to join conversation');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedLead, agentName, organizationId]);
+
+  const handleLeaveHumanControl = useCallback(async () => {
+    if (!selectedLead) return;
+    
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const token = localStorage.getItem('auth_token');
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        ...getOrganizationHeaders(organizationId)
+      };
+      
+      const response = await fetch('/api/human-control/leave', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          phoneNumber: selectedLead.phoneNumber,
+          leadId: selectedLead.id
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to leave human control session');
+      }
+      
+      const data = await response.json();
+      setIsUnderHumanControl(false);
+      setHumanControlAgent(null);
+      setHumanControlSession(null);
+      
+      toast.success('AI agent resumed control');
+      
+    } catch (error) {
+      console.error('Error leaving human control:', error);
+      setError(`Failed to leave conversation: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error('Failed to leave conversation');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedLead, organizationId]);
+
+  const handleSendHumanMessage = useCallback(async () => {
+    if (!selectedLead || !textInput.trim()) return;
+    
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const token = localStorage.getItem('auth_token');
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        ...getOrganizationHeaders(organizationId)
+      };
+      
+      const response = await fetch('/api/human-control/send-message', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          phoneNumber: selectedLead.phoneNumber,
+          message: textInput,
+          leadId: selectedLead.id,
+          agentName: agentName
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to send message');
+      }
+      
+      // Clear input on success
+      setTextInput('');
+      
+      toast.success('Message sent');
+      
+    } catch (error) {
+      console.error('Error sending human message:', error);
+      setError(`Failed to send message: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error('Failed to send message');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedLead, textInput, agentName, organizationId]);
+
+  // Check human control status on lead change
+  useEffect(() => {
+    if (!selectedLead) return;
+    
+    const checkHumanControlStatus = async () => {
+      try {
+        const token = localStorage.getItem('auth_token');
+        const headers = {
+          'Authorization': `Bearer ${token}`,
+          ...getOrganizationHeaders(organizationId)
+        };
+        
+        const response = await fetch(`/api/human-control/status/${encodeURIComponent(selectedLead.phoneNumber)}`, {
+          headers
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setIsUnderHumanControl(data.isUnderHumanControl);
+          setHumanControlAgent(data.session?.agentName || null);
+          setHumanControlSession(data.session);
+        }
+      } catch (error) {
+        console.error('Error checking human control status:', error);
+      }
+    };
+    
+    checkHumanControlStatus();
+  }, [selectedLead, organizationId]);
+
   if (!selectedLead) {
     return (
       <div className={cn("h-full flex items-center justify-center", className)}>
@@ -831,14 +1049,28 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
   return (
     <div className={cn("h-full flex flex-col", className)}>
 
-      {/* MINIMAL STATUS BAR - Only show call status if active */}
-      {isCallActive && (
-        <div className="flex-shrink-0 mx-4 mt-1 mb-1 px-3 py-1 bg-green-50 rounded border border-green-200">
-          <div className="flex items-center gap-2 text-sm text-green-700">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <span className="font-medium">Call Active</span>
-            <span className="text-xs">({formatDuration(callDuration)})</span>
-          </div>
+      {/* MINIMAL STATUS BAR - Show call status and human control status */}
+      {(isCallActive || isUnderHumanControl) && (
+        <div className="flex-shrink-0 mx-4 mt-1 mb-1 space-y-1">
+          {isCallActive && (
+            <div className="px-3 py-1 bg-green-50 rounded border border-green-200">
+              <div className="flex items-center gap-2 text-sm text-green-700">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span className="font-medium">Call Active</span>
+                <span className="text-xs">({formatDuration(callDuration)})</span>
+              </div>
+            </div>
+          )}
+          
+          {isUnderHumanControl && (
+            <div className="px-3 py-1 bg-orange-50 rounded border border-orange-200">
+              <div className="flex items-center gap-2 text-sm text-orange-700">
+                <User className="w-3 h-3" />
+                <span className="font-medium">Human Control</span>
+                <span className="text-xs">({humanControlAgent})</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -899,13 +1131,13 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
                       key={message.id}
                       className={cn(
                         "flex gap-3",
-                        message.sentBy === 'agent' ? "justify-end" : "justify-start"
+                        (message.sentBy === 'agent' || message.sentBy === 'human_agent') ? "justify-end" : "justify-start"
                       )}
                     >
                       <div
                         className={cn(
                           "flex gap-2 max-w-[80%]",
-                          message.sentBy === 'agent' ? "flex-row-reverse" : "flex-row"
+                          (message.sentBy === 'agent' || message.sentBy === 'human_agent') ? "flex-row-reverse" : "flex-row"
                         )}
                       >
                         <Avatar className="h-8 w-8 flex-shrink-0">
@@ -914,6 +1146,8 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
                               <User className="h-4 w-4" />
                             ) : message.sentBy === 'agent' ? (
                               <Bot className="h-4 w-4" />
+                            ) : message.sentBy === 'human_agent' ? (
+                              <User className="h-4 w-4 text-orange-600" />
                             ) : (
                               <Settings className="h-4 w-4" />
                             )}
@@ -924,6 +1158,8 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
                             "rounded-lg px-3 py-2 text-sm",
                             message.sentBy === 'agent'
                               ? "bg-blue-500 text-white"
+                              : message.sentBy === 'human_agent'
+                              ? "bg-orange-500 text-white"
                               : message.sentBy === 'user'
                               ? "bg-gray-100 text-gray-900"
                               : "bg-yellow-50 text-yellow-800 border border-yellow-200"
@@ -970,45 +1206,88 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
           <Textarea
             value={textInput}
             onChange={(e) => setTextInput(e.target.value)}
-            placeholder="Type your message..."
+            placeholder={isUnderHumanControl ? "Type your message as human agent..." : "Type your message..."}
             className="flex-1 min-h-[60px] max-h-[120px] resize-none"
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                handleSendTextMessage();
+                if (isUnderHumanControl) {
+                  handleSendHumanMessage();
+                } else {
+                  handleSendTextMessage();
+                }
               }
             }}
           />
           <div className="flex flex-col gap-2">
-            {/* Call Button */}
-            {!isCallActive ? (
-              <Button 
-                onClick={handleStartVoiceCall}
-                disabled={isLoading}
-                size="sm"
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                <PhoneCall className="h-4 w-4 mr-1" />
-                Call
-              </Button>
+            {/* Human Control Buttons */}
+            {isUnderHumanControl ? (
+              <>
+                {/* Leave Human Control Button */}
+                <Button 
+                  onClick={handleLeaveHumanControl}
+                  disabled={isLoading}
+                  size="sm"
+                  variant="outline"
+                  className="border-orange-300 text-orange-700 hover:bg-orange-50"
+                >
+                  <Bot className="h-4 w-4 mr-1" />
+                  AI Resume
+                </Button>
+                {/* Send Human Message Button */}
+                <Button 
+                  onClick={handleSendHumanMessage}
+                  disabled={isLoading || !textInput.trim()}
+                  className="bg-orange-600 hover:bg-orange-700"
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
+              </>
             ) : (
-              <Button 
-                onClick={handleEndCall}
-                variant="destructive"
-                size="sm"
-              >
-                <PhoneOff className="h-4 w-4 mr-1" />
-                End ({formatDuration(callDuration)})
-              </Button>
+              <>
+                {/* Join Human Control Button */}
+                <Button 
+                  onClick={handleJoinHumanControl}
+                  disabled={isLoading}
+                  size="sm"
+                  variant="outline"
+                  className="border-orange-300 text-orange-700 hover:bg-orange-50"
+                >
+                  <User className="h-4 w-4 mr-1" />
+                  Join Chat
+                </Button>
+                
+                {/* Call Button */}
+                {!isCallActive ? (
+                  <Button 
+                    onClick={handleStartVoiceCall}
+                    disabled={isLoading}
+                    size="sm"
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    <PhoneCall className="h-4 w-4 mr-1" />
+                    Call
+                  </Button>
+                ) : (
+                  <Button 
+                    onClick={handleEndCall}
+                    variant="destructive"
+                    size="sm"
+                  >
+                    <PhoneOff className="h-4 w-4 mr-1" />
+                    End ({formatDuration(callDuration)})
+                  </Button>
+                )}
+                {/* Send Button */}
+                <Button 
+                  onClick={handleSendTextMessage}
+                  disabled={isLoading || !textInput.trim()}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
+              </>
             )}
-            {/* Send Button */}
-            <Button 
-              onClick={handleSendTextMessage}
-              disabled={isLoading || !textInput.trim()}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              <Send className="h-4 w-4" />
-            </Button>
           </div>
         </div>
 
@@ -1060,12 +1339,23 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
               <div className="mt-2 max-h-48 overflow-y-auto bg-gray-50/50 rounded border">
                 <TabsContent value="chat" className="m-2 p-2 text-sm text-gray-600">
                   <div className="flex items-center gap-2 mb-1">
-                    <MessageSquare className="w-4 h-4 text-blue-500" />
-                    <span className="font-medium">Conversation Active</span>
+                    {isUnderHumanControl ? (
+                      <User className="w-4 h-4 text-orange-500" />
+                    ) : (
+                      <MessageSquare className="w-4 h-4 text-blue-500" />
+                    )}
+                    <span className="font-medium">
+                      {isUnderHumanControl ? 'Human Control Active' : 'AI Conversation Active'}
+                    </span>
                   </div>
                   <p className="text-xs text-gray-500">
                     {conversationHistory.length} messages • Last activity: {selectedLead ? new Date(selectedLead.lastTouchpoint).toLocaleTimeString() : 'Unknown'}
                   </p>
+                  {isUnderHumanControl && (
+                    <p className="text-xs text-orange-600 mt-1">
+                      Controlled by: {humanControlAgent}
+                    </p>
+                  )}
                 </TabsContent>
 
                 <TabsContent value="profile" className="m-2 space-y-3">

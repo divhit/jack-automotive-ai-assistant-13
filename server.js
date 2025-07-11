@@ -164,6 +164,10 @@ const dynamicLeads = new Map(); // leadId -> lead object
 const sseConnections = new Map(); // leadId -> response object (for Server-Sent Events)
 const conversationMetadata = new Map(); // conversationId -> { phoneNumber, leadId, startTime }
 
+// Human-in-the-loop control state
+const humanControlSessions = new Map(); // orgId:phoneNumber -> { agentName, organizationId, startTime, leadId }
+const humanControlQueue = new Map(); // orgId:phoneNumber -> pending messages array
+
 // ORGANIZATION-SCOPED MEMORY UTILITIES
 function createOrgMemoryKey(organizationId, phoneNumber) {
   const normalized = normalizePhoneNumber(phoneNumber);
@@ -219,6 +223,104 @@ function clearMemoryForPhone(phoneNumber, keepOrganizationId = null) {
   if (conversationKeysToRemove.length > 0 || summaryKeysToRemove.length > 0) {
     console.log(`🧹 Memory cleanup completed for ${phoneNumber} - removed ${conversationKeysToRemove.length} conversation and ${summaryKeysToRemove.length} summary entries`);
   }
+}
+
+// --- HUMAN-IN-THE-LOOP CONTROL UTILITIES ---
+
+/**
+ * Check if a conversation is under human control
+ */
+function isUnderHumanControl(phoneNumber, organizationId) {
+  const controlKey = createOrgMemoryKey(organizationId, phoneNumber);
+  return humanControlSessions.has(controlKey);
+}
+
+/**
+ * Start human control session for a conversation
+ */
+function startHumanControlSession(phoneNumber, organizationId, agentName, leadId) {
+  const controlKey = createOrgMemoryKey(organizationId, phoneNumber);
+  const normalized = normalizePhoneNumber(phoneNumber);
+  
+  // Check if already under human control
+  if (humanControlSessions.has(controlKey)) {
+    const existing = humanControlSessions.get(controlKey);
+    console.log(`⚠️ Phone ${phoneNumber} already under human control by ${existing.agentName}`);
+    return false;
+  }
+  
+  // Create control session
+  const session = {
+    agentName,
+    organizationId,
+    startTime: new Date().toISOString(),
+    leadId,
+    phoneNumber: normalized
+  };
+  
+  humanControlSessions.set(controlKey, session);
+  
+  // Initialize message queue for this session
+  const queueKey = controlKey;
+  if (!humanControlQueue.has(queueKey)) {
+    humanControlQueue.set(queueKey, []);
+  }
+  
+  console.log(`👤 Human control session started for ${phoneNumber} (org: ${organizationId}) by ${agentName}`);
+  return true;
+}
+
+/**
+ * End human control session and return control to AI
+ */
+function endHumanControlSession(phoneNumber, organizationId) {
+  const controlKey = createOrgMemoryKey(organizationId, phoneNumber);
+  const normalized = normalizePhoneNumber(phoneNumber);
+  
+  if (!humanControlSessions.has(controlKey)) {
+    console.log(`⚠️ No human control session found for ${phoneNumber}`);
+    return false;
+  }
+  
+  const session = humanControlSessions.get(controlKey);
+  humanControlSessions.delete(controlKey);
+  
+  // Clear message queue
+  const queueKey = controlKey;
+  if (humanControlQueue.has(queueKey)) {
+    humanControlQueue.delete(queueKey);
+  }
+  
+  console.log(`🤖 Human control session ended for ${phoneNumber} (org: ${organizationId}). Control returned to AI.`);
+  return session;
+}
+
+/**
+ * Get human control session info
+ */
+function getHumanControlSession(phoneNumber, organizationId) {
+  const controlKey = createOrgMemoryKey(organizationId, phoneNumber);
+  return humanControlSessions.get(controlKey) || null;
+}
+
+/**
+ * Add message to human control queue
+ */
+function addToHumanQueue(phoneNumber, organizationId, message) {
+  const queueKey = createOrgMemoryKey(organizationId, phoneNumber);
+  
+  if (!humanControlQueue.has(queueKey)) {
+    humanControlQueue.set(queueKey, []);
+  }
+  
+  const queue = humanControlQueue.get(queueKey);
+  queue.push({
+    message,
+    timestamp: new Date().toISOString(),
+    processed: false
+  });
+  
+  console.log(`📝 Added message to human control queue for ${phoneNumber}: ${message.substring(0, 50)}...`);
 }
 
 // --- PHONE NUMBER NORMALIZATION ---
@@ -1469,6 +1571,275 @@ app.get('/api/debug/all-conversations', (req, res) => {
   }
 });
 
+// --- HUMAN-IN-THE-LOOP CONTROL ENDPOINTS ---
+
+// Join human control session
+app.post('/api/human-control/join', validateOrganizationAccess, async (req, res) => {
+  try {
+    const { phoneNumber, agentName, leadId } = req.body;
+    const { organizationId } = req;
+    
+    if (!phoneNumber || !agentName || !leadId) {
+      return res.status(400).json({ 
+        error: 'phoneNumber, agentName, and leadId are required' 
+      });
+    }
+    
+    console.log(`👤 Human control join request: ${agentName} taking control of ${phoneNumber} (lead: ${leadId}) (org: ${organizationId})`);
+    
+    // Validate lead belongs to organization
+    const leadData = getLeadData(leadId);
+    if (leadData && leadData.organizationId && leadData.organizationId !== organizationId) {
+      console.error(`🚨 SECURITY VIOLATION: Attempted human control for lead ${leadId} belonging to org ${leadData.organizationId} by org ${organizationId}`);
+      return res.status(403).json({ 
+        error: 'Access denied - lead belongs to different organization',
+        code: 'CROSS_ORG_ACCESS_DENIED' 
+      });
+    }
+    
+    // Check if already under human control
+    if (isUnderHumanControl(phoneNumber, organizationId)) {
+      const existingSession = getHumanControlSession(phoneNumber, organizationId);
+      return res.status(409).json({ 
+        error: 'Conversation already under human control',
+        currentAgent: existingSession.agentName,
+        code: 'ALREADY_UNDER_HUMAN_CONTROL'
+      });
+    }
+    
+    // Start human control session
+    const success = startHumanControlSession(phoneNumber, organizationId, agentName, leadId);
+    
+    if (!success) {
+      return res.status(500).json({ 
+        error: 'Failed to start human control session' 
+      });
+    }
+    
+    // Close any active ElevenLabs WebSocket connection to prevent AI responses
+    const normalized = normalizePhoneNumber(phoneNumber);
+    if (activeConversations.has(normalized)) {
+      console.log(`🔌 Closing AI WebSocket for ${phoneNumber} - human taking control`);
+      const ws = activeConversations.get(normalized);
+      ws.close();
+      activeConversations.delete(normalized);
+    }
+    
+    // Add system message about human takeover
+    addToConversationHistory(phoneNumber, `Human agent ${agentName} joined the conversation`, 'system', 'text', organizationId);
+    
+    // Broadcast update to UI
+    broadcastConversationUpdate({
+      type: 'human_control_started',
+      phoneNumber,
+      agentName,
+      leadId,
+      organizationId,
+      timestamp: new Date().toISOString(),
+      sentBy: 'system'
+    });
+    
+    res.json({
+      success: true,
+      message: 'Human control session started',
+      agentName,
+      phoneNumber,
+      leadId,
+      organizationId
+    });
+    
+  } catch (error) {
+    console.error('❌ Error starting human control session:', error);
+    res.status(500).json({ 
+      error: 'Failed to start human control session',
+      details: error.message 
+    });
+  }
+});
+
+// Leave human control session
+app.post('/api/human-control/leave', validateOrganizationAccess, async (req, res) => {
+  try {
+    const { phoneNumber, leadId } = req.body;
+    const { organizationId } = req;
+    
+    if (!phoneNumber || !leadId) {
+      return res.status(400).json({ 
+        error: 'phoneNumber and leadId are required' 
+      });
+    }
+    
+    console.log(`🤖 Human control leave request for ${phoneNumber} (lead: ${leadId}) (org: ${organizationId})`);
+    
+    // Validate lead belongs to organization
+    const leadData = getLeadData(leadId);
+    if (leadData && leadData.organizationId && leadData.organizationId !== organizationId) {
+      console.error(`🚨 SECURITY VIOLATION: Attempted human control leave for lead ${leadId} belonging to org ${leadData.organizationId} by org ${organizationId}`);
+      return res.status(403).json({ 
+        error: 'Access denied - lead belongs to different organization',
+        code: 'CROSS_ORG_ACCESS_DENIED' 
+      });
+    }
+    
+    // Check if under human control
+    if (!isUnderHumanControl(phoneNumber, organizationId)) {
+      return res.status(400).json({ 
+        error: 'Conversation not under human control',
+        code: 'NOT_UNDER_HUMAN_CONTROL'
+      });
+    }
+    
+    // End human control session
+    const session = endHumanControlSession(phoneNumber, organizationId);
+    
+    if (!session) {
+      return res.status(500).json({ 
+        error: 'Failed to end human control session' 
+      });
+    }
+    
+    // Add system message about AI resumption
+    addToConversationHistory(phoneNumber, `AI agent resumed control of the conversation`, 'system', 'text', organizationId);
+    
+    // Broadcast update to UI
+    broadcastConversationUpdate({
+      type: 'human_control_ended',
+      phoneNumber,
+      agentName: session.agentName,
+      leadId,
+      organizationId,
+      timestamp: new Date().toISOString(),
+      sentBy: 'system'
+    });
+    
+    res.json({
+      success: true,
+      message: 'Human control session ended - AI resumed control',
+      agentName: session.agentName,
+      phoneNumber,
+      leadId,
+      organizationId
+    });
+    
+  } catch (error) {
+    console.error('❌ Error ending human control session:', error);
+    res.status(500).json({ 
+      error: 'Failed to end human control session',
+      details: error.message 
+    });
+  }
+});
+
+// Send message as human agent
+app.post('/api/human-control/send-message', validateOrganizationAccess, async (req, res) => {
+  try {
+    const { phoneNumber, message, leadId, agentName } = req.body;
+    const { organizationId } = req;
+    
+    if (!phoneNumber || !message || !leadId || !agentName) {
+      return res.status(400).json({ 
+        error: 'phoneNumber, message, leadId, and agentName are required' 
+      });
+    }
+    
+    console.log(`👤 Human message send request: ${agentName} sending to ${phoneNumber} (lead: ${leadId}) (org: ${organizationId})`);
+    
+    // Validate lead belongs to organization
+    const leadData = getLeadData(leadId);
+    if (leadData && leadData.organizationId && leadData.organizationId !== organizationId) {
+      console.error(`🚨 SECURITY VIOLATION: Attempted human message send for lead ${leadId} belonging to org ${leadData.organizationId} by org ${organizationId}`);
+      return res.status(403).json({ 
+        error: 'Access denied - lead belongs to different organization',
+        code: 'CROSS_ORG_ACCESS_DENIED' 
+      });
+    }
+    
+    // Check if under human control
+    if (!isUnderHumanControl(phoneNumber, organizationId)) {
+      return res.status(400).json({ 
+        error: 'Conversation not under human control',
+        code: 'NOT_UNDER_HUMAN_CONTROL'
+      });
+    }
+    
+    // Verify the agent matches the session
+    const session = getHumanControlSession(phoneNumber, organizationId);
+    if (!session || session.agentName !== agentName) {
+      return res.status(403).json({ 
+        error: 'Agent mismatch - only the controlling agent can send messages',
+        currentAgent: session?.agentName,
+        code: 'AGENT_MISMATCH' 
+      });
+    }
+    
+    // Send SMS via Twilio
+    await sendSMSReply(phoneNumber, message, organizationId);
+    
+    // Store in conversation history as human agent message
+    addToConversationHistory(phoneNumber, message, 'human_agent', 'text', organizationId);
+    
+    // Broadcast update to UI
+    broadcastConversationUpdate({
+      type: 'human_message_sent',
+      phoneNumber,
+      message,
+      agentName,
+      leadId,
+      organizationId,
+      timestamp: new Date().toISOString(),
+      sentBy: 'human_agent'
+    });
+    
+    res.json({
+      success: true,
+      message: 'Human message sent successfully',
+      agentName,
+      phoneNumber,
+      leadId,
+      organizationId
+    });
+    
+  } catch (error) {
+    console.error('❌ Error sending human message:', error);
+    res.status(500).json({ 
+      error: 'Failed to send human message',
+      details: error.message 
+    });
+  }
+});
+
+// Get human control session status
+app.get('/api/human-control/status/:phoneNumber', validateOrganizationAccess, async (req, res) => {
+  try {
+    const { phoneNumber } = req.params;
+    const { organizationId } = req;
+    
+    if (!phoneNumber) {
+      return res.status(400).json({ 
+        error: 'phoneNumber is required' 
+      });
+    }
+    
+    const session = getHumanControlSession(phoneNumber, organizationId);
+    const isUnderControl = isUnderHumanControl(phoneNumber, organizationId);
+    
+    res.json({
+      success: true,
+      isUnderHumanControl: isUnderControl,
+      session: session,
+      phoneNumber,
+      organizationId
+    });
+    
+  } catch (error) {
+    console.error('❌ Error getting human control status:', error);
+    res.status(500).json({ 
+      error: 'Failed to get human control status',
+      details: error.message 
+    });
+  }
+});
+
 // --- WEBHOOKS AND API ENDPOINTS ---
 
 // Twilio SMS Incoming Webhook
@@ -1514,7 +1885,35 @@ app.post('/api/webhooks/twilio/sms/incoming', async (req, res) => {
 
     // SECURITY FIX: Use organization-specific context
 
-    if (activeConversations.has(normalizedFrom)) {
+    // HUMAN-IN-THE-LOOP: Check if conversation is under human control
+    if (isUnderHumanControl(From, organizationId)) {
+      console.log(`👤 Message from ${From} during human control - queuing for human agent`);
+      
+      // Add to conversation history but don't send to AI
+      addToConversationHistory(From, Body, 'user', 'text', organizationId);
+      
+      // Add to human control queue
+      addToHumanQueue(From, organizationId, Body);
+      
+      // Get human control session info
+      const session = getHumanControlSession(From, organizationId);
+      
+      // Broadcast to UI that customer sent message during human control
+      broadcastConversationUpdate({
+        type: 'user_message_during_human_control',
+        phoneNumber: From,
+        message: Body,
+        timestamp: new Date().toISOString(),
+        messageSid: MessageSid,
+        sentBy: 'user',
+        leadId: leadId,
+        organizationId: organizationId,
+        receivedOnNumber: To,
+        humanAgentName: session?.agentName || 'Unknown Agent'
+      });
+      
+      console.log(`📬 Message queued for human agent ${session?.agentName || 'Unknown'} - not sending to AI`);
+    } else if (activeConversations.has(normalizedFrom)) {
       console.log('➡️ Existing conversation found. Sending message.');
       const ws = activeConversations.get(normalizedFrom);
       addToConversationHistory(From, Body, 'user', 'text', organizationId);
