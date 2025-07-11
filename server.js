@@ -453,25 +453,55 @@ async function getConversationHistory(phoneNumber, organizationId = null) {
     return []; // Return empty array instead of falling back to global data
   }
   
-  // ENHANCED: Try to load from Supabase first, then fallback to organization-scoped memory
+  // ENHANCED: BYPASS persistence service and query database directly to fix the issue
   try {
     if (supabasePersistence.isEnabled && supabasePersistence.isConnected) {
-      console.log(`🗄️ Loading conversation history from Supabase for ${normalized} (org: ${organizationId})`);
-      const supabaseHistory = await supabasePersistence.getConversationHistory(phoneNumber, organizationId);
+      console.log(`🗄️ Loading FRESH conversation history DIRECTLY from database for ${normalized} (org: ${organizationId})`);
+      
+      // CLEAR CACHE to force fresh data
+      const orgMemoryKey = createOrgMemoryKey(organizationId, phoneNumber);
+      conversationContexts.delete(orgMemoryKey);
+      console.log(`🗑️ Cleared cache for ${orgMemoryKey} to force fresh data`);
+      
+      // DIRECT DATABASE QUERY - BYPASS BROKEN PERSISTENCE SERVICE
+      const client = supabasePersistence.supabase;
+      const { data, error } = await client
+        .from('conversations')
+        .select('*')
+        .eq('phone_number_normalized', normalized)
+        .eq('organization_id', organizationId)
+        .order('timestamp', { ascending: false }) // Get newest messages first
+        .limit(50);
+      
+      if (error) {
+        console.error(`❌ Direct database query failed:`, error);
+        throw error;
+      }
+      
+      console.log(`🔍 DIRECT DB QUERY: Retrieved ${data.length} messages from database`);
+      const recentMessages = data.slice(0, 5);
+      console.log(`🔍 DIRECT DB QUERY: Most recent 5 messages:`, recentMessages.map(row => `${row.sent_by}: ${row.content.substring(0, 50)}... (${row.timestamp})`));
+      
+      // Convert to expected format and reverse to chronological order
+      const supabaseHistory = data.map(row => ({
+        content: row.content,
+        sentBy: row.sent_by,
+        timestamp: row.timestamp,
+        type: row.type
+      })).reverse();
       
       if (supabaseHistory && supabaseHistory.length > 0) {
         // Count message types from Supabase
         const voiceCount = supabaseHistory.filter(msg => msg.type === 'voice').length;
         const smsCount = supabaseHistory.filter(msg => msg.type === 'text' || msg.type === 'sms').length;
         
-        console.log(`📋 Loaded ${supabaseHistory.length} messages from Supabase for ${phoneNumber} (org: ${organizationId}) - ${voiceCount} voice, ${smsCount} SMS`);
+        console.log(`📋 DIRECT DB: Loaded ${supabaseHistory.length} messages for ${phoneNumber} (org: ${organizationId}) - ${voiceCount} voice, ${smsCount} SMS`);
         
-        // DEBUG: Log the most recent 5 messages to see what we're getting
-        const recentMessages = supabaseHistory.slice(-5);
-        console.log(`🔍 DEBUG: Most recent 5 messages from Supabase:`, recentMessages.map(msg => `${msg.sentBy}: ${msg.content.substring(0, 50)}... (${msg.timestamp})`));
+        // DEBUG: Log the most recent 5 messages to see what we're getting (should be newest with fix)
+        const recentMessagesFormatted = supabaseHistory.slice(-5);
+        console.log(`🔍 DEBUG: Most recent 5 messages (formatted):`, recentMessagesFormatted.map(msg => `${msg.sentBy}: ${msg.content.substring(0, 50)}... (${msg.timestamp})`));
         
-        // Sync to organization-scoped memory for faster access
-        const orgMemoryKey = createOrgMemoryKey(organizationId, phoneNumber);
+        // Store fresh data in cache
         conversationContexts.set(orgMemoryKey, supabaseHistory);
         
         return supabaseHistory;
