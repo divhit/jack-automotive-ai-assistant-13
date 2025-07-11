@@ -22,7 +22,7 @@ interface ConversationMessage {
   type: 'sms' | 'call' | 'system' | 'voice';
   content: string;
   timestamp: string;
-  sentBy: 'user' | 'agent' | 'system';
+  sentBy: 'user' | 'agent' | 'system' | 'human_agent';
   status?: 'sent' | 'delivered' | 'failed';
 }
 
@@ -63,7 +63,7 @@ export const ConversationAnalyticsPanel: React.FC<ConversationAnalyticsPanelProp
     }
 
     const userMessages = conversationHistory.filter(m => m.sentBy === 'user');
-    const agentMessages = conversationHistory.filter(m => m.sentBy === 'agent');
+    const agentMessages = conversationHistory.filter(m => m.sentBy === 'agent' || m.sentBy === 'human_agent');
 
     // Detect buying signals
     const buyingSignalKeywords = {

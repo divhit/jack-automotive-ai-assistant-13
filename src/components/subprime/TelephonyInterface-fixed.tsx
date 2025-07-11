@@ -516,7 +516,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
           type: 'sms',
           content: data.message,
           timestamp: data.timestamp,
-          sentBy: 'agent',
+          sentBy: 'human_agent',
           status: 'sent'
         });
         break;

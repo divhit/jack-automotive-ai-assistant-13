@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS conversations (
   
   -- Message data (exact match to current structure)
   content TEXT NOT NULL,
-  sent_by TEXT NOT NULL, -- 'user', 'agent', 'system'
+  sent_by TEXT NOT NULL, -- 'user', 'agent', 'system', 'human_agent'
   timestamp TIMESTAMPTZ NOT NULL,
   type TEXT DEFAULT 'text', -- 'text', 'voice', 'system'
   

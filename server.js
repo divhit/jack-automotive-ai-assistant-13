@@ -897,6 +897,17 @@ async function buildConversationContext(phoneNumber, organizationId = null) {
   console.log(`🔍 DEBUG: Message type breakdown - Total: ${history.length}, Voice: ${voiceMessages.length}, SMS: ${smsMessages.length}`);
   console.log(`🔍 DEBUG: All message types:`, [...new Set(history.map(msg => msg.type))]);
   
+  // DEBUG: Check for human agent messages specifically
+  const humanAgentMessages = history.filter(msg => msg.sentBy === 'human_agent');
+  console.log(`🔍 DEBUG: Human agent messages found: ${humanAgentMessages.length}`);
+  if (humanAgentMessages.length > 0) {
+    console.log(`🔍 DEBUG: Human agent messages:`, humanAgentMessages.map(msg => `${msg.sentBy}: ${msg.content.substring(0, 50)}... (${msg.timestamp})`));
+  }
+  
+  // DEBUG: Check if human agent messages are in SMS context
+  const humanAgentInSms = smsMessages.filter(msg => msg.sentBy === 'human_agent');
+  console.log(`🔍 DEBUG: Human agent messages in SMS context: ${humanAgentInSms.length}`);
+  
   let contextText = `RECENT CONVERSATION HISTORY for customer ${phoneNumber}:\n\n`;
   
   // Add recent voice messages (last 3 only to keep context focused)

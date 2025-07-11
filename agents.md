@@ -582,9 +582,9 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', async (req, res) =>
         conversation_history: 'Error loading context',
         current_date: new Date().toLocaleDateString('en-CA'),
         store_status: 'open'
-      }
-    });
-  }
+    }
+  });
+}
 });
 ```
 

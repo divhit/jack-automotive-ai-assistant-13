@@ -219,7 +219,7 @@ class SupabasePersistenceService {
 
       if (error) throw error;
       
-      console.log(`🗄️ Conversation message persisted for ${normalizedPhone} (${messageType})`);
+      console.log(`🗄️ Conversation message persisted for ${normalizedPhone} (${messageType}) - sentBy: ${sentBy} - content: ${message.substring(0, 50)}...`);
       
       // Update lead activity counters
       await this.updateLeadActivityCounters(leadId, messageType);
@@ -499,6 +499,11 @@ class SupabasePersistenceService {
       const { data, error } = await query;
 
       if (error) throw error;
+      
+      // DEBUG: Log what we got from database
+      console.log(`🔍 DEBUG: Retrieved ${data.length} messages from database for ${normalizedPhone}`);
+      const recentMessages = data.slice(-5);
+      console.log(`🔍 DEBUG: Most recent 5 messages from database:`, recentMessages.map(row => `${row.sent_by}: ${row.content.substring(0, 50)}... (${row.timestamp})`));
       
       // Convert back to memory format
       return data.map(row => ({

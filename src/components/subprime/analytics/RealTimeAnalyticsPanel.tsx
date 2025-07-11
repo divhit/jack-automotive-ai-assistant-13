@@ -76,7 +76,7 @@ export const RealTimeAnalyticsPanel: React.FC = () => {
 
   useEffect(() => {
     if (organization?.id) {
-      fetchAnalytics();
+    fetchAnalytics();
     }
     // Auto-refresh every 2 minutes
     const interval = setInterval(() => {
@@ -149,15 +149,15 @@ export const RealTimeAnalyticsPanel: React.FC = () => {
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base">Real-Time Metrics</CardTitle>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={fetchAnalytics}
-              disabled={loading}
-              className="h-8 w-8 p-0"
-            >
-              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={fetchAnalytics}
+                disabled={loading}
+                className="h-8 w-8 p-0"
+              >
+                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              </Button>
           </div>
         </CardHeader>
         <CardContent>
