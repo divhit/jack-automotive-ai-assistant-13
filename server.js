@@ -1117,14 +1117,15 @@ function buildConversationContextSync(phoneNumber) {
 }
 
 // Store conversation metadata when a call is initiated
-function storeConversationMetadata(conversationId, phoneNumber, leadId) {
+function storeConversationMetadata(conversationId, phoneNumber, leadId, organizationId = null) {
   const normalized = normalizePhoneNumber(phoneNumber);
   conversationMetadata.set(conversationId, {
     phoneNumber: normalized,
     leadId,
+    organizationId,
     startTime: new Date().toISOString()
   });
-  console.log(`📝 Stored conversation metadata:`, { conversationId, phoneNumber: normalized, leadId });
+  console.log(`📝 Stored conversation metadata:`, { conversationId, phoneNumber: normalized, leadId, organizationId });
 }
 
 // Retrieve conversation metadata
@@ -2216,7 +2217,7 @@ app.post('/api/elevenlabs/outbound-call', validateOrganizationAccess, async (req
     
     // Store conversation metadata for webhook processing
     const conversationId = result.call_sid || result.conversation_id || tempConversationId;
-    storeConversationMetadata(conversationId, phoneNumber, leadId);
+    storeConversationMetadata(conversationId, phoneNumber, leadId, organizationId);
     
     // ENHANCED: Persist call session to Supabase (non-blocking)
     supabasePersistence.persistCallSession({
@@ -2592,19 +2593,20 @@ app.post('/api/webhooks/elevenlabs/conversation-events', async (req, res) => {
       const clientData = eventData.data.conversation_initiation_client_data;
       const leadId = clientData.lead_id;
       const phoneNumber = clientData.customer_phone;
+      const organizationId = clientData.organization_id;
       const tempId = clientData.temp_conversation_id;
       
       if (leadId && phoneNumber) {
-        // Store this metadata for future events
-        storeConversationMetadata(conversationId, phoneNumber, leadId);
-        metadata = { phoneNumber, leadId };
+        // Store this metadata for future events (including organizationId)
+        storeConversationMetadata(conversationId, phoneNumber, leadId, organizationId);
+        metadata = { phoneNumber, leadId, organizationId };
         
         // Also check if we have a temp ID mapping
         if (tempId) {
           const tempMetadata = getConversationMetadata(tempId);
           if (tempMetadata) {
             // Transfer metadata from temp to real conversation ID
-            storeConversationMetadata(conversationId, tempMetadata.phoneNumber, tempMetadata.leadId);
+            storeConversationMetadata(conversationId, tempMetadata.phoneNumber, tempMetadata.leadId, tempMetadata.organizationId);
             conversationMetadata.delete(tempId);
           }
         }
@@ -2641,6 +2643,7 @@ app.post('/api/webhooks/elevenlabs/conversation-events', async (req, res) => {
             conversationId,
             phoneNumber,
             leadId,
+            organizationId: metadata?.organizationId,
             timestamp: new Date(eventData.event_timestamp * 1000).toISOString()
           });
         }
@@ -2654,6 +2657,7 @@ app.post('/api/webhooks/elevenlabs/conversation-events', async (req, res) => {
             conversationId,
             duration: eventData.data?.duration_ms,
             leadId,
+            organizationId: metadata?.organizationId,
             timestamp: new Date(eventData.event_timestamp * 1000).toISOString()
           });
         }
@@ -2675,6 +2679,7 @@ app.post('/api/webhooks/elevenlabs/conversation-events', async (req, res) => {
             duration: eventData.data?.duration_ms || eventData.data?.call_duration_ms,
             leadId,
             phoneNumber,
+            organizationId: metadata?.organizationId,
             reason: eventData.data?.end_reason || eventData.type,
             timestamp: new Date(eventData.event_timestamp * 1000).toISOString()
           });
@@ -2690,8 +2695,8 @@ app.post('/api/webhooks/elevenlabs/conversation-events', async (req, res) => {
         const userMessage = eventData.data?.message || eventData.data?.transcript;
         console.log('💬 User voice message:', userMessage?.substring(0, 50));
         if (userMessage && phoneNumber) {
-          // SECURITY FIX: Get organizationId for proper scoping
-          const organizationId = await getOrganizationIdFromPhone(phoneNumber);
+          // FIXED: Use organizationId from conversation metadata instead of caller lookup
+          const organizationId = metadata?.organizationId;
           addToConversationHistory(phoneNumber, userMessage, 'user', 'voice', organizationId);
           if (leadId) {
             broadcastConversationUpdate({
@@ -2701,7 +2706,8 @@ app.post('/api/webhooks/elevenlabs/conversation-events', async (req, res) => {
               timestamp: new Date((eventData.event_timestamp || Date.now() / 1000) * 1000).toISOString(),
               conversationId,
               sentBy: 'user',
-              leadId
+              leadId,
+              organizationId
             });
           }
         }
@@ -2712,8 +2718,8 @@ app.post('/api/webhooks/elevenlabs/conversation-events', async (req, res) => {
         const agentMessage = eventData.data?.message || eventData.data?.response;
         console.log('🤖 Agent voice message:', agentMessage?.substring(0, 50));
         if (agentMessage && phoneNumber) {
-          // SECURITY FIX: Get organizationId for proper scoping
-          const organizationId = await getOrganizationIdFromPhone(phoneNumber);
+          // FIXED: Use organizationId from conversation metadata instead of caller lookup
+          const organizationId = metadata?.organizationId;
           addToConversationHistory(phoneNumber, agentMessage, 'agent', 'voice', organizationId);
           if (leadId) {
             broadcastConversationUpdate({
@@ -2723,7 +2729,8 @@ app.post('/api/webhooks/elevenlabs/conversation-events', async (req, res) => {
               timestamp: new Date((eventData.event_timestamp || Date.now() / 1000) * 1000).toISOString(),
               conversationId,
               sentBy: 'agent',
-              leadId
+              leadId,
+              organizationId
             });
           }
         }
@@ -3931,29 +3938,30 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', async (req, res) =>
     const normalizedPhone = normalizePhoneNumber(caller_id);
     console.log(`📞 Building conversation initiation data for ${caller_id} (normalized: ${normalizedPhone})`);
 
-    // SECURITY FIX: Get organizationId with fallback handling
-    let organizationId = await getOrganizationIdFromPhone(caller_id);
+    // CRITICAL FIX: Get organizationId from the CALLED number, not the caller
+    let organizationId = await getOrganizationByPhoneNumber(called_number);
     
-    // FALLBACK: If no organizationId found, this is a new caller
+    // FALLBACK: If no organizationId found, this phone number is not configured
     if (!organizationId) {
-      console.log(`🆕 New caller ${caller_id} - no organization context found`);
+      console.log(`🚨 CRITICAL: No organization found for called number ${called_number}`);
+      console.log(`📋 Available info: caller_id=${caller_id}, called_number=${called_number}, call_sid=${call_sid}`);
       
-      // For new callers, we need to assign them to a default organization
-      // or handle them gracefully without organization context
-      // For now, we'll create a generic response for new callers
+      // This means the phone number is not properly configured in the system
       const response = {
         dynamic_variables: {
-          conversation_context: "New caller - no previous conversation history",
+          conversation_context: "Phone number not configured in system",
           customer_name: "Customer",
           lead_status: "New Inquiry",
-          previous_summary: "First time calling - no previous interactions",
+          previous_summary: "Phone number configuration error",
           organization_name: "Jack Automotive",
-          caller_type: "new_caller",
-          organization_context: "unassigned"
+          caller_type: "system_error",
+          organization_context: "phone_number_not_configured",
+          error_message: `Called number ${called_number} not found in organization_phone_numbers table`
         }
       };
       
-      console.log('✅ Returning generic response for new caller:', {
+      console.log('❌ Returning error response for unconfigured phone number:', {
+        called_number,
         caller_id,
         response
       });
@@ -3986,7 +3994,7 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', async (req, res) =>
 
     // Build conversation context - ENHANCED with Supabase loading
     const conversationContext = await buildConversationContext(caller_id, organizationId);
-    const summary = await getConversationSummary(normalizedPhone, organizationId);
+    const summary = await getConversationSummary(caller_id, organizationId);
     const messages = await getConversationHistory(caller_id, organizationId);
     
     console.log(`🧪 DEBUG: conversationContext length: ${conversationContext.length}`);
@@ -4063,7 +4071,7 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', async (req, res) =>
     
     // Store conversation metadata for webhook processing
     if (activeLead) {
-      storeConversationMetadata(conversationId, caller_id, activeLead);
+      storeConversationMetadata(conversationId, caller_id, activeLead, organizationId);
     }
     
     // ENHANCED: Persist incoming call session to Supabase (non-blocking)
