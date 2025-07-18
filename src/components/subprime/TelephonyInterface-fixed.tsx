@@ -1014,6 +1014,21 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
     }
   }, [selectedLead, textInput, agentName, organizationId]);
 
+  // Connect Auto/Manual toggle to human control
+  useEffect(() => {
+    if (!selectedLead) return;
+    
+    if (!isAutoMode && !isUnderHumanControl) {
+      // Manual mode - join human control to stop AI responses
+      console.log('🔄 Switching to Manual mode - joining human control');
+      handleJoinHumanControl();
+    } else if (isAutoMode && isUnderHumanControl) {
+      // Auto mode - leave human control to allow AI responses
+      console.log('🔄 Switching to Auto mode - leaving human control');
+      handleLeaveHumanControl();
+    }
+  }, [isAutoMode, selectedLead?.id, isUnderHumanControl, handleJoinHumanControl, handleLeaveHumanControl]);
+
   // Check human control status on lead change
   useEffect(() => {
     if (!selectedLead) return;
@@ -1035,6 +1050,9 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
           setIsUnderHumanControl(data.isUnderHumanControl);
           setHumanControlAgent(data.session?.agentName || null);
           setHumanControlSession(data.session);
+          
+          // Sync the auto/manual toggle with human control status
+          setIsAutoMode(!data.isUnderHumanControl);
         }
       } catch (error) {
         console.error('Error checking human control status:', error);
