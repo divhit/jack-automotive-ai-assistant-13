@@ -40,7 +40,8 @@ import {
   ChevronDown,
   Camera,
   Bell,
-  Plus
+  Plus,
+  Target
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SubprimeLead } from '@/data/subprime/subprimeLeads';
@@ -1262,16 +1263,14 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
                 />
                 
                 {/* Auto/Manual Toggle */}
-                <div className="flex flex-col items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg border">
-                  <div className="flex items-center space-x-2">
-                    <span className={cn("text-xs font-medium", isAutoMode ? "text-blue-600" : "text-gray-500")}>AUTO</span>
-                    <Switch
-                      checked={!isAutoMode}
-                      onCheckedChange={(checked) => setIsAutoMode(!checked)}
-                      className="data-[state=checked]:bg-orange-600"
-                    />
-                    <span className={cn("text-xs font-medium", !isAutoMode ? "text-orange-600" : "text-gray-500")}>MANUAL</span>
-                  </div>
+                <div className="flex flex-col items-center gap-1 px-3 py-3 bg-gray-50 rounded-lg border">
+                  <span className={cn("text-xs font-medium", isAutoMode ? "text-blue-600" : "text-gray-400")}>AUTO</span>
+                  <Switch
+                    checked={!isAutoMode}
+                    onCheckedChange={(checked) => setIsAutoMode(!checked)}
+                    className="data-[state=checked]:bg-orange-600"
+                  />
+                  <span className={cn("text-xs font-medium", !isAutoMode ? "text-orange-600" : "text-gray-400")}>MANUAL</span>
                 </div>
                 
                 {/* Call Buttons */}
@@ -1359,375 +1358,485 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
           </TabsContent>
 
           {/* PROFILE TAB */}
-          <TabsContent value="profile" className="m-2 space-y-3">
-            {/* Key Status Info - Always Accessible */}
-            <div className="grid grid-cols-2 gap-2 mb-3 p-2 bg-gray-50 rounded">
-              <div className="space-y-1">
-                <div className="flex items-center gap-1">
-                  <TrendingUp className="w-3 h-3 text-blue-500" />
-                  <span className="font-medium text-xs">Status</span>
-                </div>
-                <p className="text-xs text-gray-600">{selectedLead?.chaseStatus}</p>
+          <TabsContent value="profile" className="flex-1 p-6 space-y-6 overflow-y-auto">
+            {/* Identity & Contact Section */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 mb-4">
+                <User className="w-5 h-5 text-gray-700" />
+                <h3 className="text-lg font-semibold text-gray-900">Identity & Contact</h3>
               </div>
-              <div className="space-y-1">
-                <div className="flex items-center gap-1">
-                  <Calendar className="w-3 h-3 text-green-500" />
-                  <span className="font-medium text-xs">Next Action</span>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">Full Name</label>
+                  <Input 
+                    value={selectedLead?.customerName || ''} 
+                    placeholder="Enter full name"
+                    className="w-full"
+                  />
                 </div>
-                <p className="text-xs text-gray-600">{selectedLead?.nextAction.type}</p>
-              </div>
-              <div className="space-y-1">
-                <div className="flex items-center gap-1">
-                  <User className="w-3 h-3 text-purple-500" />
-                  <span className="font-medium text-xs">Specialist</span>
+                
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">Phone Number</label>
+                  <Input 
+                    value={selectedLead?.phoneNumber || ''} 
+                    placeholder="(555) 123-4567"
+                    className="w-full"
+                  />
                 </div>
-                <p className="text-xs text-gray-600">{selectedLead?.assignedSpecialist || 'Unassigned'}</p>
-              </div>
-              <div className="space-y-1">
-                <div className="flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3 text-orange-500" />
-                  <span className="font-medium text-xs">Step</span>
+                
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">Email Address</label>
+                  <Input 
+                    value={selectedLead?.email || ''} 
+                    placeholder="Enter email address"
+                    className="w-full"
+                  />
                 </div>
-                <p className="text-xs text-gray-600 capitalize">{selectedLead?.scriptProgress.currentStep}</p>
+                
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">Date of Birth</label>
+                  <Input 
+                    placeholder="2025-07-16"
+                    className="w-full"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">SSN (Last 4)</label>
+                  <Input 
+                    placeholder="XXXX"
+                    maxLength={4}
+                    className="w-full"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">Driver's License</label>
+                  <Input 
+                    placeholder="License number"
+                    className="w-full"
+                  />
+                </div>
               </div>
             </div>
 
-            {/* Detailed Profile Info */}
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Phone className="w-3 h-3 text-blue-500" />
-                  <span className="font-medium">Contact</span>
-                </div>
-                <div className="ml-5 space-y-1 text-gray-600">
-                  <p>{selectedLead?.phoneNumber}</p>
-                  {selectedLead?.email && <p>{selectedLead.email}</p>}
-                </div>
+            {/* Residence & Housing Section */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 mb-4">
+                <Car className="w-5 h-5 text-gray-700" />
+                <h3 className="text-lg font-semibold text-gray-900">Residence & Housing</h3>
               </div>
               
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <CreditCard className="w-3 h-3 text-purple-500" />
-                  <span className="font-medium">Credit</span>
+              <div className="grid grid-cols-1 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">Current Address</label>
+                  <Input 
+                    placeholder="Street address"
+                    className="w-full"
+                  />
                 </div>
-                <div className="ml-5 space-y-1 text-gray-600">
-                  <p>{selectedLead?.creditProfile?.scoreRange || 'Unknown'}</p>
-                  <p>{selectedLead?.creditProfile?.knownIssues?.length || 0} issues</p>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">City</label>
+                    <Input 
+                      placeholder="City"
+                      className="w-full"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">State</label>
+                    <Input 
+                      placeholder="State"
+                      className="w-full"
+                    />
+                  </div>
                 </div>
-              </div>
-              
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Car className="w-3 h-3 text-green-500" />
-                  <span className="font-medium">Vehicle</span>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">ZIP Code</label>
+                    <Input 
+                      placeholder="ZIP code"
+                      className="w-full"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">Length at Address</label>
+                    <select className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white">
+                      <option>Select duration</option>
+                      <option>Less than 1 year</option>
+                      <option>1-2 years</option>
+                      <option>2-5 years</option>
+                      <option>5+ years</option>
+                    </select>
+                  </div>
                 </div>
-                <div className="ml-5 space-y-1 text-gray-600">
-                  <p>{selectedLead?.vehicleInterest?.type || 'Not specified'}</p>
-                  {selectedLead?.vehicleInterest && (
-                    <p>{formatCurrency(selectedLead.vehicleInterest.budget.min)}-{formatCurrency(selectedLead.vehicleInterest.budget.max)}</p>
-                  )}
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <DollarSign className="w-3 h-3 text-green-500" />
-                  <span className="font-medium">Funding</span>
-                </div>
-                <div className="ml-5 space-y-1 text-gray-600">
-                  <Badge className={getStatusColor(selectedLead?.fundingReadiness || '')} variant="outline">
-                    {selectedLead?.fundingReadiness}
-                  </Badge>
-                  <p className="text-xs">{selectedLead?.sentiment}</p>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">Housing Status</label>
+                    <select className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white">
+                      <option>Select status</option>
+                      <option>Own</option>
+                      <option>Rent</option>
+                      <option>Living with family</option>
+                      <option>Other</option>
+                    </select>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">Monthly Housing Payment</label>
+                    <Input 
+                      placeholder="$0"
+                      className="w-full"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
           </TabsContent>
 
           {/* ANALYTICS TAB */}
-          <TabsContent value="analytics" className="m-2">
-            <ConversationAnalyticsPanel 
-              selectedLead={selectedLead}
-              conversationHistory={conversationHistory}
-              isCallActive={isCallActive}
-            />
+          <TabsContent value="analytics" className="flex-1 p-6 space-y-6 overflow-y-auto">
+            {/* Top Row Stats */}
+            <div className="grid grid-cols-5 gap-4">
+              <div className="bg-white p-4 rounded-lg border">
+                <div className="flex items-center gap-2 mb-2">
+                  <TrendingUp className="w-4 h-4 text-blue-500" />
+                  <span className="text-sm font-medium">Lead Status</span>
+                </div>
+                <div className="text-lg font-semibold text-blue-600">Warm</div>
+                <div className="text-xs text-gray-500">routing</div>
+                <div className="text-xs text-gray-500">8 days in pipeline</div>
+              </div>
+              
+              <div className="bg-white p-4 rounded-lg border">
+                <div className="flex items-center gap-2 mb-2">
+                  <BarChart3 className="w-4 h-4 text-green-500" />
+                  <span className="text-sm font-medium">Progress</span>
+                </div>
+                <div className="text-lg font-semibold">Info Gathered</div>
+                <div className="text-sm text-green-600 font-medium">72%</div>
+                <div className="text-xs text-gray-500">Est. 6 days to close</div>
+              </div>
+              
+              <div className="bg-white p-4 rounded-lg border">
+                <div className="flex items-center gap-2 mb-2">
+                  <Target className="w-4 h-4 text-orange-500" />
+                  <span className="text-sm font-medium">Lead Score</span>
+                </div>
+                <div className="text-3xl font-bold text-orange-600">69</div>
+                <div className="text-xs text-gray-500">Average</div>
+                <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                  <div className="bg-orange-500 h-2 rounded-full" style={{width: '69%'}}></div>
+                </div>
+              </div>
+              
+              <div className="bg-white p-4 rounded-lg border">
+                <div className="flex items-center gap-2 mb-2">
+                  <Clock className="w-4 h-4 text-purple-500" />
+                  <span className="text-sm font-medium">Contact Activity</span>
+                </div>
+                <div className="text-2xl font-bold">6</div>
+                <div className="text-xs text-gray-500">total attempts</div>
+                <div className="text-xs text-gray-500">22h since last</div>
+              </div>
+              
+              <div className="bg-white p-4 rounded-lg border">
+                <div className="flex items-center gap-2 mb-2">
+                  <TrendingUp className="w-4 h-4 text-green-500" />
+                  <span className="text-sm font-medium">Conversion</span>
+                </div>
+                <div className="text-2xl font-bold text-green-600">36%</div>
+                <div className="text-xs text-gray-500">Low probability</div>
+              </div>
+            </div>
+
+            {/* Charts Row */}
+            <div className="grid grid-cols-3 gap-6">
+              <div className="bg-white p-4 rounded-lg border">
+                <h4 className="text-sm font-medium mb-4 flex items-center gap-2">
+                  <Phone className="w-4 h-4" />
+                  This Lead's Contact Methods
+                </h4>
+                <div className="w-32 h-32 mx-auto mb-4 relative">
+                  <div className="w-full h-full rounded-full border-8" 
+                       style={{borderColor: '#3b82f6 #10b981 #f59e0b transparent', borderStyle: 'solid'}}>
+                  </div>
+                </div>
+                <div className="space-y-2 text-xs">
+                  <div className="flex justify-between">
+                    <span className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                      Phone Calls
+                    </span>
+                    <span className="font-medium">60%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                      Text Messages
+                    </span>
+                    <span className="font-medium">30%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                      Emails
+                    </span>
+                    <span className="font-medium">15%</span>
+                  </div>
+                  <div className="text-xs text-gray-500 mt-2">Based on 6 total contacts</div>
+                </div>
+              </div>
+              
+              <div className="bg-white p-4 rounded-lg border">
+                <h4 className="text-sm font-medium mb-4 flex items-center gap-2">
+                  <Clock className="w-4 h-4" />
+                  This Lead's Response Times
+                </h4>
+                <div className="w-32 h-32 mx-auto mb-4 relative">
+                  <div className="w-full h-full rounded-full border-8" 
+                       style={{borderColor: '#3b82f6 #10b981 #f59e0b #ef4444', borderStyle: 'solid'}}>
+                  </div>
+                </div>
+                <div className="space-y-2 text-xs">
+                  <div className="flex justify-between">
+                    <span className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                      Quick (&lt;4h)
+                    </span>
+                    <span className="font-medium">60%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-blue-400 rounded-full"></div>
+                      Same Day (4-12h)
+                    </span>
+                    <span className="font-medium">30%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                      Next Day (12-24h)
+                    </span>
+                    <span className="font-medium">25%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                      Delayed (&gt;24h)
+                    </span>
+                    <span className="font-medium">15%</span>
+                  </div>
+                  <div className="text-xs text-gray-500 mt-2">Historical response patterns</div>
+                </div>
+              </div>
+              
+              <div className="bg-white p-4 rounded-lg border">
+                <h4 className="text-sm font-medium mb-4 flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4" />
+                  This Lead's Best Times
+                </h4>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-end h-20">
+                    <div className="flex flex-col items-center">
+                      <div className="bg-blue-500 rounded" style={{height: '30px', width: '16px'}}></div>
+                      <span className="text-xs mt-1">9AM</span>
+                    </div>
+                    <div className="flex flex-col items-center">
+                      <div className="bg-blue-500 rounded" style={{height: '15px', width: '16px'}}></div>
+                      <span className="text-xs mt-1">12PM</span>
+                    </div>
+                    <div className="flex flex-col items-center">
+                      <div className="bg-blue-500 rounded" style={{height: '45px', width: '16px'}}></div>
+                      <span className="text-xs mt-1">3PM</span>
+                    </div>
+                    <div className="flex flex-col items-center">
+                      <div className="bg-blue-500 rounded" style={{height: '25px', width: '16px'}}></div>
+                      <span className="text-xs mt-1">6PM</span>
+                    </div>
+                  </div>
+                  <div className="text-xs text-gray-500 text-center">When this lead responds most</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Last Message */}
+            <div className="bg-white p-4 rounded-lg border">
+              <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                <MessageSquare className="w-4 h-4" />
+                Last Message
+              </h4>
+              <div className="bg-gray-50 p-3 rounded italic text-sm">
+                "Thanks for the info! I'll think about it and get back to you."
+              </div>
+              <div className="flex justify-between text-xs text-gray-500 mt-2">
+                <span>22h ago</span>
+                <span>From customer</span>
+              </div>
+            </div>
+
+            {/* Contact Timeline */}
+            <div className="bg-white p-4 rounded-lg border">
+              <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                <Calendar className="w-4 h-4" />
+                Contact Timeline
+              </h4>
+              <div className="space-y-2 text-xs text-gray-600">
+                <div>Timeline visualization would go here...</div>
+              </div>
+            </div>
           </TabsContent>
 
           {/* SETTINGS TAB */}
-          <TabsContent value="settings" className="m-2 space-y-3">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 mb-2">
-                <Settings className="w-3 h-3 text-gray-500" />
-                <span className="font-medium text-xs">Quick Actions</span>
+          <TabsContent value="settings" className="flex-1 p-6 space-y-6 overflow-y-auto">
+            <div className="grid grid-cols-4 gap-6">
+              {/* Auto-Chase */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-blue-500" />
+                  <h4 className="font-medium">Auto-Chase</h4>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm">Active</span>
+                    <Switch checked={true} />
+                  </div>
+                  <div className="text-xs text-gray-500">Automated follow-up sequences</div>
+                </div>
               </div>
-              
-              <div className="grid grid-cols-2 gap-2">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="h-7 text-xs"
-                  onClick={handleReassignSpecialist}
-                  disabled={isUpdating}
-                >
-                  <User className="w-3 h-3 mr-1" />
-                  Reassign
-                </Button>
-                
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="h-7 text-xs"
-                  onClick={() => handleContactMethodChange('Voice')}
-                  disabled={isUpdating}
-                >
-                  <Phone className="w-3 h-3 mr-1" />
-                  Voice Pref
-                </Button>
-                
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="h-7 text-xs"
-                  onClick={() => handleContactMethodChange('SMS')}
-                  disabled={isUpdating}
-                >
-                  <MessageSquare className="w-3 h-3 mr-1" />
-                  SMS Pref
-                </Button>
-                
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="h-7 text-xs"
-                  onClick={() => handleContactMethodChange('Email')}
-                  disabled={isUpdating}
-                >
-                  <Mail className="w-3 h-3 mr-1" />
-                  Email Pref
-                </Button>
+
+              {/* Quick Actions */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Settings className="w-4 h-4 text-gray-600" />
+                  <h4 className="font-medium">Quick Actions</h4>
+                </div>
+                <div className="space-y-2">
+                  <Button variant="outline" size="sm" className="w-full justify-start">
+                    <User className="w-3 h-3 mr-2" />
+                    Transfer Lead
+                  </Button>
+                  <Button variant="destructive" size="sm" className="w-full justify-start">
+                    Archive Lead
+                  </Button>
+                </div>
+              </div>
+
+              {/* Notifications */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Bell className="w-4 h-4 text-yellow-500" />
+                  <h4 className="font-medium">Notifications</h4>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm">Call Events</span>
+                    <Switch checked={true} />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm">Text Messages</span>
+                    <Switch checked={true} />
+                  </div>
+                  <div className="text-xs text-gray-500">Notify specialists of lead activity</div>
+                </div>
+              </div>
+
+              {/* Pursuit Level */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Target className="w-4 h-4 text-orange-500" />
+                  <h4 className="font-medium">Pursuit Level</h4>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex justify-between text-xs">
+                    <span>Gentle</span>
+                    <span>Aggressive</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="bg-orange-500 h-2 rounded-full" style={{width: '60%'}}></div>
+                  </div>
+                  <div className="text-xs text-gray-500">Controls frequency & persistence</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Second Row */}
+            <div className="grid grid-cols-3 gap-6">
+              {/* Priority Level */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-red-500" />
+                  <h4 className="font-medium">Priority Level</h4>
+                </div>
+                <select className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white">
+                  <option>Normal</option>
+                  <option>High</option>
+                  <option>Urgent</option>
+                </select>
+              </div>
+
+              {/* Contact Settings */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Phone className="w-4 h-4 text-green-500" />
+                  <h4 className="font-medium">Contact Settings</h4>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div>
+                    <div className="font-medium">Method</div>
+                    <select className="w-full mt-1 px-2 py-1 border rounded text-xs">
+                      <option>Phone Calls</option>
+                      <option>SMS</option>
+                      <option>Email</option>
+                    </select>
+                  </div>
+                  <div>
+                    <div className="font-medium">Best Time</div>
+                    <select className="w-full mt-1 px-2 py-1 border rounded text-xs">
+                      <option>Business Hours</option>
+                      <option>Evenings</option>
+                      <option>Weekends</option>
+                    </select>
+                  </div>
+                  <div>
+                    <div className="font-medium">Restrictions</div>
+                    <select className="w-full mt-1 px-2 py-1 border rounded text-xs">
+                      <option>No Restrictions</option>
+                      <option>Weekdays Only</option>
+                      <option>After 5PM</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="text-xs text-gray-500">Configure how and when to reach this lead</div>
+              </div>
+
+              {/* AI Tools */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Bot className="w-4 h-4 text-purple-500" />
+                  <h4 className="font-medium">AI Tools</h4>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm">Smart Responses</span>
+                    <Switch checked={true} />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm">Mood Detection</span>
+                    <Switch checked={true} />
+                  </div>
+                  <div className="text-xs text-gray-500">AI analyzes conversations and suggests optimal responses</div>
+                </div>
               </div>
             </div>
           </TabsContent>
         </Tabs>
-      </div>
-
-      {/* COLLAPSIBLE QUICK ACCESS TABS - Save space when not needed */}
-      <div className="mt-3 border-t border-gray-100 pt-2 flex-shrink-0">
-        <div className="flex items-center justify-between mb-2">
-          <div className="text-xs text-gray-500 font-medium">Quick Info</div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 px-2 text-xs"
-            onClick={() => setIsTabsExpanded(!isTabsExpanded)}
-          >
-            {isTabsExpanded ? (
-              <>
-                <ChevronDown className="w-3 h-3 mr-1" />
-                Hide
-              </>
-            ) : (
-              <>
-                <User className="w-3 h-3 mr-1" />
-                Show Details
-              </>
-            )}
-          </Button>
-        </div>
-        
-        {isTabsExpanded && (
-          <Tabs value={activeQuickTab} onValueChange={(value: any) => setActiveQuickTab(value)} className="w-full">
-            <TabsList className="grid w-full grid-cols-4 h-8 bg-gray-50/80">
-              <TabsTrigger value="chat" className="text-xs data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                <MessageSquare className="w-3 h-3 mr-1" />
-                Chat
-              </TabsTrigger>
-              <TabsTrigger value="profile" className="text-xs data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                <User className="w-3 h-3 mr-1" />
-                Profile
-              </TabsTrigger>
-              <TabsTrigger value="analytics" className="text-xs data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                <BarChart3 className="w-3 h-3 mr-1" />
-                Analytics  
-              </TabsTrigger>
-              <TabsTrigger value="settings" className="text-xs data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                <Settings className="w-3 h-3 mr-1" />
-                Settings
-              </TabsTrigger>
-            </TabsList>
-
-            <div className="mt-2 max-h-48 overflow-y-auto bg-gray-50/50 rounded border">
-              <TabsContent value="chat" className="m-2 p-2 text-sm text-gray-600">
-                <div className="flex items-center gap-2 mb-1">
-                  {isUnderHumanControl ? (
-                    <User className="w-4 h-4 text-orange-500" />
-                  ) : (
-                    <MessageSquare className="w-4 h-4 text-blue-500" />
-                  )}
-                  <span className="font-medium">
-                    {isUnderHumanControl ? 'Human Control Active' : 'AI Conversation Active'}
-                  </span>
-                </div>
-                <p className="text-xs text-gray-500">
-                  {conversationHistory.length} messages • Last activity: {selectedLead ? new Date(selectedLead.lastTouchpoint).toLocaleTimeString() : 'Unknown'}
-                </p>
-                {isUnderHumanControl && (
-                  <p className="text-xs text-orange-600 mt-1">
-                    Controlled by: {humanControlAgent}
-                  </p>
-                )}
-              </TabsContent>
-
-              <TabsContent value="profile" className="m-2 space-y-3">
-                {/* Key Status Info - Always Accessible */}
-                <div className="grid grid-cols-2 gap-2 mb-3 p-2 bg-gray-50 rounded">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1">
-                      <TrendingUp className="w-3 h-3 text-blue-500" />
-                      <span className="font-medium text-xs">Status</span>
-                    </div>
-                    <p className="text-xs text-gray-600">{selectedLead?.chaseStatus}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1">
-                      <Calendar className="w-3 h-3 text-green-500" />
-                      <span className="font-medium text-xs">Next Action</span>
-                    </div>
-                    <p className="text-xs text-gray-600">{selectedLead?.nextAction.type}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1">
-                      <User className="w-3 h-3 text-purple-500" />
-                      <span className="font-medium text-xs">Specialist</span>
-                    </div>
-                    <p className="text-xs text-gray-600">{selectedLead?.assignedSpecialist || 'Unassigned'}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1">
-                      <CheckCircle2 className="w-3 h-3 text-orange-500" />
-                      <span className="font-medium text-xs">Step</span>
-                    </div>
-                    <p className="text-xs text-gray-600 capitalize">{selectedLead?.scriptProgress.currentStep}</p>
-                  </div>
-                </div>
-
-                {/* Detailed Profile Info */}
-                <div className="grid grid-cols-2 gap-3 text-xs">
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Phone className="w-3 h-3 text-blue-500" />
-                      <span className="font-medium">Contact</span>
-                    </div>
-                    <div className="ml-5 space-y-1 text-gray-600">
-                      <p>{selectedLead?.phoneNumber}</p>
-                      {selectedLead?.email && <p>{selectedLead.email}</p>}
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <CreditCard className="w-3 h-3 text-purple-500" />
-                      <span className="font-medium">Credit</span>
-                    </div>
-                    <div className="ml-5 space-y-1 text-gray-600">
-                      <p>{selectedLead?.creditProfile?.scoreRange || 'Unknown'}</p>
-                      <p>{selectedLead?.creditProfile?.knownIssues?.length || 0} issues</p>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Car className="w-3 h-3 text-green-500" />
-                      <span className="font-medium">Vehicle</span>
-                    </div>
-                    <div className="ml-5 space-y-1 text-gray-600">
-                      <p>{selectedLead?.vehicleInterest?.type || 'Not specified'}</p>
-                      {selectedLead?.vehicleInterest && (
-                        <p>{formatCurrency(selectedLead.vehicleInterest.budget.min)}-{formatCurrency(selectedLead.vehicleInterest.budget.max)}</p>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <DollarSign className="w-3 h-3 text-green-500" />
-                      <span className="font-medium">Funding</span>
-                    </div>
-                    <div className="ml-5 space-y-1 text-gray-600">
-                      <Badge className={getStatusColor(selectedLead?.fundingReadiness || '')} variant="outline">
-                        {selectedLead?.fundingReadiness}
-                      </Badge>
-                      <p className="text-xs">{selectedLead?.sentiment}</p>
-                    </div>
-                  </div>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="analytics" className="m-2">
-                <ConversationAnalyticsPanel 
-                  selectedLead={selectedLead}
-                  conversationHistory={conversationHistory}
-                  isCallActive={isCallActive}
-                />
-              </TabsContent>
-
-              <TabsContent value="settings" className="m-2 space-y-3">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Settings className="w-3 h-3 text-gray-500" />
-                    <span className="font-medium text-xs">Quick Actions</span>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="h-7 text-xs"
-                      onClick={handleReassignSpecialist}
-                      disabled={isUpdating}
-                    >
-                      <User className="w-3 h-3 mr-1" />
-                      Reassign
-                    </Button>
-                    
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="h-7 text-xs"
-                      onClick={() => handleContactMethodChange('Voice')}
-                      disabled={isUpdating}
-                    >
-                      <Phone className="w-3 h-3 mr-1" />
-                      Voice Pref
-                    </Button>
-                    
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="h-7 text-xs"
-                      onClick={() => handleContactMethodChange('SMS')}
-                      disabled={isUpdating}
-                    >
-                      <MessageSquare className="w-3 h-3 mr-1" />
-                      SMS Pref
-                    </Button>
-                    
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="h-7 text-xs"
-                      onClick={() => handleContactMethodChange('Email')}
-                      disabled={isUpdating}
-                    >
-                      <Mail className="w-3 h-3 mr-1" />
-                      Email Pref
-                    </Button>
-                  </div>
-                </div>
-              </TabsContent>
-            </div>
-          </Tabs>
-        )}
       </div>
     </div>
   );
