@@ -1245,18 +1245,16 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
                 <Textarea
                   value={textInput}
                   onChange={(e) => setTextInput(e.target.value)}
-                  placeholder={isAutoMode ? "AI will handle this conversation..." : "Type your message..."}
+                  placeholder={isAutoMode ? "Agent can send manual messages..." : "Type your message..."}
                   className="flex-1 min-h-[60px] max-h-[120px] resize-none"
-                  disabled={isAutoMode && !isUnderHumanControl}
+                  disabled={false}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
-                      if (!isAutoMode || isUnderHumanControl) {
-                        if (isUnderHumanControl) {
-                          handleSendHumanMessage();
-                        } else {
-                          handleSendTextMessage();
-                        }
+                      if (isUnderHumanControl) {
+                        handleSendHumanMessage();
+                      } else {
+                        handleSendTextMessage();
                       }
                     }
                   }}
@@ -1307,16 +1305,14 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
                     </Button>
                   )}
                   
-                  {/* Send Button - only show in manual mode */}
-                  {!isAutoMode && (
-                    <Button 
-                      onClick={isUnderHumanControl ? handleSendHumanMessage : handleSendTextMessage}
-                      disabled={isLoading || !textInput.trim()}
-                      className="bg-green-600 hover:bg-green-700"
-                    >
-                      <Send className="h-4 w-4" />
-                    </Button>
-                  )}
+                  {/* Send Button - always available */}
+                  <Button 
+                    onClick={isUnderHumanControl ? handleSendHumanMessage : handleSendTextMessage}
+                    disabled={isLoading || !textInput.trim()}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    <Send className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
             </div>
@@ -1358,7 +1354,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
           </TabsContent>
 
           {/* PROFILE TAB */}
-          <TabsContent value="profile" className="flex-1 p-6 space-y-6 overflow-y-auto">
+          <TabsContent value="profile" className="flex-1 p-4 space-y-4 overflow-y-auto mt-0">
             {/* Identity & Contact Section */}
             <div className="space-y-4">
               <div className="flex items-center gap-2 mb-4">
@@ -1501,7 +1497,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
           </TabsContent>
 
           {/* ANALYTICS TAB */}
-          <TabsContent value="analytics" className="flex-1 p-6 space-y-6 overflow-y-auto">
+          <TabsContent value="analytics" className="flex-1 p-4 space-y-4 overflow-y-auto mt-0">
             {/* Top Row Stats */}
             <div className="grid grid-cols-5 gap-4">
               <div className="bg-white p-4 rounded-lg border">
@@ -1694,7 +1690,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
           </TabsContent>
 
           {/* SETTINGS TAB */}
-          <TabsContent value="settings" className="flex-1 p-6 space-y-6 overflow-y-auto">
+          <TabsContent value="settings" className="flex-1 p-4 space-y-4 overflow-y-auto mt-0">
             <div className="grid grid-cols-4 gap-6">
               {/* Auto-Chase */}
               <div className="space-y-4">
