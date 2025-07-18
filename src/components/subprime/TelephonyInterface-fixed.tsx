@@ -1591,15 +1591,15 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
           </TabsContent>
 
           {/* SETTINGS TAB */}
-          <TabsContent value="settings" className="p-4 space-y-4 overflow-y-auto mt-0 mx-4">
-            <div className="grid grid-cols-4 gap-6">
+          <TabsContent value="settings" className="p-4 space-y-2 overflow-y-auto mt-0 mx-4">
+            <div className="grid grid-cols-4 gap-4">
               {/* Auto-Chase */}
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <TrendingUp className="w-4 h-4 text-blue-500" />
                   <h4 className="font-medium">Auto-Chase</h4>
                 </div>
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-sm">Active</span>
                     <Switch checked={true} />
@@ -1609,7 +1609,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
               </div>
 
               {/* Quick Actions */}
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <Settings className="w-4 h-4 text-gray-600" />
                   <h4 className="font-medium">Quick Actions</h4>
@@ -1626,12 +1626,12 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
               </div>
 
               {/* Notifications */}
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <Bell className="w-4 h-4 text-yellow-500" />
                   <h4 className="font-medium">Notifications</h4>
                 </div>
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-sm">Call Events</span>
                     <Switch checked={true} />
@@ -1645,12 +1645,12 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
               </div>
 
               {/* Pursuit Level */}
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <Target className="w-4 h-4 text-orange-500" />
                   <h4 className="font-medium">Pursuit Level</h4>
                 </div>
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <div className="flex justify-between text-xs">
                     <span>Gentle</span>
                     <span>Aggressive</span>
@@ -1664,9 +1664,9 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
             </div>
 
             {/* Second Row */}
-            <div className="grid grid-cols-3 gap-6">
+            <div className="grid grid-cols-3 gap-4">
               {/* Priority Level */}
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 text-red-500" />
                   <h4 className="font-medium">Priority Level</h4>
@@ -1679,7 +1679,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
               </div>
 
               {/* Contact Settings */}
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <Phone className="w-4 h-4 text-green-500" />
                   <h4 className="font-medium">Contact Settings</h4>
@@ -1714,12 +1714,12 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
               </div>
 
               {/* AI Tools */}
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <Bot className="w-4 h-4 text-purple-500" />
                   <h4 className="font-medium">AI Tools</h4>
                 </div>
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-sm">Smart Responses</span>
                     <Switch checked={true} />
