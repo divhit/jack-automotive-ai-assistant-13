@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Switch } from '@/components/ui/switch';
 import { 
   Phone, 
   PhoneOff, 
@@ -36,7 +37,10 @@ import {
   DollarSign,
   BarChart3,
   Mail,
-  ChevronDown
+  ChevronDown,
+  Camera,
+  Bell,
+  Plus
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SubprimeLead } from '@/data/subprime/subprimeLeads';
@@ -96,6 +100,10 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
   const [activeQuickTab, setActiveQuickTab] = useState<'chat' | 'profile' | 'analytics' | 'settings'>('chat');
   const [isUpdating, setIsUpdating] = useState(false);
   const [isTabsExpanded, setIsTabsExpanded] = useState(false);
+  
+  // NEW: Main tab navigation state
+  const [activeMainTab, setActiveMainTab] = useState<'conversation' | 'profile' | 'analytics' | 'settings'>('conversation');
+  const [isAutoMode, setIsAutoMode] = useState(true); // Auto vs Manual mode toggle
   
   // Smart scrolling state
   const [isNearBottom, setIsNearBottom] = useState(true);
@@ -1074,6 +1082,30 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
         </div>
       )}
 
+      {/* NEW: MAIN TABS - Fixed at top */}
+      <div className="flex-shrink-0 mx-4 mb-2">
+        <Tabs value={activeMainTab} onValueChange={(value: any) => setActiveMainTab(value)} className="w-full">
+          <TabsList className="grid w-full grid-cols-4 h-12 bg-gray-50">
+            <TabsTrigger value="conversation" className="text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm">
+              <MessageSquare className="w-4 h-4 mr-2" />
+              Conversation
+            </TabsTrigger>
+            <TabsTrigger value="profile" className="text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm">
+              <User className="w-4 h-4 mr-2" />
+              Profile
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm">
+              <BarChart3 className="w-4 h-4 mr-2" />
+              Analytics
+            </TabsTrigger>
+            <TabsTrigger value="settings" className="text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm">
+              <Settings className="w-4 h-4 mr-2" />
+              Settings
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
+
       {/* SCROLLABLE CONVERSATION AREA */}
       <div className="flex-1 flex flex-col mx-4 mb-4 min-h-0">
         {error && (
@@ -1083,432 +1115,619 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
           </Alert>
         )}
 
-        {/* Conversation History - Takes up remaining space */}
-        <Card className="flex-1 flex flex-col min-h-0">
-          <CardContent className="flex-1 p-0 relative overflow-hidden">
-            <ScrollArea 
-              className="w-full h-full"
-              ref={scrollAreaRef}
-              style={{ 
-                '--scrollbar-size': '12px',
-                scrollbarWidth: 'thin',
-                scrollbarColor: 'rgba(155, 155, 155, 0.5) transparent'
-              } as React.CSSProperties}
-            >
-              <div className="space-y-4 py-4 px-6">
-                {conversationHistory.length === 0 ? (
-                  <div className="text-center text-muted-foreground py-8">
-                    <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p>No messages yet. Start a conversation!</p>
-                    <Button 
-                      onClick={() => {
-                        // Add some test messages for scrolling test
-                        const testMessages = Array.from({ length: 20 }, (_, i) => ({
-                          id: `test-${i}`,
-                          type: 'sms' as const,
-                          content: i % 2 === 0 
-                            ? `Test customer message ${i + 1}. This is a longer message to test scrolling behavior.`
-                            : `Test agent response ${i + 1}. This is the agent's response to the customer message.`,
-                          timestamp: new Date(Date.now() - (20 - i) * 60000).toISOString(),
-                          sentBy: i % 2 === 0 ? 'user' as const : 'agent' as const
-                        }));
-                        setConversationHistory(testMessages);
-                        // Force check scroll position after messages are added
-                        setTimeout(() => {
-                          checkScrollPosition();
-                        }, 100);
-                      }}
-                      className="mt-4 text-xs"
-                      size="sm"
-                      variant="outline"
-                    >
-                      🔧 Add Test Messages (Debug)
-                    </Button>
-                  </div>
-                ) : (
-                  conversationHistory.map((message) => (
-                    <div
-                      key={message.id}
-                      className={cn(
-                        "flex gap-3",
-                        (message.sentBy === 'agent' || message.sentBy === 'human_agent') ? "justify-end" : "justify-start"
-                      )}
-                    >
-                      <div
-                        className={cn(
-                          "flex gap-2 max-w-[80%]",
-                          (message.sentBy === 'agent' || message.sentBy === 'human_agent') ? "flex-row-reverse" : "flex-row"
-                        )}
-                      >
-                        <Avatar className="h-8 w-8 flex-shrink-0">
-                          <AvatarFallback className="text-xs">
-                            {message.sentBy === 'user' ? (
-                              <User className="h-4 w-4" />
-                            ) : message.sentBy === 'agent' ? (
-                              <Bot className="h-4 w-4" />
-                            ) : message.sentBy === 'human_agent' ? (
-                              <User className="h-4 w-4 text-orange-600" />
-                            ) : (
-                              <Settings className="h-4 w-4" />
-                            )}
-                          </AvatarFallback>
-                        </Avatar>
+        {/* Main Tab Content */}
+        <Tabs value={activeMainTab} onValueChange={(value: any) => setActiveMainTab(value)} className="flex-1 flex flex-col min-h-0">
+          
+          {/* CONVERSATION TAB */}
+          <TabsContent value="conversation" className="flex-1 flex flex-col min-h-0 mt-0">
+            {/* Conversation History - Takes up remaining space */}
+            <Card className="flex-1 flex flex-col min-h-0">
+              <CardContent className="flex-1 p-0 relative overflow-hidden">
+                <ScrollArea 
+                  className="w-full h-full"
+                  ref={scrollAreaRef}
+                  style={{ 
+                    '--scrollbar-size': '12px',
+                    scrollbarWidth: 'thin',
+                    scrollbarColor: 'rgba(155, 155, 155, 0.5) transparent'
+                  } as React.CSSProperties}
+                >
+                  <div className="space-y-4 py-4 px-6">
+                    {conversationHistory.length === 0 ? (
+                      <div className="text-center text-muted-foreground py-8">
+                        <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                        <p>No messages yet. Start a conversation!</p>
+                        <Button 
+                          onClick={() => {
+                            // Add some test messages for scrolling test
+                            const testMessages = Array.from({ length: 20 }, (_, i) => ({
+                              id: `test-${i}`,
+                              type: 'sms' as const,
+                              content: i % 2 === 0 
+                                ? `Test customer message ${i + 1}. This is a longer message to test scrolling behavior.`
+                                : `Test agent response ${i + 1}. This is the agent's response to the customer message.`,
+                              timestamp: new Date(Date.now() - (20 - i) * 60000).toISOString(),
+                              sentBy: i % 2 === 0 ? 'user' as const : 'agent' as const
+                            }));
+                            setConversationHistory(testMessages);
+                            // Force check scroll position after messages are added
+                            setTimeout(() => {
+                              checkScrollPosition();
+                            }, 100);
+                          }}
+                          className="mt-4 text-xs"
+                          size="sm"
+                          variant="outline"
+                        >
+                          🔧 Add Test Messages (Debug)
+                        </Button>
+                      </div>
+                    ) : (
+                      conversationHistory.map((message) => (
                         <div
+                          key={message.id}
                           className={cn(
-                            "rounded-lg px-3 py-2 text-sm",
-                            message.sentBy === 'agent'
-                              ? "bg-blue-500 text-white"
-                              : message.sentBy === 'human_agent'
-                              ? "bg-orange-500 text-white"
-                              : message.sentBy === 'user'
-                              ? "bg-gray-100 text-gray-900"
-                              : "bg-yellow-50 text-yellow-800 border border-yellow-200"
+                            "flex gap-3",
+                            (message.sentBy === 'agent' || message.sentBy === 'human_agent') ? "justify-end" : "justify-start"
                           )}
                         >
-                          <p className="whitespace-pre-wrap">{message.content}</p>
-                          <div className="flex items-center justify-between mt-1 text-xs opacity-70">
-                            <span>{formatMessageTime(message.timestamp)}</span>
-                            {message.status && (
-                              <span className={getStatusColor(message.status)}>
-                                {message.status}
-                              </span>
+                          <div
+                            className={cn(
+                              "flex gap-2 max-w-[80%]",
+                              (message.sentBy === 'agent' || message.sentBy === 'human_agent') ? "flex-row-reverse" : "flex-row"
                             )}
+                          >
+                            <Avatar className="h-8 w-8 flex-shrink-0">
+                              <AvatarFallback className="text-xs">
+                                {message.sentBy === 'user' ? (
+                                  <User className="h-4 w-4" />
+                                ) : message.sentBy === 'agent' ? (
+                                  <Bot className="h-4 w-4" />
+                                ) : message.sentBy === 'human_agent' ? (
+                                  <User className="h-4 w-4 text-orange-600" />
+                                ) : (
+                                  <Settings className="h-4 w-4" />
+                                )}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div
+                              className={cn(
+                                "rounded-lg px-3 py-2 text-sm",
+                                message.sentBy === 'agent'
+                                  ? "bg-blue-500 text-white"
+                                  : message.sentBy === 'human_agent'
+                                  ? "bg-orange-500 text-white"
+                                  : message.sentBy === 'user'
+                                  ? "bg-gray-100 text-gray-900"
+                                  : "bg-yellow-50 text-yellow-800 border border-yellow-200"
+                              )}
+                            >
+                              <p className="whitespace-pre-wrap">{message.content}</p>
+                              <div className="flex items-center justify-between mt-1 text-xs opacity-70">
+                                <span>{formatMessageTime(message.timestamp)}</span>
+                                {message.status && (
+                                  <span className={getStatusColor(message.status)}>
+                                    {message.status}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </div>
-                  ))
+                      ))
+                    )}
+                  </div>
+                  <div ref={messagesEndRef} />
+                  <ScrollBar orientation="vertical" />
+                </ScrollArea>
+                
+                {/* Scroll to Bottom Button - Floating when user scrolls up */}
+                {showScrollToBottom && (
+                  <div className="absolute bottom-4 right-4 z-10">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="rounded-full shadow-lg bg-white border border-gray-200 hover:bg-gray-50"
+                      onClick={scrollToBottom}
+                    >
+                      <ChevronDown className="h-4 w-4 mr-1" />
+                      <span className="text-xs">New messages</span>
+                    </Button>
+                  </div>
                 )}
-              </div>
-              <div ref={messagesEndRef} />
-              <ScrollBar orientation="vertical" />
-            </ScrollArea>
-            
-            {/* Scroll to Bottom Button - Floating when user scrolls up */}
-            {showScrollToBottom && (
-              <div className="absolute bottom-4 right-4 z-10">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  className="rounded-full shadow-lg bg-white border border-gray-200 hover:bg-gray-50"
-                  onClick={scrollToBottom}
-                >
-                  <ChevronDown className="h-4 w-4 mr-1" />
-                  <span className="text-xs">New messages</span>
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
 
-        {/* INPUT AREA - Fixed at bottom */}
-        <div className="flex gap-2 mt-4 flex-shrink-0">
-          <Textarea
-            value={textInput}
-            onChange={(e) => setTextInput(e.target.value)}
-            placeholder={isUnderHumanControl ? "Type your message as human agent..." : "Type your message..."}
-            className="flex-1 min-h-[60px] max-h-[120px] resize-none"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                if (isUnderHumanControl) {
-                  handleSendHumanMessage();
-                } else {
-                  handleSendTextMessage();
-                }
-              }
-            }}
-          />
-          <div className="flex flex-col gap-2">
-            {/* Human Control Buttons */}
-            {isUnderHumanControl ? (
-              <>
-                {/* Leave Human Control Button */}
+            {/* INPUT AREA - Fixed at bottom */}
+            <div className="flex-shrink-0 mx-4 mb-2">
+              <div className="flex items-center gap-2 mb-2">
+                <Textarea
+                  value={textInput}
+                  onChange={(e) => setTextInput(e.target.value)}
+                  placeholder={isAutoMode ? "AI will handle this conversation..." : "Type your message..."}
+                  className="flex-1 min-h-[60px] max-h-[120px] resize-none"
+                  disabled={isAutoMode && !isUnderHumanControl}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      if (!isAutoMode || isUnderHumanControl) {
+                        if (isUnderHumanControl) {
+                          handleSendHumanMessage();
+                        } else {
+                          handleSendTextMessage();
+                        }
+                      }
+                    }
+                  }}
+                />
+                
+                {/* Auto/Manual Toggle */}
+                <div className="flex flex-col items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg border">
+                  <div className="flex items-center space-x-2">
+                    <span className={cn("text-xs font-medium", isAutoMode ? "text-blue-600" : "text-gray-500")}>AUTO</span>
+                    <Switch
+                      checked={!isAutoMode}
+                      onCheckedChange={(checked) => setIsAutoMode(!checked)}
+                      className="data-[state=checked]:bg-orange-600"
+                    />
+                    <span className={cn("text-xs font-medium", !isAutoMode ? "text-orange-600" : "text-gray-500")}>MANUAL</span>
+                  </div>
+                </div>
+                
+                {/* Call Buttons */}
+                <div className="flex flex-col gap-2">
+                  {!isCallActive ? (
+                    <>
+                      <Button 
+                        onClick={handleStartVoiceCall}
+                        disabled={isLoading}
+                        size="sm"
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                      >
+                        <PhoneCall className="h-4 w-4 mr-1" />
+                        Jack Call
+                      </Button>
+                      <Button 
+                        variant="outline"
+                        size="sm"
+                        disabled={true}
+                        className="text-gray-400"
+                      >
+                        <Phone className="h-4 w-4 mr-1" />
+                        Manual Call
+                      </Button>
+                    </>
+                  ) : (
+                    <Button 
+                      onClick={handleEndCall}
+                      variant="destructive"
+                      size="sm"
+                    >
+                      <PhoneOff className="h-4 w-4 mr-1" />
+                      End ({formatDuration(callDuration)})
+                    </Button>
+                  )}
+                  
+                  {/* Send Button - only show in manual mode */}
+                  {!isAutoMode && (
+                    <Button 
+                      onClick={isUnderHumanControl ? handleSendHumanMessage : handleSendTextMessage}
+                      disabled={isLoading || !textInput.trim()}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      <Send className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* ACTION BUTTONS - Fixed at bottom */}
+            <div className="flex-shrink-0 mx-4 mb-4">
+              <div className="grid grid-cols-3 gap-2">
                 <Button 
-                  onClick={handleLeaveHumanControl}
-                  disabled={isLoading}
+                  variant="outline" 
                   size="sm"
-                  variant="outline"
-                  className="border-orange-300 text-orange-700 hover:bg-orange-50"
+                  className="h-10 text-sm"
+                  disabled={true}
                 >
-                  <Bot className="h-4 w-4 mr-1" />
-                  AI Resume
+                  <Camera className="h-4 w-4 mr-2" />
+                  Follow Up + Photos
                 </Button>
-                {/* Send Human Message Button */}
+                
                 <Button 
-                  onClick={handleSendHumanMessage}
-                  disabled={isLoading || !textInput.trim()}
-                  className="bg-orange-600 hover:bg-orange-700"
+                  variant="outline" 
+                  size="sm"
+                  className="h-10 text-sm"
+                  disabled={true}
                 >
-                  <Send className="h-4 w-4" />
+                  <Bell className="h-4 w-4 mr-2" />
+                  Gentle Reminder
                 </Button>
+                
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="h-10 text-sm"
+                  disabled={true}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  New Options
+                </Button>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* PROFILE TAB */}
+          <TabsContent value="profile" className="m-2 space-y-3">
+            {/* Key Status Info - Always Accessible */}
+            <div className="grid grid-cols-2 gap-2 mb-3 p-2 bg-gray-50 rounded">
+              <div className="space-y-1">
+                <div className="flex items-center gap-1">
+                  <TrendingUp className="w-3 h-3 text-blue-500" />
+                  <span className="font-medium text-xs">Status</span>
+                </div>
+                <p className="text-xs text-gray-600">{selectedLead?.chaseStatus}</p>
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-1">
+                  <Calendar className="w-3 h-3 text-green-500" />
+                  <span className="font-medium text-xs">Next Action</span>
+                </div>
+                <p className="text-xs text-gray-600">{selectedLead?.nextAction.type}</p>
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-1">
+                  <User className="w-3 h-3 text-purple-500" />
+                  <span className="font-medium text-xs">Specialist</span>
+                </div>
+                <p className="text-xs text-gray-600">{selectedLead?.assignedSpecialist || 'Unassigned'}</p>
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3 text-orange-500" />
+                  <span className="font-medium text-xs">Step</span>
+                </div>
+                <p className="text-xs text-gray-600 capitalize">{selectedLead?.scriptProgress.currentStep}</p>
+              </div>
+            </div>
+
+            {/* Detailed Profile Info */}
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Phone className="w-3 h-3 text-blue-500" />
+                  <span className="font-medium">Contact</span>
+                </div>
+                <div className="ml-5 space-y-1 text-gray-600">
+                  <p>{selectedLead?.phoneNumber}</p>
+                  {selectedLead?.email && <p>{selectedLead.email}</p>}
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="w-3 h-3 text-purple-500" />
+                  <span className="font-medium">Credit</span>
+                </div>
+                <div className="ml-5 space-y-1 text-gray-600">
+                  <p>{selectedLead?.creditProfile?.scoreRange || 'Unknown'}</p>
+                  <p>{selectedLead?.creditProfile?.knownIssues?.length || 0} issues</p>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Car className="w-3 h-3 text-green-500" />
+                  <span className="font-medium">Vehicle</span>
+                </div>
+                <div className="ml-5 space-y-1 text-gray-600">
+                  <p>{selectedLead?.vehicleInterest?.type || 'Not specified'}</p>
+                  {selectedLead?.vehicleInterest && (
+                    <p>{formatCurrency(selectedLead.vehicleInterest.budget.min)}-{formatCurrency(selectedLead.vehicleInterest.budget.max)}</p>
+                  )}
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <DollarSign className="w-3 h-3 text-green-500" />
+                  <span className="font-medium">Funding</span>
+                </div>
+                <div className="ml-5 space-y-1 text-gray-600">
+                  <Badge className={getStatusColor(selectedLead?.fundingReadiness || '')} variant="outline">
+                    {selectedLead?.fundingReadiness}
+                  </Badge>
+                  <p className="text-xs">{selectedLead?.sentiment}</p>
+                </div>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* ANALYTICS TAB */}
+          <TabsContent value="analytics" className="m-2">
+            <ConversationAnalyticsPanel 
+              selectedLead={selectedLead}
+              conversationHistory={conversationHistory}
+              isCallActive={isCallActive}
+            />
+          </TabsContent>
+
+          {/* SETTINGS TAB */}
+          <TabsContent value="settings" className="m-2 space-y-3">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 mb-2">
+                <Settings className="w-3 h-3 text-gray-500" />
+                <span className="font-medium text-xs">Quick Actions</span>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-7 text-xs"
+                  onClick={handleReassignSpecialist}
+                  disabled={isUpdating}
+                >
+                  <User className="w-3 h-3 mr-1" />
+                  Reassign
+                </Button>
+                
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-7 text-xs"
+                  onClick={() => handleContactMethodChange('Voice')}
+                  disabled={isUpdating}
+                >
+                  <Phone className="w-3 h-3 mr-1" />
+                  Voice Pref
+                </Button>
+                
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-7 text-xs"
+                  onClick={() => handleContactMethodChange('SMS')}
+                  disabled={isUpdating}
+                >
+                  <MessageSquare className="w-3 h-3 mr-1" />
+                  SMS Pref
+                </Button>
+                
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-7 text-xs"
+                  onClick={() => handleContactMethodChange('Email')}
+                  disabled={isUpdating}
+                >
+                  <Mail className="w-3 h-3 mr-1" />
+                  Email Pref
+                </Button>
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
+      </div>
+
+      {/* COLLAPSIBLE QUICK ACCESS TABS - Save space when not needed */}
+      <div className="mt-3 border-t border-gray-100 pt-2 flex-shrink-0">
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-xs text-gray-500 font-medium">Quick Info</div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-xs"
+            onClick={() => setIsTabsExpanded(!isTabsExpanded)}
+          >
+            {isTabsExpanded ? (
+              <>
+                <ChevronDown className="w-3 h-3 mr-1" />
+                Hide
               </>
             ) : (
               <>
-                {/* Join Human Control Button */}
-                <Button 
-                  onClick={handleJoinHumanControl}
-                  disabled={isLoading}
-                  size="sm"
-                  variant="outline"
-                  className="border-orange-300 text-orange-700 hover:bg-orange-50"
-                >
-                  <User className="h-4 w-4 mr-1" />
-                  Join Chat
-                </Button>
-                
-                {/* Call Button */}
-                {!isCallActive ? (
-                  <Button 
-                    onClick={handleStartVoiceCall}
-                    disabled={isLoading}
-                    size="sm"
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                  >
-                    <PhoneCall className="h-4 w-4 mr-1" />
-                    Call
-                  </Button>
-                ) : (
-                  <Button 
-                    onClick={handleEndCall}
-                    variant="destructive"
-                    size="sm"
-                  >
-                    <PhoneOff className="h-4 w-4 mr-1" />
-                    End ({formatDuration(callDuration)})
-                  </Button>
-                )}
-                {/* Send Button */}
-                <Button 
-                  onClick={handleSendTextMessage}
-                  disabled={isLoading || !textInput.trim()}
-                  className="bg-green-600 hover:bg-green-700"
-                >
-                  <Send className="h-4 w-4" />
-                </Button>
+                <User className="w-3 h-3 mr-1" />
+                Show Details
               </>
             )}
-          </div>
+          </Button>
         </div>
+        
+        {isTabsExpanded && (
+          <Tabs value={activeQuickTab} onValueChange={(value: any) => setActiveQuickTab(value)} className="w-full">
+            <TabsList className="grid w-full grid-cols-4 h-8 bg-gray-50/80">
+              <TabsTrigger value="chat" className="text-xs data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                <MessageSquare className="w-3 h-3 mr-1" />
+                Chat
+              </TabsTrigger>
+              <TabsTrigger value="profile" className="text-xs data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                <User className="w-3 h-3 mr-1" />
+                Profile
+              </TabsTrigger>
+              <TabsTrigger value="analytics" className="text-xs data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                <BarChart3 className="w-3 h-3 mr-1" />
+                Analytics  
+              </TabsTrigger>
+              <TabsTrigger value="settings" className="text-xs data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                <Settings className="w-3 h-3 mr-1" />
+                Settings
+              </TabsTrigger>
+            </TabsList>
 
-        {/* COLLAPSIBLE QUICK ACCESS TABS - Save space when not needed */}
-        <div className="mt-3 border-t border-gray-100 pt-2 flex-shrink-0">
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-xs text-gray-500 font-medium">Quick Info</div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 px-2 text-xs"
-              onClick={() => setIsTabsExpanded(!isTabsExpanded)}
-            >
-              {isTabsExpanded ? (
-                <>
-                  <ChevronDown className="w-3 h-3 mr-1" />
-                  Hide
-                </>
-              ) : (
-                <>
-                  <User className="w-3 h-3 mr-1" />
-                  Show Details
-                </>
-              )}
-            </Button>
-          </div>
-          
-          {isTabsExpanded && (
-            <Tabs value={activeQuickTab} onValueChange={(value: any) => setActiveQuickTab(value)} className="w-full">
-              <TabsList className="grid w-full grid-cols-4 h-8 bg-gray-50/80">
-                <TabsTrigger value="chat" className="text-xs data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                  <MessageSquare className="w-3 h-3 mr-1" />
-                  Chat
-                </TabsTrigger>
-                <TabsTrigger value="profile" className="text-xs data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                  <User className="w-3 h-3 mr-1" />
-                  Profile
-                </TabsTrigger>
-                <TabsTrigger value="analytics" className="text-xs data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                  <BarChart3 className="w-3 h-3 mr-1" />
-                  Analytics  
-                </TabsTrigger>
-                <TabsTrigger value="settings" className="text-xs data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                  <Settings className="w-3 h-3 mr-1" />
-                  Settings
-                </TabsTrigger>
-              </TabsList>
-
-              <div className="mt-2 max-h-48 overflow-y-auto bg-gray-50/50 rounded border">
-                <TabsContent value="chat" className="m-2 p-2 text-sm text-gray-600">
-                  <div className="flex items-center gap-2 mb-1">
-                    {isUnderHumanControl ? (
-                      <User className="w-4 h-4 text-orange-500" />
-                    ) : (
-                      <MessageSquare className="w-4 h-4 text-blue-500" />
-                    )}
-                    <span className="font-medium">
-                      {isUnderHumanControl ? 'Human Control Active' : 'AI Conversation Active'}
-                    </span>
-                  </div>
-                  <p className="text-xs text-gray-500">
-                    {conversationHistory.length} messages • Last activity: {selectedLead ? new Date(selectedLead.lastTouchpoint).toLocaleTimeString() : 'Unknown'}
-                  </p>
-                  {isUnderHumanControl && (
-                    <p className="text-xs text-orange-600 mt-1">
-                      Controlled by: {humanControlAgent}
-                    </p>
+            <div className="mt-2 max-h-48 overflow-y-auto bg-gray-50/50 rounded border">
+              <TabsContent value="chat" className="m-2 p-2 text-sm text-gray-600">
+                <div className="flex items-center gap-2 mb-1">
+                  {isUnderHumanControl ? (
+                    <User className="w-4 h-4 text-orange-500" />
+                  ) : (
+                    <MessageSquare className="w-4 h-4 text-blue-500" />
                   )}
-                </TabsContent>
+                  <span className="font-medium">
+                    {isUnderHumanControl ? 'Human Control Active' : 'AI Conversation Active'}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500">
+                  {conversationHistory.length} messages • Last activity: {selectedLead ? new Date(selectedLead.lastTouchpoint).toLocaleTimeString() : 'Unknown'}
+                </p>
+                {isUnderHumanControl && (
+                  <p className="text-xs text-orange-600 mt-1">
+                    Controlled by: {humanControlAgent}
+                  </p>
+                )}
+              </TabsContent>
 
-                <TabsContent value="profile" className="m-2 space-y-3">
-                  {/* Key Status Info - Always Accessible */}
-                  <div className="grid grid-cols-2 gap-2 mb-3 p-2 bg-gray-50 rounded">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-1">
-                        <TrendingUp className="w-3 h-3 text-blue-500" />
-                        <span className="font-medium text-xs">Status</span>
-                      </div>
-                      <p className="text-xs text-gray-600">{selectedLead?.chaseStatus}</p>
+              <TabsContent value="profile" className="m-2 space-y-3">
+                {/* Key Status Info - Always Accessible */}
+                <div className="grid grid-cols-2 gap-2 mb-3 p-2 bg-gray-50 rounded">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1">
+                      <TrendingUp className="w-3 h-3 text-blue-500" />
+                      <span className="font-medium text-xs">Status</span>
                     </div>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-1">
-                        <Calendar className="w-3 h-3 text-green-500" />
-                        <span className="font-medium text-xs">Next Action</span>
-                      </div>
-                      <p className="text-xs text-gray-600">{selectedLead?.nextAction.type}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-1">
-                        <User className="w-3 h-3 text-purple-500" />
-                        <span className="font-medium text-xs">Specialist</span>
-                      </div>
-                      <p className="text-xs text-gray-600">{selectedLead?.assignedSpecialist || 'Unassigned'}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3 text-orange-500" />
-                        <span className="font-medium text-xs">Step</span>
-                      </div>
-                      <p className="text-xs text-gray-600 capitalize">{selectedLead?.scriptProgress.currentStep}</p>
-                    </div>
+                    <p className="text-xs text-gray-600">{selectedLead?.chaseStatus}</p>
                   </div>
-
-                  {/* Detailed Profile Info */}
-                  <div className="grid grid-cols-2 gap-3 text-xs">
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <Phone className="w-3 h-3 text-blue-500" />
-                        <span className="font-medium">Contact</span>
-                      </div>
-                      <div className="ml-5 space-y-1 text-gray-600">
-                        <p>{selectedLead?.phoneNumber}</p>
-                        {selectedLead?.email && <p>{selectedLead.email}</p>}
-                      </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1">
+                      <Calendar className="w-3 h-3 text-green-500" />
+                      <span className="font-medium text-xs">Next Action</span>
                     </div>
-                    
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <CreditCard className="w-3 h-3 text-purple-500" />
-                        <span className="font-medium">Credit</span>
-                      </div>
-                      <div className="ml-5 space-y-1 text-gray-600">
-                        <p>{selectedLead?.creditProfile?.scoreRange || 'Unknown'}</p>
-                        <p>{selectedLead?.creditProfile?.knownIssues?.length || 0} issues</p>
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <Car className="w-3 h-3 text-green-500" />
-                        <span className="font-medium">Vehicle</span>
-                      </div>
-                      <div className="ml-5 space-y-1 text-gray-600">
-                        <p>{selectedLead?.vehicleInterest?.type || 'Not specified'}</p>
-                        {selectedLead?.vehicleInterest && (
-                          <p>{formatCurrency(selectedLead.vehicleInterest.budget.min)}-{formatCurrency(selectedLead.vehicleInterest.budget.max)}</p>
-                        )}
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <DollarSign className="w-3 h-3 text-green-500" />
-                        <span className="font-medium">Funding</span>
-                      </div>
-                      <div className="ml-5 space-y-1 text-gray-600">
-                        <Badge className={getStatusColor(selectedLead?.fundingReadiness || '')} variant="outline">
-                          {selectedLead?.fundingReadiness}
-                        </Badge>
-                        <p className="text-xs">{selectedLead?.sentiment}</p>
-                      </div>
-                    </div>
+                    <p className="text-xs text-gray-600">{selectedLead?.nextAction.type}</p>
                   </div>
-                </TabsContent>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1">
+                      <User className="w-3 h-3 text-purple-500" />
+                      <span className="font-medium text-xs">Specialist</span>
+                    </div>
+                    <p className="text-xs text-gray-600">{selectedLead?.assignedSpecialist || 'Unassigned'}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3 text-orange-500" />
+                      <span className="font-medium text-xs">Step</span>
+                    </div>
+                    <p className="text-xs text-gray-600 capitalize">{selectedLead?.scriptProgress.currentStep}</p>
+                  </div>
+                </div>
 
-                <TabsContent value="analytics" className="m-2">
-                  <ConversationAnalyticsPanel 
-                    selectedLead={selectedLead}
-                    conversationHistory={conversationHistory}
-                    isCallActive={isCallActive}
-                  />
-                </TabsContent>
-
-                <TabsContent value="settings" className="m-2 space-y-3">
+                {/* Detailed Profile Info */}
+                <div className="grid grid-cols-2 gap-3 text-xs">
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Settings className="w-3 h-3 text-gray-500" />
-                      <span className="font-medium text-xs">Quick Actions</span>
+                    <div className="flex items-center gap-2">
+                      <Phone className="w-3 h-3 text-blue-500" />
+                      <span className="font-medium">Contact</span>
                     </div>
-                    
-                    <div className="grid grid-cols-2 gap-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="h-7 text-xs"
-                        onClick={handleReassignSpecialist}
-                        disabled={isUpdating}
-                      >
-                        <User className="w-3 h-3 mr-1" />
-                        Reassign
-                      </Button>
-                      
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="h-7 text-xs"
-                        onClick={() => handleContactMethodChange('Voice')}
-                        disabled={isUpdating}
-                      >
-                        <Phone className="w-3 h-3 mr-1" />
-                        Voice Pref
-                      </Button>
-                      
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="h-7 text-xs"
-                        onClick={() => handleContactMethodChange('SMS')}
-                        disabled={isUpdating}
-                      >
-                        <MessageSquare className="w-3 h-3 mr-1" />
-                        SMS Pref
-                      </Button>
-                      
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="h-7 text-xs"
-                        onClick={() => handleContactMethodChange('Email')}
-                        disabled={isUpdating}
-                      >
-                        <Mail className="w-3 h-3 mr-1" />
-                        Email Pref
-                      </Button>
+                    <div className="ml-5 space-y-1 text-gray-600">
+                      <p>{selectedLead?.phoneNumber}</p>
+                      {selectedLead?.email && <p>{selectedLead.email}</p>}
                     </div>
                   </div>
-                </TabsContent>
-              </div>
-            </Tabs>
-          )}
-        </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <CreditCard className="w-3 h-3 text-purple-500" />
+                      <span className="font-medium">Credit</span>
+                    </div>
+                    <div className="ml-5 space-y-1 text-gray-600">
+                      <p>{selectedLead?.creditProfile?.scoreRange || 'Unknown'}</p>
+                      <p>{selectedLead?.creditProfile?.knownIssues?.length || 0} issues</p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Car className="w-3 h-3 text-green-500" />
+                      <span className="font-medium">Vehicle</span>
+                    </div>
+                    <div className="ml-5 space-y-1 text-gray-600">
+                      <p>{selectedLead?.vehicleInterest?.type || 'Not specified'}</p>
+                      {selectedLead?.vehicleInterest && (
+                        <p>{formatCurrency(selectedLead.vehicleInterest.budget.min)}-{formatCurrency(selectedLead.vehicleInterest.budget.max)}</p>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <DollarSign className="w-3 h-3 text-green-500" />
+                      <span className="font-medium">Funding</span>
+                    </div>
+                    <div className="ml-5 space-y-1 text-gray-600">
+                      <Badge className={getStatusColor(selectedLead?.fundingReadiness || '')} variant="outline">
+                        {selectedLead?.fundingReadiness}
+                      </Badge>
+                      <p className="text-xs">{selectedLead?.sentiment}</p>
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="analytics" className="m-2">
+                <ConversationAnalyticsPanel 
+                  selectedLead={selectedLead}
+                  conversationHistory={conversationHistory}
+                  isCallActive={isCallActive}
+                />
+              </TabsContent>
+
+              <TabsContent value="settings" className="m-2 space-y-3">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Settings className="w-3 h-3 text-gray-500" />
+                    <span className="font-medium text-xs">Quick Actions</span>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="h-7 text-xs"
+                      onClick={handleReassignSpecialist}
+                      disabled={isUpdating}
+                    >
+                      <User className="w-3 h-3 mr-1" />
+                      Reassign
+                    </Button>
+                    
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="h-7 text-xs"
+                      onClick={() => handleContactMethodChange('Voice')}
+                      disabled={isUpdating}
+                    >
+                      <Phone className="w-3 h-3 mr-1" />
+                      Voice Pref
+                    </Button>
+                    
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="h-7 text-xs"
+                      onClick={() => handleContactMethodChange('SMS')}
+                      disabled={isUpdating}
+                    >
+                      <MessageSquare className="w-3 h-3 mr-1" />
+                      SMS Pref
+                    </Button>
+                    
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="h-7 text-xs"
+                      onClick={() => handleContactMethodChange('Email')}
+                      disabled={isUpdating}
+                    >
+                      <Mail className="w-3 h-3 mr-1" />
+                      Email Pref
+                    </Button>
+                  </div>
+                </div>
+              </TabsContent>
+            </div>
+          </Tabs>
+        )}
       </div>
     </div>
   );
