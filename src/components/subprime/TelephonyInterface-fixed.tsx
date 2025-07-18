@@ -1108,27 +1108,27 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
             <TabsTrigger value="conversation" className="text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <MessageSquare className="w-4 h-4 mr-2" />
               Conversation
-            </TabsTrigger>
+              </TabsTrigger>
             <TabsTrigger value="profile" className="text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <User className="w-4 h-4 mr-2" />
-              Profile
-            </TabsTrigger>
+                Profile
+              </TabsTrigger>
             <TabsTrigger value="analytics" className="text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <BarChart3 className="w-4 h-4 mr-2" />
-              Analytics
-            </TabsTrigger>
+                Analytics  
+              </TabsTrigger>
             <TabsTrigger value="settings" className="text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <Settings className="w-4 h-4 mr-2" />
-              Settings
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+                Settings
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
       </div>
 
-      {/* SCROLLABLE CONVERSATION AREA */}
-      <div className="flex-1 flex flex-col mx-4 mb-4 min-h-0">
+            {/* MAIN CONTENT AREA */}
+      <div className="flex-1 flex flex-col min-h-0">
         {error && (
-          <Alert variant="destructive" className="mb-4 flex-shrink-0">
+          <Alert variant="destructive" className="mb-4 flex-shrink-0 mx-4">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
@@ -1138,7 +1138,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
         <Tabs value={activeMainTab} onValueChange={(value: any) => setActiveMainTab(value)} className="flex-1 flex flex-col min-h-0">
           
           {/* CONVERSATION TAB */}
-          <TabsContent value="conversation" className="flex-1 flex flex-col min-h-0 mt-0">
+          <TabsContent value="conversation" className="flex-1 flex flex-col min-h-0 mt-0 mx-4 mb-4">
             {/* Conversation History - Takes up remaining space */}
             <Card className="flex-1 flex flex-col min-h-0">
               <CardContent className="flex-1 p-0 relative overflow-hidden">
@@ -1256,123 +1256,10 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
                 )}
               </CardContent>
             </Card>
-
-            {/* INPUT AREA - Fixed at bottom */}
-            <div className="flex-shrink-0 mx-4 mb-2">
-              <div className="flex items-center gap-2 mb-2">
-                <Textarea
-                  value={textInput}
-                  onChange={(e) => setTextInput(e.target.value)}
-                  placeholder={isAutoMode ? "Agent can send manual messages..." : "Type your message..."}
-                  className="flex-1 min-h-[60px] max-h-[120px] resize-none"
-                  disabled={false}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      if (isUnderHumanControl) {
-                        handleSendHumanMessage();
-                      } else {
-                        handleSendTextMessage();
-                      }
-                    }
-                  }}
-                />
-                
-                {/* Auto/Manual Toggle */}
-                <div className="flex flex-col items-center gap-1 px-3 py-3 bg-gray-50 rounded-lg border">
-                  <span className={cn("text-xs font-medium", isAutoMode ? "text-blue-600" : "text-gray-400")}>AUTO</span>
-                  <Switch
-                    checked={!isAutoMode}
-                    onCheckedChange={(checked) => setIsAutoMode(!checked)}
-                    className="data-[state=checked]:bg-orange-600"
-                  />
-                  <span className={cn("text-xs font-medium", !isAutoMode ? "text-orange-600" : "text-gray-400")}>MANUAL</span>
-                </div>
-                
-                {/* Call Buttons */}
-                <div className="flex flex-col gap-2">
-                  {!isCallActive ? (
-                    <>
-                      <Button 
-                        onClick={handleStartVoiceCall}
-                        disabled={isLoading}
-                        size="sm"
-                        className="bg-blue-600 hover:bg-blue-700 text-white"
-                      >
-                        <PhoneCall className="h-4 w-4 mr-1" />
-                        Jack Call
-                      </Button>
-                      <Button 
-                        variant="outline"
-                        size="sm"
-                        disabled={true}
-                        className="text-gray-400"
-                      >
-                        <Phone className="h-4 w-4 mr-1" />
-                        Manual Call
-                      </Button>
-                    </>
-                  ) : (
-                    <Button 
-                      onClick={handleEndCall}
-                      variant="destructive"
-                      size="sm"
-                    >
-                      <PhoneOff className="h-4 w-4 mr-1" />
-                      End ({formatDuration(callDuration)})
-                    </Button>
-                  )}
-                  
-                  {/* Send Button - always available */}
-                  <Button 
-                    onClick={isUnderHumanControl ? handleSendHumanMessage : handleSendTextMessage}
-                    disabled={isLoading || !textInput.trim()}
-                    className="bg-green-600 hover:bg-green-700"
-                  >
-                    <Send className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            {/* ACTION BUTTONS - Fixed at bottom */}
-            <div className="flex-shrink-0 mx-4 mb-4">
-              <div className="grid grid-cols-3 gap-2">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  className="h-10 text-sm"
-                  disabled={true}
-                >
-                  <Camera className="h-4 w-4 mr-2" />
-                  Follow Up + Photos
-                </Button>
-                
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  className="h-10 text-sm"
-                  disabled={true}
-                >
-                  <Bell className="h-4 w-4 mr-2" />
-                  Gentle Reminder
-                </Button>
-                
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  className="h-10 text-sm"
-                  disabled={true}
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  New Options
-                </Button>
-              </div>
-            </div>
           </TabsContent>
 
           {/* PROFILE TAB */}
-          <TabsContent value="profile" className="flex-1 p-4 space-y-4 overflow-y-auto mt-0">
+          <TabsContent value="profile" className="flex-1 p-4 space-y-4 overflow-y-auto mt-0 mx-4">
             {/* Identity & Contact Section */}
             <div className="space-y-4">
               <div className="flex items-center gap-2 mb-4">
@@ -1515,7 +1402,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
           </TabsContent>
 
           {/* ANALYTICS TAB */}
-          <TabsContent value="analytics" className="flex-1 p-4 space-y-4 overflow-y-auto mt-0">
+          <TabsContent value="analytics" className="flex-1 p-4 space-y-4 overflow-y-auto mt-0 mx-4">
             {/* Top Row Stats */}
             <div className="grid grid-cols-5 gap-4">
               <div className="bg-white p-4 rounded-lg border">
@@ -1708,7 +1595,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
           </TabsContent>
 
           {/* SETTINGS TAB */}
-          <TabsContent value="settings" className="flex-1 p-4 space-y-4 overflow-y-auto mt-0">
+          <TabsContent value="settings" className="flex-1 p-4 space-y-4 overflow-y-auto mt-0 mx-4">
             <div className="grid grid-cols-4 gap-6">
               {/* Auto-Chase */}
               <div className="space-y-4">
@@ -1851,6 +1738,124 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
             </div>
           </TabsContent>
         </Tabs>
+        
+        {/* INPUT AREA & ACTION BUTTONS - Only show for conversation tab */}
+        {activeMainTab === 'conversation' && (
+          <>
+            {/* INPUT AREA - Fixed at bottom */}
+            <div className="flex-shrink-0 mx-4 mb-2">
+              <div className="flex items-center gap-2 mb-2">
+                <Textarea
+                  value={textInput}
+                  onChange={(e) => setTextInput(e.target.value)}
+                  placeholder={isAutoMode ? "Agent can send manual messages..." : "Type your message..."}
+                  className="flex-1 min-h-[60px] max-h-[120px] resize-none"
+                  disabled={false}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      if (isUnderHumanControl) {
+                        handleSendHumanMessage();
+                      } else {
+                        handleSendTextMessage();
+                      }
+                    }
+                  }}
+                />
+                
+                {/* Auto/Manual Toggle */}
+                <div className="flex flex-col items-center gap-1 px-3 py-3 bg-gray-50 rounded-lg border">
+                  <span className={cn("text-xs font-medium", isAutoMode ? "text-blue-600" : "text-gray-400")}>AUTO</span>
+                  <Switch
+                    checked={!isAutoMode}
+                    onCheckedChange={(checked) => setIsAutoMode(!checked)}
+                    className="data-[state=checked]:bg-orange-600"
+                  />
+                  <span className={cn("text-xs font-medium", !isAutoMode ? "text-orange-600" : "text-gray-400")}>MANUAL</span>
+                </div>
+                
+                {/* Call Buttons */}
+                <div className="flex flex-col gap-2">
+                  {!isCallActive ? (
+                    <>
+                      <Button 
+                        onClick={handleStartVoiceCall}
+                        disabled={isLoading}
+                        size="sm"
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                      >
+                        <PhoneCall className="h-4 w-4 mr-1" />
+                        Jack Call
+                      </Button>
+                      <Button 
+                        variant="outline"
+                        size="sm"
+                        disabled={true}
+                        className="text-gray-400"
+                      >
+                        <Phone className="h-4 w-4 mr-1" />
+                        Manual Call
+                      </Button>
+                    </>
+                  ) : (
+                    <Button 
+                      onClick={handleEndCall}
+                      variant="destructive"
+                      size="sm"
+                    >
+                      <PhoneOff className="h-4 w-4 mr-1" />
+                      End ({formatDuration(callDuration)})
+                    </Button>
+                  )}
+                  
+                  {/* Send Button - always available */}
+                  <Button 
+                    onClick={isUnderHumanControl ? handleSendHumanMessage : handleSendTextMessage}
+                    disabled={isLoading || !textInput.trim()}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* ACTION BUTTONS - Fixed at bottom */}
+            <div className="flex-shrink-0 mx-4 mb-4">
+              <div className="grid grid-cols-3 gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="h-10 text-sm"
+                  disabled={true}
+                >
+                  <Camera className="h-4 w-4 mr-2" />
+                  Follow Up + Photos
+                </Button>
+                
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="h-10 text-sm"
+                  disabled={true}
+                >
+                  <Bell className="h-4 w-4 mr-2" />
+                  Gentle Reminder
+                </Button>
+                
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="h-10 text-sm"
+                  disabled={true}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  New Options
+                </Button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
