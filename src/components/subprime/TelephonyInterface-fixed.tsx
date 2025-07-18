@@ -1591,7 +1591,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
           </TabsContent>
 
           {/* SETTINGS TAB */}
-          <TabsContent value="settings" className="p-4 space-y-2 overflow-y-auto mt-0 mx-4">
+          <TabsContent value="settings" className="p-4 space-y-4 overflow-y-auto mt-0 mx-4">
             <div className="grid grid-cols-4 gap-4">
               {/* Auto-Chase */}
               <div className="space-y-3">
