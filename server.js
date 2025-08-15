@@ -5999,6 +5999,315 @@ app.get('/api/system/status', (req, res) => {
   });
 });
 
+// ⭐ MANUAL CALLS FEATURE: Allow users to directly call customers bypassing AI
+app.post('/api/manual-call/initiate', validateOrganizationAccess, async (req, res) => {
+  try {
+    const { phoneNumber, leadId, agentName } = req.body;
+    const { organizationId } = req;
+    
+    console.log(`👤 Manual call request: Agent ${agentName} calling ${phoneNumber} (lead: ${leadId}) (org: ${organizationId})`);
+    
+    if (!phoneNumber || !agentName) {
+      return res.status(400).json({
+        success: false,
+        error: 'phoneNumber and agentName are required'
+      });
+    }
+    
+    // Validate lead belongs to organization if provided
+    if (leadId) {
+      const leadData = getLeadData(leadId);
+      if (!leadData || leadData.organizationId !== organizationId) {
+        return res.status(403).json({
+          success: false,
+          error: 'Lead not found or access denied'
+        });
+      }
+    }
+    
+    // Get organization phone number for caller ID
+    const organizationPhone = await getOrganizationPhoneNumber(organizationId);
+    
+    // Use Twilio to initiate conference call
+    const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
+    const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
+    
+    if (!twilioAccountSid || !twilioAuthToken) {
+      return res.status(500).json({
+        success: false,
+        error: 'Twilio credentials not configured'
+      });
+    }
+    
+    const twilio = require('twilio')(twilioAccountSid, twilioAuthToken);
+    
+    // Generate unique conference name
+    const conferenceId = `manual-call-${Date.now()}-${leadId || 'direct'}`;
+    
+    try {
+      // Start conference by calling customer first
+      const customerCall = await twilio.calls.create({
+        url: `${process.env.BASE_URL || 'https://jack-automotive-ai-assistant-13.onrender.com'}/api/manual-call/twiml-customer?conferenceId=${conferenceId}&organizationId=${organizationId}&leadId=${leadId || ''}`,
+        to: phoneNumber,
+        from: organizationPhone || process.env.TWILIO_PHONE_NUMBER,
+        statusCallback: `${process.env.BASE_URL || 'https://jack-automotive-ai-assistant-13.onrender.com'}/api/manual-call/status`,
+        statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
+        statusCallbackMethod: 'POST'
+      });
+      
+      console.log(`📞 Customer call initiated: ${customerCall.sid}`);
+      
+      // Store manual call session
+      const manualCallSession = {
+        conferenceId,
+        customerCallSid: customerCall.sid,
+        agentCallSid: null,
+        phoneNumber: normalizePhoneNumber(phoneNumber),
+        leadId,
+        organizationId,
+        agentName,
+        status: 'calling_customer',
+        startTime: new Date().toISOString()
+      };
+      
+      // Store in memory for tracking
+      activeCallSessions.set(conferenceId, manualCallSession);
+      
+      // Log manual call activity
+      if (leadId) {
+        try {
+          await supabasePersistence.logActivity(leadId, 'manual_call_initiated', {
+            agentName,
+            phoneNumber,
+            conferenceId,
+            organizationId
+          });
+        } catch (error) {
+          console.warn('📊 Failed to log manual call activity:', error.message);
+        }
+      }
+      
+      res.json({
+        success: true,
+        conferenceId,
+        customerCallSid: customerCall.sid,
+        message: 'Manual call initiated - customer being called',
+        status: 'calling_customer',
+        organizationId,
+        dialInNumber: organizationPhone || process.env.TWILIO_PHONE_NUMBER,
+        instructions: `Conference ID: ${conferenceId}. Customer is being called. You will receive dial-in instructions when they answer.`
+      });
+      
+    } catch (twilioError) {
+      console.error('❌ Twilio call creation failed:', twilioError);
+      res.status(500).json({
+        success: false,
+        error: `Failed to initiate call: ${twilioError.message}`
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ Manual call initiation error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to initiate manual call'
+    });
+  }
+});
+
+// ⭐ MANUAL CALLS: TwiML for customer connection to conference
+app.post('/api/manual-call/twiml-customer', (req, res) => {
+  const { conferenceId, organizationId, leadId } = req.query;
+  
+  console.log(`📞 Customer TwiML request for conference ${conferenceId}`);
+  
+  const response = new twilio.twiml.VoiceResponse();
+  
+  // Join conference with customer-friendly settings
+  const dial = response.dial();
+  dial.conference(conferenceId, {
+    startConferenceOnEnter: true,
+    endConferenceOnExit: false,
+    statusCallback: `${process.env.BASE_URL || 'https://jack-automotive-ai-assistant-13.onrender.com'}/api/manual-call/conference-status`,
+    statusCallbackEvent: 'start join leave end'
+  });
+  
+  res.type('text/xml');
+  res.send(response.toString());
+});
+
+// ⭐ MANUAL CALLS: Get agent dial-in information
+app.get('/api/manual-call/agent-dial-in/:conferenceId', validateOrganizationAccess, async (req, res) => {
+  try {
+    const { conferenceId } = req.params;
+    const { organizationId } = req;
+    
+    // Get session from memory
+    const session = activeCallSessions.get(conferenceId);
+    
+    if (!session || session.organizationId !== organizationId) {
+      return res.status(404).json({
+        success: false,
+        error: 'Conference not found or access denied'
+      });
+    }
+    
+    // Get organization phone number for dial-in
+    const organizationPhone = await getOrganizationPhoneNumber(organizationId);
+    
+    res.json({
+      success: true,
+      conferenceId,
+      dialInNumber: organizationPhone || process.env.TWILIO_PHONE_NUMBER,
+      instructions: `To join the conference:\n1. Call ${organizationPhone || process.env.TWILIO_PHONE_NUMBER}\n2. When prompted, enter conference ID: ${conferenceId}\n3. Press # to join`,
+      status: session.status,
+      customerStatus: session.customerStatus || 'calling'
+    });
+    
+  } catch (error) {
+    console.error('❌ Agent dial-in info error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get dial-in information'
+    });
+  }
+});
+
+// ⭐ MANUAL CALLS: Call status webhooks
+app.post('/api/manual-call/status', (req, res) => {
+  const { CallSid, CallStatus, To, From } = req.body;
+  
+  console.log(`📞 Manual call status: ${CallSid} -> ${CallStatus} (${From} to ${To})`);
+  
+  // Find session by call SID
+  for (const [conferenceId, session] of activeCallSessions.entries()) {
+    if (session.customerCallSid === CallSid) {
+      session.customerStatus = CallStatus;
+      console.log(`📞 Updated customer status for conference ${conferenceId}: ${CallStatus}`);
+      
+      // If customer answered, provide agent dial-in instructions
+      if (CallStatus === 'answered') {
+        console.log(`✅ Customer answered for conference ${conferenceId} - agent can now join`);
+      }
+      break;
+    }
+  }
+  
+  res.sendStatus(200);
+});
+
+// ⭐ MANUAL CALLS: Conference status webhooks
+app.post('/api/manual-call/conference-status', (req, res) => {
+  const { ConferenceSid, StatusCallbackEvent, FriendlyName } = req.body;
+  
+  console.log(`📞 Conference status: ${FriendlyName} -> ${StatusCallbackEvent}`);
+  
+  // Update session status based on conference events
+  if (activeCallSessions.has(FriendlyName)) {
+    const session = activeCallSessions.get(FriendlyName);
+    session.conferenceStatus = StatusCallbackEvent;
+    
+    if (StatusCallbackEvent === 'conference-end') {
+      console.log(`📞 Conference ${FriendlyName} ended`);
+      activeCallSessions.delete(FriendlyName);
+    }
+  }
+  
+  res.sendStatus(200);
+});
+
+// ⭐ MANUAL CALLS: End manual call
+app.post('/api/manual-call/end', validateOrganizationAccess, async (req, res) => {
+  try {
+    const { conferenceId } = req.body;
+    const { organizationId } = req;
+    
+    console.log(`📞 Manual call end request: ${conferenceId} (org: ${organizationId})`);
+    
+    if (!conferenceId) {
+      return res.status(400).json({
+        success: false,
+        error: 'conferenceId is required'
+      });
+    }
+    
+    // Get session from memory
+    const session = activeCallSessions.get(conferenceId);
+    
+    if (!session || session.organizationId !== organizationId) {
+      return res.status(404).json({
+        success: false,
+        error: 'Conference not found or access denied'
+      });
+    }
+    
+    // Use Twilio to end the conference
+    const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
+    const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
+    
+    if (!twilioAccountSid || !twilioAuthToken) {
+      return res.status(500).json({
+        success: false,
+        error: 'Twilio credentials not configured'
+      });
+    }
+    
+    const twilio = require('twilio')(twilioAccountSid, twilioAuthToken);
+    
+    try {
+      // End all calls in the conference
+      const conferences = await twilio.conferences.list({
+        friendlyName: conferenceId,
+        status: 'in-progress'
+      });
+      
+      for (const conference of conferences) {
+        // End the conference
+        await twilio.conferences(conference.sid).update({ status: 'completed' });
+        console.log(`📞 Ended conference: ${conference.sid}`);
+      }
+      
+      // Log manual call completion
+      if (session.leadId) {
+        try {
+          await supabasePersistence.logActivity(session.leadId, 'manual_call_ended', {
+            agentName: session.agentName,
+            phoneNumber: session.phoneNumber,
+            conferenceId,
+            organizationId,
+            duration: Date.now() - new Date(session.startTime).getTime()
+          });
+        } catch (error) {
+          console.warn('📊 Failed to log manual call completion:', error.message);
+        }
+      }
+      
+      // Clean up session
+      activeCallSessions.delete(conferenceId);
+      
+      res.json({
+        success: true,
+        message: 'Manual call ended successfully',
+        conferenceId
+      });
+      
+    } catch (twilioError) {
+      console.error('❌ Twilio conference end failed:', twilioError);
+      res.status(500).json({
+        success: false,
+        error: `Failed to end conference: ${twilioError.message}`
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ Manual call end error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to end manual call'
+    });
+  }
+});
+
 // Catch-all handler: send back React's index.html file in production
 if (process.env.NODE_ENV === 'production') {
   try {
