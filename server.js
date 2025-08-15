@@ -165,6 +165,12 @@ const sseConnections = new Map(); // leadId -> response object (for Server-Sent 
 const conversationMetadata = new Map(); // conversationId -> { phoneNumber, leadId, startTime }
 const activeCallSessions = new Map(); // conversationId -> call session data
 
+// PERFORMANCE: Add caching layers to reduce latency
+const conversationContextCache = new Map(); // orgId:phoneNumber -> { context, timestamp }
+const comprehensiveSummaryCache = new Map(); // orgId:phoneNumber -> { summary, timestamp }
+const organizationCache = new Map(); // organizationId -> { name, timestamp }
+const CACHE_TTL = 30000; // 30 seconds cache
+
 // Human-in-the-loop control state
 const humanControlSessions = new Map(); // orgId:phoneNumber -> { agentName, organizationId, startTime, leadId }
 const humanControlQueue = new Map(); // orgId:phoneNumber -> pending messages array
@@ -570,6 +576,10 @@ function addToConversationHistory(phoneNumber, message, sentBy, messageType = 't
         history.shift();
       }
       
+      // PERFORMANCE: Invalidate related caches when new message is added
+      conversationContextCache.delete(memoryKey);
+      comprehensiveSummaryCache.delete(memoryKey);
+      
       console.log(`📝 Added ${messageType} message to org-scoped history ${memoryKey} (${sentBy}): ${message.substring(0, 100)}...`);
       
   // Persist to Supabase with organization context
@@ -654,6 +664,100 @@ async function generateComprehensiveSummary(phoneNumber, organizationId) {
     console.error('❌ Error generating comprehensive summary:', error);
     return null;
   }
+}
+
+// PERFORMANCE: Cached conversation context building
+async function buildConversationContextCached(phoneNumber, organizationId) {
+  const cacheKey = createOrgMemoryKey(organizationId, phoneNumber);
+  const cached = conversationContextCache.get(cacheKey);
+  
+  if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+    console.log(`⚡ Using cached conversation context for ${phoneNumber}`);
+    return cached.context;
+  }
+  
+  const context = await buildConversationContext(phoneNumber, organizationId);
+  conversationContextCache.set(cacheKey, { context, timestamp: Date.now() });
+  return context;
+}
+
+// PERFORMANCE: Cached comprehensive summary
+async function generateComprehensiveSummaryCached(phoneNumber, organizationId) {
+  const cacheKey = createOrgMemoryKey(organizationId, phoneNumber);
+  const cached = comprehensiveSummaryCache.get(cacheKey);
+  
+  if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+    console.log(`⚡ Using cached comprehensive summary for ${phoneNumber}`);
+    return cached.summary;
+  }
+  
+  const summary = await generateComprehensiveSummary(phoneNumber, organizationId);
+  comprehensiveSummaryCache.set(cacheKey, { summary, timestamp: Date.now() });
+  return summary;
+}
+
+// PERFORMANCE: Cached organization name lookup
+async function getOrganizationNameCached(organizationId) {
+  const cached = organizationCache.get(organizationId);
+  
+  if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+    console.log(`⚡ Using cached organization name for ${organizationId}`);
+    return cached.name;
+  }
+  
+  let organizationName = "Jack Automotive";
+  try {
+    const { data: orgData, error } = await client
+      .from('organizations')
+      .select('name')
+      .eq('id', organizationId)
+      .single();
+    
+    if (orgData && !error) {
+      organizationName = orgData.name;
+    }
+  } catch (error) {
+    console.warn(`⚠️ Could not fetch organization name for ${organizationId}, using default`);
+  }
+  
+  organizationCache.set(organizationId, { name: organizationName, timestamp: Date.now() });
+  return organizationName;
+}
+
+// PERFORMANCE: Parallel data loading for conversation initiation
+async function loadConversationDataParallel(caller_id, organizationId, activeLead) {
+  console.log('⚡ Loading conversation data in parallel...');
+  
+  const startTime = Date.now();
+  
+  // Run all expensive operations in parallel
+  const [
+    conversationContext,
+    summary,
+    messages,
+    leadData,
+    organizationName,
+    comprehensiveSummary
+  ] = await Promise.all([
+    buildConversationContextCached(caller_id, organizationId),
+    getConversationSummary(caller_id, organizationId),
+    getConversationHistory(caller_id, organizationId),
+    activeLead ? getLeadData(activeLead) : Promise.resolve(null),
+    getOrganizationNameCached(organizationId),
+    generateComprehensiveSummaryCached(caller_id, organizationId)
+  ]);
+  
+  const loadTime = Date.now() - startTime;
+  console.log(`⚡ Parallel data loading completed in ${loadTime}ms`);
+  
+  return {
+    conversationContext,
+    summary,
+    messages,
+    leadData,
+    organizationName,
+    comprehensiveSummary
+  };
 }
 
 // NEW: Dynamic greeting helper functions (based on BICI approach)
@@ -2374,14 +2478,13 @@ app.post('/api/elevenlabs/outbound-call', validateOrganizationAccess, async (req
     // Get conversation context for seamless SMS ↔ Voice transition
     // Use normalized phone number to ensure consistency with stored history
     const normalizedPhoneNumber = normalizePhoneNumber(phoneNumber);
-    const conversationContext = await buildConversationContext(normalizedPhoneNumber, organizationId);
     
     // Generate a unique conversation ID for tracking
     const tempConversationId = `temp_${Date.now()}_${phoneNumber}`;
     
-    // SECURITY: Use provided organizationId instead of trying to determine it
-    const summary = await getConversationSummary(normalizedPhoneNumber, organizationId);
-    const messages = await getConversationHistory(normalizedPhoneNumber, organizationId);
+    // PERFORMANCE: Load all conversation data in parallel for outbound calls
+    const outboundData = await loadConversationDataParallel(normalizedPhoneNumber, organizationId, leadId);
+    const { conversationContext, summary, messages, organizationName, comprehensiveSummary } = outboundData;
     
     // Get actual lead data instead of placeholders (already retrieved above for validation)
     const customerName = leadData?.customerName || `Customer ${phoneNumber}`;
@@ -2389,7 +2492,6 @@ app.post('/api/elevenlabs/outbound-call', validateOrganizationAccess, async (req
     
     // ENHANCED: Use comprehensive summary (voice + SMS) for better context
     let previousSummary;
-    const comprehensiveSummary = await generateComprehensiveSummary(phoneNumber, organizationId);
     if (comprehensiveSummary && comprehensiveSummary.length > 20) {
       // Use the comprehensive voice + SMS summary
       previousSummary = comprehensiveSummary.length > 100000 ? comprehensiveSummary.substring(0, 100000) + "..." : comprehensiveSummary;
@@ -2409,23 +2511,6 @@ app.post('/api/elevenlabs/outbound-call', validateOrganizationAccess, async (req
     } else {
       previousSummary = "First conversation - no previous interaction history";
       console.log(`📋 New conversation - no previous history`);
-    }
-
-    // GET ORGANIZATION NAME for outbound calls
-    let organizationName = "Jack Automotive";
-    try {
-      const { data: orgData, error } = await client
-        .from('organizations')
-        .select('name')
-        .eq('id', organizationId)
-        .single();
-      
-      if (orgData && !error) {
-        organizationName = orgData.name;
-        console.log(`🏢 Using organization name for outbound call: ${organizationName}`);
-      }
-    } catch (error) {
-      console.error(`❌ Error fetching organization name for outbound call:`, error);
     }
 
     // Generate enhanced dynamic variables based on BICI approach
@@ -4460,35 +4545,19 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', async (req, res) =>
     const activeLead = await getActiveLeadForPhone(normalizedPhone);  // ✅ FIXED: Added await
     console.log(`🔍 Active lead for ${normalizedPhone}:`, activeLead);
     
-    // GET ORGANIZATION NAME for agent prompt
-    let organizationName = "Jack Automotive";
-    try {
-      const { data: orgData, error } = await client
-        .from('organizations')
-        .select('name')
-        .eq('id', organizationId)
-        .single();
-      
-      if (orgData && !error) {
-        organizationName = orgData.name;
-        console.log(`🏢 Found organization name: ${organizationName}`);
-      } else {
-        console.warn(`⚠️ Could not find organization name for ${organizationId}, using default`);
-      }
-    } catch (error) {
-      console.error(`❌ Error fetching organization name:`, error);
-    }
-
-    // Build conversation context - ENHANCED with Supabase loading
-    const conversationContext = await buildConversationContext(caller_id, organizationId);
-    const summary = await getConversationSummary(caller_id, organizationId);
-    const messages = await getConversationHistory(caller_id, organizationId);
+    // PERFORMANCE: Load all conversation data in parallel
+    const conversationData = await loadConversationDataParallel(caller_id, organizationId, activeLead);
+    const {
+      conversationContext,
+      summary,
+      messages,
+      leadData,
+      organizationName,
+      comprehensiveSummary
+    } = conversationData;
     
     console.log(`🧪 DEBUG: conversationContext length: ${conversationContext.length}`);
     console.log(`🧪 DEBUG: activeLead:`, activeLead);
-    
-    // Get actual lead data if we have an active lead
-    const leadData = activeLead ? getLeadData(activeLead) : null;
     console.log(`🧪 DEBUG: leadData:`, leadData);
     
     const customerName = leadData?.customerName || "Customer";
@@ -4496,7 +4565,6 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', async (req, res) =>
     
     // ENHANCED: Use comprehensive summary (voice + SMS) for better context
     let previousSummary;
-    const comprehensiveSummary = await generateComprehensiveSummary(caller_id, organizationId);
     if (comprehensiveSummary && comprehensiveSummary.length > 20) {
       // Use the comprehensive voice + SMS summary
       previousSummary = comprehensiveSummary.length > 100000 ? comprehensiveSummary.substring(0, 100000) + "..." : comprehensiveSummary;
