@@ -3683,6 +3683,19 @@ app.post('/api/webhooks/elevenlabs/post-call', async (req, res) => {
           addToConversationHistory(phoneNumber, message.message, message.role, 'voice', organizationId);
         }
       });
+      
+      // URGENT FIX: Broadcast conversation history update after storing transcript
+      if (leadId) {
+        broadcastConversationUpdate({
+          type: 'conversation_transcript_added',
+          leadId,
+          phoneNumber: normalizePhoneNumber(phoneNumber),
+          organizationId,
+          messageCount: transcript.length,
+          timestamp: new Date().toISOString()
+        });
+        console.log(`📡 Broadcasted transcript update for lead ${leadId} (${transcript.length} messages)`);
+      }
     }
 
     // Store conversation summary if we have one - SECURITY FIX: Now includes organizationId
