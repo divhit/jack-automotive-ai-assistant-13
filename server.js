@@ -173,6 +173,13 @@ const conversationHistoryCache = new Map(); // orgId:phoneNumber -> { messages, 
 const conversationSummaryCache = new Map(); // orgId:phoneNumber -> { summary, timestamp }
 const leadSyncCache = new Map(); // organizationId -> { timestamp }
 
+// URGENT: Clear all caches to fix transcript ordering issue
+console.log('🗑️ CLEARING ALL CACHES to fix transcript ordering issue');
+conversationContextCache.clear();
+comprehensiveSummaryCache.clear();
+conversationHistoryCache.clear();
+conversationSummaryCache.clear();
+
 // PERFORMANCE: Request deduplication - prevent multiple identical queries
 const inflightRequests = new Map(); // cacheKey -> Promise
 
@@ -837,9 +844,11 @@ async function getConversationHistoryCached(phoneNumber, organizationId) {
   // PERFORMANCE: Check if request is already in flight
   const requestKey = `history_${cacheKey}`;
   if (inflightRequests.has(requestKey)) {
-    console.log(`⚡ Deduplicating conversation history request for ${phoneNumber}`);
+    console.log(`⚡ DEDUPLICATION: Reusing in-flight conversation history request for ${phoneNumber}`);
     return await inflightRequests.get(requestKey);
   }
+  
+  console.log(`🔍 STARTING NEW: Direct DB query for conversation history: ${phoneNumber} (cache key: ${requestKey})`);
   
   // Start the request and store it - DIRECT DB QUERY (no cache clearing)
   const requestPromise = getConversationHistoryDirect(phoneNumber, organizationId);
@@ -1879,8 +1888,8 @@ function startConversation(phoneNumber, initialMessage, organizationId = null) {
     const leadData = getLeadData(leadId);
     const customerName = leadData?.customerName || `Customer ${phoneNumber}`;
     
-    const summaryData = await getConversationSummary(phoneNumber, resolvedOrganizationId);
-    const history = await getConversationHistory(phoneNumber, resolvedOrganizationId);
+    const summaryData = await getConversationSummaryCached(phoneNumber, resolvedOrganizationId);
+    const history = await getConversationHistoryCached(phoneNumber, resolvedOrganizationId);
     const leadStatus = summaryData?.summary ? "Returning Customer" : (history.length > 0 ? "Active Lead" : "New Inquiry");
     
     // ENHANCED: Use comprehensive summary (voice + SMS) for better context
@@ -5721,10 +5730,11 @@ app.post('/api/notes/:leadId', async (req, res) => {
 });
 
 
-app.get('/api/analytics/lead/:id', async (req, res) => {
+app.get('/api/analytics/lead/:id', validateOrganizationAccess, async (req, res) => {
   try {
     const leadId = req.params.id;
-    console.log('📊 Lead analytics requested for:', leadId);
+    const { organizationId } = req;
+    console.log('📊 Lead analytics requested for:', leadId, '(org:', organizationId + ')');
     
     // FIXED: Use property access instead of function call
     if (!supabasePersistence.isEnabled || !supabasePersistence.isConnected) {
@@ -5748,7 +5758,7 @@ app.get('/api/analytics/lead/:id', async (req, res) => {
     // Get conversation history from memory using the lead's phone number
     const phoneNumber = leadData.phoneNumber;
     const normalizedPhone = normalizePhoneNumber(phoneNumber);
-    const messages = await getConversationHistory(phoneNumber);
+    const messages = await getConversationHistoryCached(phoneNumber, organizationId);
     
     // Analyze this lead's conversation data
     const userMessages = messages.filter(m => m.sentBy === 'user');
