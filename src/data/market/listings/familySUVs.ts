@@ -19,7 +19,7 @@ export const familySUVListings: Record<string, ComparableListing[]> = {
       matchScore: 96,
       distanceKm: 35,
       matchRationale: "Good condition, low mileage",
-      photoUrl: "/lovable-uploads/9c03d511-ed06-4886-be33-bcbba8de465e.png"
+      photoUrl: "/images/placeholder-suv.jpg"
     },
     {
       id: "ML011",
@@ -37,7 +37,7 @@ export const familySUVListings: Record<string, ComparableListing[]> = {
       matchScore: 93,
       distanceKm: 38,
       matchRationale: "Low mileage, latest Type S Ultra trim",
-      photoUrl: "/lovable-uploads/3f9708c5-093e-4fa0-a220-dad2a7f2a3ec.png"
+      photoUrl: "/images/placeholder-suv.jpg"
     },
     {
       id: "ML012",
@@ -55,7 +55,7 @@ export const familySUVListings: Record<string, ComparableListing[]> = {
       matchScore: 89,
       distanceKm: 41,
       matchRationale: "Older, accident claim, value buy",
-      photoUrl: "/lovable-uploads/35bb3a5f-b6c7-4d0e-bcaf-ed1444eb675c.png"
+      photoUrl: "/images/placeholder-suv.jpg"
     },
     {
       id: "ML013",
@@ -73,7 +73,7 @@ export const familySUVListings: Record<string, ComparableListing[]> = {
       matchScore: 91,
       distanceKm: 40,
       matchRationale: "Type S trim, good spec",
-      photoUrl: "/lovable-uploads/caded7ae-46d7-494d-b222-577a3d596b33.png"
+      photoUrl: "/images/placeholder-suv.jpg"
     },
     {
       id: "ML014",
@@ -91,7 +91,7 @@ export const familySUVListings: Record<string, ComparableListing[]> = {
       matchScore: 87,
       distanceKm: 45,
       matchRationale: "Tech pkg, one owner, very clean",
-      photoUrl: "/lovable-uploads/4f6e82ba-8992-4c06-b50c-8df3829448ae.png"
+      photoUrl: "/images/placeholder-suv.jpg"
     },
   ],
   "HO22CR": [

@@ -17,26 +17,17 @@ import {
   Phone, 
   PhoneOff, 
   MessageSquare, 
-  Mic, 
-  MicOff, 
-  Volume2, 
-  VolumeX,
   Clock,
   User,
   Bot,
   Send,
   AlertTriangle,
-  CheckCircle2,
   TrendingUp,
-  FileText,
   Calendar,
   Settings,
   PhoneCall,
-  CreditCard,
   Car,
-  DollarSign,
   BarChart3,
-  Mail,
   ChevronDown,
   Camera,
   Bell,
@@ -1152,30 +1143,6 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
                       <div className="text-center text-muted-foreground py-8">
                         <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
                         <p>No messages yet. Start a conversation!</p>
-                        <Button 
-                          onClick={() => {
-                            // Add some test messages for scrolling test
-                            const testMessages = Array.from({ length: 20 }, (_, i) => ({
-                              id: `test-${i}`,
-                              type: 'sms' as const,
-                              content: i % 2 === 0 
-                                ? `Test customer message ${i + 1}. This is a longer message to test scrolling behavior.`
-                                : `Test agent response ${i + 1}. This is the agent's response to the customer message.`,
-                              timestamp: new Date(Date.now() - (20 - i) * 60000).toISOString(),
-                              sentBy: i % 2 === 0 ? 'user' as const : 'agent' as const
-                            }));
-                            setConversationHistory(testMessages);
-                            // Force check scroll position after messages are added
-                            setTimeout(() => {
-                              checkScrollPosition();
-                            }, 100);
-                          }}
-                          className="mt-4 text-xs"
-                          size="sm"
-                          variant="outline"
-                        >
-                          🔧 Add Test Messages (Debug)
-                        </Button>
                       </div>
                     ) : (
                       conversationHistory.map((message) => (

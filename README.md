@@ -364,32 +364,32 @@ npm run dev
 
 ## Development Workflow
 
-### Using Lovable Platform
-- Visit the [Lovable Project](https://lovable.dev/projects/15d9f4f1-169d-499d-a83f-bc87918b404f)
-- Make changes via prompting interface
-- Changes are automatically committed to the repository
+### Development Setup
+- Clone the repository to your local machine
+- Install dependencies with `npm install`
+- Set up environment variables as needed
 
 ### Local Development
-- Clone the repository and work in your preferred IDE
-- Push changes to sync with Lovable platform
-- All changes are reflected in both environments
+- Start development server with `npm run dev`
+- Work in your preferred IDE
+- Use Git for version control and collaboration
 
 ### GitHub Integration
 - Direct file editing in GitHub interface
 - GitHub Codespaces for cloud-based development
-- Automatic deployment via Lovable platform
+- Automated CI/CD workflows
 
 ## Deployment
 
-### Lovable Deployment
-1. Open [Lovable Project](https://lovable.dev/projects/15d9f4f1-169d-499d-a83f-bc87918b404f)
-2. Click Share → Publish
-3. Application is deployed automatically
+### Production Deployment
+1. Build the application with `npm run build`
+2. Deploy the `dist` folder to your hosting platform
+3. Configure environment variables for production
 
 ### Custom Domain
-- Navigate to Project > Settings > Domains
-- Click "Connect Domain" to add custom domain
-- Full documentation: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+- Configure DNS settings for your domain
+- Set up SSL certificates
+- Configure server routing for single-page application
 
 ## Contributing
 

@@ -163,6 +163,7 @@ const leadToPhoneMapping = new Map(); // leadId -> phoneNumber
 const dynamicLeads = new Map(); // leadId -> lead object
 const sseConnections = new Map(); // leadId -> response object (for Server-Sent Events)
 const conversationMetadata = new Map(); // conversationId -> { phoneNumber, leadId, startTime }
+const activeCallSessions = new Map(); // conversationId -> call session data
 
 // Human-in-the-loop control state
 const humanControlSessions = new Map(); // orgId:phoneNumber -> { agentName, organizationId, startTime, leadId }
@@ -651,6 +652,263 @@ async function generateComprehensiveSummary(phoneNumber, organizationId) {
     
   } catch (error) {
     console.error('❌ Error generating comprehensive summary:', error);
+    return null;
+  }
+}
+
+// NEW: Dynamic greeting helper functions (based on BICI approach)
+function getTimeBasedGreeting() {
+  const now = new Date();
+  const easternTime = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
+  const hour = easternTime.getHours();
+  
+  if (hour < 5) return "Thanks for calling so late!";
+  if (hour < 12) return "Good morning!";
+  if (hour < 17) return "Good afternoon!";
+  if (hour < 20) return "Good evening!";
+  return "Thanks for calling!";
+}
+
+function getDayContext() {
+  const now = new Date();
+  const easternDate = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
+  const day = easternDate.getDay();
+  const hour = easternDate.getHours();
+  
+  // Weekend
+  if (day === 0 || day === 6) {
+    return "Hope you're enjoying your weekend!";
+  }
+  
+  // Monday
+  if (day === 1) {
+    return "Hope you had a great weekend!";
+  }
+  
+  // Friday
+  if (day === 5 && hour > 12) {
+    return "Happy Friday!";
+  }
+  
+  return "";
+}
+
+function getCustomerGreeting(customerName, lastVisit) {
+  if (!customerName) {
+    return "";  // Empty string for generic greeting
+  }
+  
+  if (lastVisit) {
+    const visitDate = typeof lastVisit === 'string' ? new Date(lastVisit) : lastVisit;
+    const daysSinceVisit = Math.floor((Date.now() - visitDate.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (daysSinceVisit === 0) {
+      return `${customerName}`;  // Same day
+    } else if (daysSinceVisit < 7) {
+      return `${customerName}`;  // Recent
+    } else {
+      return `${customerName}`;  // Older
+    }
+  }
+  
+  return `${customerName}`;
+}
+
+function generateGreetingContext(leadData, isOutbound = false, previousSummary = null) {
+  const hasName = !!(leadData?.customerName);
+  const customerName = leadData?.customerName || "";
+  
+  // For outbound calls, create continuation greetings
+  if (isOutbound) {
+    const outboundVariations = [
+      "I wanted to follow up with you",
+      "Just calling to check in with you", 
+      "I'm following up from our earlier chat",
+      "Wanted to continue where we left off",
+      "Just giving you a quick call back"
+    ];
+    
+    let variation = outboundVariations[Math.floor(Math.random() * outboundVariations.length)];
+    
+    // Make it more specific based on previous conversation
+    if (previousSummary) {
+      const summaryText = previousSummary.toLowerCase();
+      
+      if (summaryText.includes('suv') || summaryText.includes('truck')) {
+        variation = "I'm calling about the SUV you were interested in";
+      } else if (summaryText.includes('sedan') || summaryText.includes('car')) {
+        variation = "I'm calling about the vehicle you were interested in";
+      } else if (summaryText.includes('financing') || summaryText.includes('loan')) {
+        variation = "I'm following up on the financing options we discussed";
+      } else if (summaryText.includes('test drive') || summaryText.includes('appointment')) {
+        variation = "I'm calling about scheduling your test drive";
+      } else if (summaryText.includes('service') || summaryText.includes('maintenance')) {
+        variation = "I'm calling about your service appointment";
+      } else if (summaryText.includes('trade') || summaryText.includes('trade-in')) {
+        variation = "I'm following up on your trade-in inquiry";
+      }
+    }
+    
+    return {
+      time_greeting: getTimeBasedGreeting(),
+      day_context: getDayContext(),
+      customer_greeting: getCustomerGreeting(customerName, leadData?.lastTouchpoint),
+      customer_name: customerName,
+      greeting_opener: hasName ? `Hey ${customerName}!` : "Hey!",
+      greeting_variation: variation,
+      is_outbound: "true",
+      call_type: "outbound_followup"
+    };
+  }
+  
+  // Inbound call greetings
+  return {
+    time_greeting: getTimeBasedGreeting(),
+    day_context: getDayContext(),
+    customer_greeting: getCustomerGreeting(customerName, leadData?.lastTouchpoint),
+    customer_name: customerName,
+    greeting_opener: hasName ? `Hey ${customerName}!` : "Hey there!",
+    greeting_variation: Math.random() > 0.5 ? "What can I help you with" : "How can I help you",
+    is_outbound: "false",
+    call_type: "inbound"
+  };
+}
+
+// NEW: Extract conversation insights based on BICI approach
+async function extractConversationInsights(transcript, analysis, phoneNumber, organizationId) {
+  try {
+    const insights = {
+      classification: 'general',
+      triggers: [],
+      leadStatus: 'contacted',
+      keyPoints: [],
+      nextSteps: [],
+      sentiment: 0,
+      automotive_interest: null,
+      purchase_intent: 0,
+      budget_range: null,
+      timeline: null
+    };
+
+    // Convert transcript array to full text
+    const fullTranscript = Array.isArray(transcript) 
+      ? transcript.map(turn => `${turn.role}: ${turn.message}`).join('\n')
+      : transcript || '';
+
+    console.log('🔍 Extracting insights from transcript:', {
+      transcriptLength: fullTranscript.length,
+      hasAnalysis: !!analysis,
+      hasDataCollection: !!analysis?.data_collection_results
+    });
+
+    // Use ElevenLabs data collection if available
+    if (analysis?.data_collection_results) {
+      const data = analysis.data_collection_results;
+      
+      // Extract call classification
+      if (data.call_classification?.value) {
+        insights.classification = data.call_classification.value;
+      }
+      
+      // Extract customer triggers
+      if (data.customer_triggers?.value) {
+        const triggerString = data.customer_triggers.value;
+        if (typeof triggerString === 'string') {
+          // Map automotive-specific triggers
+          const triggerMap = {
+            'asked about store hours': 'asked_hours',
+            'asked for directions/location': 'asked_directions',
+            'inquired about prices': 'asked_price',
+            'wants to schedule appointment': 'appointment_request',
+            'interested in test drive': 'test_drive_interest',
+            'has a complaint': 'has_complaint',
+            'needs financing help': 'financing_inquiry',
+            'trade-in inquiry': 'trade_in_interest'
+          };
+          
+          insights.triggers = triggerString.split(',').map(t => t.trim())
+            .map(t => triggerMap[t] || t)
+            .filter(Boolean);
+        }
+      }
+      
+      // Extract automotive-specific interests
+      if (data.vehicle_interest?.value) {
+        insights.automotive_interest = data.vehicle_interest.value;
+      }
+      
+      // Extract purchase intent
+      if (data.purchase_intent?.value) {
+        insights.purchase_intent = parseFloat(data.purchase_intent.value) || 0;
+      }
+      
+      // Extract budget information
+      if (data.budget_range?.value) {
+        insights.budget_range = data.budget_range.value;
+      }
+      
+      // Extract timeline
+      if (data.purchase_timeline?.value) {
+        insights.timeline = data.purchase_timeline.value;
+      }
+    } else {
+      // Fallback to keyword analysis for automotive context
+      const lowerTranscript = fullTranscript.toLowerCase();
+      
+      // Classify conversation type
+      if (lowerTranscript.includes('buy') || lowerTranscript.includes('purchase') || lowerTranscript.includes('financing')) {
+        insights.classification = 'sales';
+        insights.leadStatus = 'qualified';
+        insights.purchase_intent = 0.7;
+      } else if (lowerTranscript.includes('service') || lowerTranscript.includes('repair') || lowerTranscript.includes('maintenance')) {
+        insights.classification = 'service';
+      } else if (lowerTranscript.includes('trade') || lowerTranscript.includes('trade-in')) {
+        insights.classification = 'trade-in';
+        insights.triggers.push('trade_in_interest');
+      }
+      
+      // Extract automotive interests
+      const vehicles = ['sedan', 'suv', 'truck', 'coupe', 'convertible', 'hybrid', 'electric'];
+      for (const vehicle of vehicles) {
+        if (lowerTranscript.includes(vehicle)) {
+          insights.automotive_interest = vehicle;
+          break;
+        }
+      }
+      
+      // Extract budget mentions
+      const budgetMatch = lowerTranscript.match(/\$?(\d{1,3}(?:,\d{3})*)/);
+      if (budgetMatch) {
+        insights.budget_range = budgetMatch[0];
+      }
+    }
+
+    // Basic sentiment analysis
+    const positiveWords = ['great', 'excellent', 'good', 'interested', 'yes', 'definitely'];
+    const negativeWords = ['no', 'not', 'never', 'bad', 'terrible', 'disappointed'];
+    
+    let sentimentScore = 0;
+    positiveWords.forEach(word => {
+      if (fullTranscript.toLowerCase().includes(word)) sentimentScore += 0.1;
+    });
+    negativeWords.forEach(word => {
+      if (fullTranscript.toLowerCase().includes(word)) sentimentScore -= 0.1;
+    });
+    
+    insights.sentiment = Math.max(-1, Math.min(1, sentimentScore));
+
+    console.log('✅ Extracted conversation insights:', {
+      classification: insights.classification,
+      triggersCount: insights.triggers.length,
+      automotiveInterest: insights.automotive_interest,
+      purchaseIntent: insights.purchase_intent,
+      sentiment: insights.sentiment
+    });
+
+    return insights;
+    
+  } catch (error) {
+    console.error('❌ Error extracting conversation insights:', error);
     return null;
   }
 }
@@ -2170,6 +2428,67 @@ app.post('/api/elevenlabs/outbound-call', validateOrganizationAccess, async (req
       console.error(`❌ Error fetching organization name for outbound call:`, error);
     }
 
+    // Generate enhanced dynamic variables based on BICI approach
+    const currentTime = new Date().toLocaleTimeString('en-US', { 
+      timeZone: 'America/New_York',
+      hour: '2-digit', 
+      minute: '2-digit',
+      hour12: true 
+    });
+    const currentDay = new Date().toLocaleDateString('en-US', { 
+      timeZone: 'America/New_York',
+      weekday: 'long' 
+    });
+    
+    // Generate dynamic greeting context for outbound calls
+    const greetingContext = generateGreetingContext(leadData, true, previousSummary);
+    
+    // Build comprehensive dynamic variables
+    const enhancedDynamicVariables = {
+      // Core context
+      conversation_context: createSmartContextSummary(conversationContext, messages, summary),
+      previous_summary: previousSummary || "First time caller - no previous interactions",
+      
+      // Customer information
+      customer_name: customerName || "",
+      customer_phone: phoneNumber,
+      has_customer_name: leadData?.customerName ? "true" : "false",
+      
+      // Lead data
+      lead_status: leadStatus,
+      lead_id: leadId,
+      interaction_count: messages.length.toString(),
+      last_contact: leadData?.lastTouchpoint ? new Date(leadData.lastTouchpoint).toLocaleDateString() : "First contact",
+      
+      // Organization context
+      organization_name: organizationName,
+      organization_id: organizationId,
+      
+      // Vehicle/automotive context
+      vehicle_interest: leadData?.vehiclePreference || leadData?.vehicleInterest?.type || "general inquiry",
+      funding_readiness: leadData?.fundingReadiness || "unknown",
+      credit_profile: leadData?.creditProfile?.scoreRange || "not assessed",
+      
+      // Time and business context
+      current_time: currentTime,
+      current_day: currentDay,
+      current_datetime: `${currentDay} ${currentTime} Eastern Time`,
+      
+      // Conversation metadata
+      is_outbound_call: "true",
+      call_reason: "follow_up",
+      conversation_medium: "voice",
+      
+      // Context flags
+      has_previous_conversations: messages.length > 0 ? "true" : "false",
+      conversation_count: messages.length.toString(),
+      voice_messages: messages.filter(m => m.type === 'voice').length.toString(),
+      sms_messages: messages.filter(m => m.type === 'sms' || m.type === 'text').length.toString(),
+      
+      // Dynamic greeting context
+      ...greetingContext
+    };
+    
     const callPayload = {
       agent_id: agentId,
       agent_phone_number_id: phoneNumberId,
@@ -2179,19 +2498,21 @@ app.post('/api/elevenlabs/outbound-call', validateOrganizationAccess, async (req
         lead_id: leadId,
         customer_phone: phoneNumber,
         organization_id: organizationId, // SECURITY: Include organization context
-        dynamic_variables: {
-          conversation_context: createSmartContextSummary(conversationContext, messages, summary),
-          customer_name: customerName,
-          lead_status: leadStatus,
-          previous_summary: previousSummary,
-          organization_name: organizationName
-        }
+        initiated_by: 'agent', // Mark as outbound call
+        dynamic_variables: enhancedDynamicVariables
       }
     };
 
     console.log(`📞 Initiating ElevenLabs native call to ${phoneNumber} (org: ${organizationId})`);
     console.log(`📞 Using phone number ID: ${phoneNumberId}`);
-    console.log(`📞 Call payload:`, JSON.stringify(callPayload, null, 2));
+    console.log(`📞 Enhanced dynamic variables:`, {
+      customer_name: enhancedDynamicVariables.customer_name,
+      has_customer_name: enhancedDynamicVariables.has_customer_name,
+      conversation_count: enhancedDynamicVariables.conversation_count,
+      lead_status: enhancedDynamicVariables.lead_status,
+      vehicle_interest: enhancedDynamicVariables.vehicle_interest,
+      current_datetime: enhancedDynamicVariables.current_datetime
+    });
 
     const response = await fetch(elevenlabsApiUrl, {
       method: 'POST',
@@ -2633,37 +2954,70 @@ app.post('/api/webhooks/elevenlabs/conversation-events', async (req, res) => {
       metadata: metadata
     });
 
-    // Handle different event types
+    // Handle different event types with enhanced BICI-style processing
     switch (eventData.type) {
       case 'conversation_started':
         console.log('🚀 Conversation started:', conversationId);
-        if (leadId) {
-          broadcastConversationUpdate({
-            type: 'conversation_started',
+        if (leadId && phoneNumber) {
+          // Enhanced call initiation tracking
+          const callData = {
             conversationId,
-            phoneNumber,
+            phoneNumber: normalizePhoneNumber(phoneNumber),
             leadId,
             organizationId: metadata?.organizationId,
-            timestamp: new Date(eventData.event_timestamp * 1000).toISOString()
+            status: 'active',
+            startTime: new Date(eventData.event_timestamp * 1000).toISOString()
+          };
+          
+          // Store call session data
+          activeCallSessions.set(conversationId, callData);
+          
+          broadcastConversationUpdate({
+            type: 'call_initiated',
+            ...callData,
+            timestamp: callData.startTime
           });
         }
         break;
 
       case 'conversation_ended':
         console.log('🏁 Conversation ended:', conversationId);
-        if (leadId) {
+        
+        // Get call session data for enhanced completion tracking
+        const callSession = activeCallSessions.get(conversationId);
+        
+        if (leadId && phoneNumber) {
+          // Enhanced conversation completion with analytics
+          const endTime = new Date(eventData.event_timestamp * 1000).toISOString();
+          const duration = eventData.data?.duration_ms || 
+                          (callSession ? new Date(endTime).getTime() - new Date(callSession.startTime).getTime() : null);
+          
           broadcastConversationUpdate({
-            type: 'conversation_ended',
+            type: 'call_completed',
             conversationId,
-            duration: eventData.data?.duration_ms,
+            phoneNumber: normalizePhoneNumber(phoneNumber),
             leadId,
             organizationId: metadata?.organizationId,
-            timestamp: new Date(eventData.event_timestamp * 1000).toISOString()
+            duration,
+            endTime,
+            startTime: callSession?.startTime,
+            timestamp: endTime
           });
+          
+          // Trigger conversation analysis and lead updates
+          if (phoneNumber && metadata?.organizationId) {
+            try {
+              await updateLeadFromConversationData(leadId, phoneNumber, metadata.organizationId);
+            } catch (error) {
+              console.error('⚠️ Error updating lead from conversation data:', error);
+            }
+          }
         }
-        // Clean up metadata after conversation ends
+        
+        // Clean up session data
         if (conversationId) {
           conversationMetadata.delete(conversationId);
+          activeCallSessions.delete(conversationId);
         }
         break;
 
@@ -2693,21 +3047,36 @@ app.post('/api/webhooks/elevenlabs/conversation-events', async (req, res) => {
       case 'user_message':
       case 'user_transcript':
         const userMessage = eventData.data?.message || eventData.data?.transcript;
-        console.log('💬 User voice message:', userMessage?.substring(0, 50));
+        const isPartialTranscript = eventData.data?.is_partial || false;
+        
+        console.log('💬 User voice message:', {
+          message: userMessage?.substring(0, 50),
+          isPartial: isPartialTranscript,
+          conversationId
+        });
+        
         if (userMessage && phoneNumber) {
-          // FIXED: Use organizationId from conversation metadata instead of caller lookup
           const organizationId = metadata?.organizationId;
-          addToConversationHistory(phoneNumber, userMessage, 'user', 'voice', organizationId);
+          const normalizedPhone = normalizePhoneNumber(phoneNumber);
+          
+          if (!isPartialTranscript) {
+            // Only store complete messages in conversation history
+            addToConversationHistory(normalizedPhone, userMessage, 'user', 'voice', organizationId);
+          }
+          
           if (leadId) {
+            // Broadcast both partial and complete transcripts for real-time updates
             broadcastConversationUpdate({
-              type: 'voice_received',
-              phoneNumber,
+              type: isPartialTranscript ? 'live_transcript' : 'conversation_user',
+              phoneNumber: normalizedPhone,
               message: userMessage,
               timestamp: new Date((eventData.event_timestamp || Date.now() / 1000) * 1000).toISOString(),
               conversationId,
+              speaker: 'user',
               sentBy: 'user',
               leadId,
-              organizationId
+              organizationId,
+              isPartial: isPartialTranscript
             });
           }
         }
@@ -2716,21 +3085,35 @@ app.post('/api/webhooks/elevenlabs/conversation-events', async (req, res) => {
       case 'agent_message':
       case 'agent_response':
         const agentMessage = eventData.data?.message || eventData.data?.response;
-        console.log('🤖 Agent voice message:', agentMessage?.substring(0, 50));
+        const isAgentPartial = eventData.data?.is_partial || false;
+        
+        console.log('🤖 Agent voice message:', {
+          message: agentMessage?.substring(0, 50),
+          isPartial: isAgentPartial,
+          conversationId
+        });
+        
         if (agentMessage && phoneNumber) {
-          // FIXED: Use organizationId from conversation metadata instead of caller lookup
           const organizationId = metadata?.organizationId;
-          addToConversationHistory(phoneNumber, agentMessage, 'agent', 'voice', organizationId);
+          const normalizedPhone = normalizePhoneNumber(phoneNumber);
+          
+          if (!isAgentPartial) {
+            // Only store complete messages in conversation history
+            addToConversationHistory(normalizedPhone, agentMessage, 'agent', 'voice', organizationId);
+          }
+          
           if (leadId) {
             broadcastConversationUpdate({
-              type: 'voice_sent',
-              phoneNumber,
+              type: isAgentPartial ? 'live_transcript' : 'conversation_agent',
+              phoneNumber: normalizedPhone,
               message: agentMessage,
               timestamp: new Date((eventData.event_timestamp || Date.now() / 1000) * 1000).toISOString(),
               conversationId,
+              speaker: 'agent',
               sentBy: 'agent',
               leadId,
-              organizationId
+              organizationId,
+              isPartial: isAgentPartial
             });
           }
         }
@@ -2996,6 +3379,24 @@ app.post('/api/webhooks/elevenlabs/post-call', async (req, res) => {
     // Store conversation summary if we have one - SECURITY FIX: Now includes organizationId
     if (summary && phoneNumber) {
       storeConversationSummary(phoneNumber, summary, organizationId);
+    }
+
+    // ENHANCED: Extract conversation insights like BICI
+    let insights = null;
+    if (transcript && Array.isArray(transcript)) {
+      insights = await extractConversationInsights(transcript, eventData.analysis, phoneNumber, organizationId);
+      
+      // Broadcast insights to dashboard for real-time updates
+      if (insights && leadId) {
+        broadcastConversationUpdate({
+          type: 'conversation_insights',
+          leadId,
+          phoneNumber: normalizePhoneNumber(phoneNumber),
+          organizationId,
+          insights,
+          timestamp: new Date().toISOString()
+        });
+      }
     }
 
     // ENHANCED: Extract and update lead profile from ElevenLabs data collection results
@@ -3331,15 +3732,111 @@ async function sendSMSReply(to, message, organizationId = null) {
   }
 }
 
-function broadcastConversationUpdate(data) {
-  const message = `data: ${JSON.stringify(data)}\n\n`;
+// Enhanced SSE connection management inspired by BICI
+const sseConnectionsMap = new Map(); // clientId -> Response[]
+
+function setupSSEConnection(clientId, res) {
+  // Set SSE headers
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': '*'
+  });
+  
+  // Store connection
+  if (!sseConnectionsMap.has(clientId)) {
+    sseConnectionsMap.set(clientId, []);
+  }
+  sseConnectionsMap.get(clientId).push(res);
+  
+  // Send initial connection event
+  res.write(`data: ${JSON.stringify({ 
+    type: 'connected', 
+    clientId,
+    timestamp: new Date().toISOString() 
+  })}\n\n`);
+  
+  // Keep connection alive
+  const keepAlive = setInterval(() => {
+    try {
+      res.write(': ping\n\n');
+    } catch (error) {
+      clearInterval(keepAlive);
+    }
+  }, 30000);
+  
+  // Clean up on disconnect
+  res.on('close', () => {
+    clearInterval(keepAlive);
+    const connections = sseConnectionsMap.get(clientId);
+    if (connections) {
+      const index = connections.indexOf(res);
+      if (index > -1) {
+        connections.splice(index, 1);
+      }
+      if (connections.length === 0) {
+        sseConnectionsMap.delete(clientId);
+      }
+    }
+    console.log(`📡 SSE connection closed for client: ${clientId}`);
+  });
+  
+  console.log(`📡 SSE connection established for client: ${clientId}`);
+}
+
+function broadcastToClients(data, targetClientId) {
+  const message = `data: ${JSON.stringify({
+    ...data,
+    timestamp: new Date().toISOString()
+  })}\n\n`;
   
   console.log('📡 Broadcasting update:', {
     type: data.type,
-    leadId: data.leadId || 'NONE',
-    activeConnections: Array.from(sseConnections.keys()),
+    targetClientId: targetClientId || 'all',
+    connectionCount: getActiveSSEConnections(),
     messageLength: message.length
   });
+  
+  if (targetClientId) {
+    // Send to specific client
+    const connections = sseConnectionsMap.get(targetClientId);
+    if (connections) {
+      connections.forEach(res => {
+        try {
+          res.write(message);
+        } catch (error) {
+          console.error('❌ Error broadcasting to client:', error);
+        }
+      });
+    }
+  } else {
+    // Broadcast to all clients
+    sseConnectionsMap.forEach((connections, clientId) => {
+      connections.forEach(res => {
+        try {
+          res.write(message);
+        } catch (error) {
+          console.error('❌ Error broadcasting to client:', error);
+        }
+      });
+    });
+  }
+  
+  // Legacy support - also broadcast via old system for backwards compatibility
+  broadcastConversationUpdate(data);
+}
+
+function getActiveSSEConnections() {
+  let total = 0;
+  sseConnectionsMap.forEach(connections => {
+    total += connections.length;
+  });
+  return total;
+}
+
+function broadcastConversationUpdate(data) {
+  const message = `data: ${JSON.stringify(data)}\n\n`;
   
   // If data has leadId, only send to connections watching that lead
   if (data.leadId) {
@@ -3352,8 +3849,6 @@ function broadcastConversationUpdate(data) {
         console.error('❌ Error broadcasting to SSE client:', error);
         sseConnections.delete(data.leadId);
       }
-    } else {
-      console.log(`❌ No SSE connection found for lead ${data.leadId}`);
     }
     
     // ENHANCED: Log activity to Supabase (non-blocking CRM feature)
@@ -3366,30 +3861,16 @@ function broadcastConversationUpdate(data) {
         console.log(`🗄️ Activity logging failed (system continues normally):`, error.message);
       });
     }
-
-    // ENHANCED: Broadcast to analytics clients for real-time dashboard updates
-    if (data.organizationId && data.leadId) {
-      broadcastAnalyticsUpdate(data.organizationId, {
-        type: 'conversation_update',
-        leadId: data.leadId,
-        phoneNumber: data.phoneNumber,
-        messageCount: data.messages?.length || 0,
-        lastActivity: new Date().toISOString(),
-        messageType: data.type
-      });
-    }
   } else {
     // Broadcast to all connections if no specific leadId
-    console.log(`📡 Broadcasting to all ${sseConnections.size} connections`);
     sseConnections.forEach((res, leadId) => {
-    try {
-      res.write(message);
-        console.log(`✅ Sent update to lead ${leadId}`);
-    } catch (error) {
-      console.error('❌ Error broadcasting to SSE client:', error);
+      try {
+        res.write(message);
+      } catch (error) {
+        console.error('❌ Error broadcasting to SSE client:', error);
         sseConnections.delete(leadId);
-    }
-  });
+      }
+    });
   }
 }
 
@@ -3623,6 +4104,12 @@ app.post('/api/auth/organizations', async (req, res) => {
     console.error('❌ Error in /api/auth/organizations POST:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+// Enhanced SSE endpoint with improved connection management
+app.get('/api/stream/:clientId', (req, res) => {
+  const { clientId } = req.params;
+  setupSSEConnection(clientId, res);
 });
 
 // Server-Sent Events endpoint for real-time UI updates - SECURITY FIXED
@@ -4034,7 +4521,10 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', async (req, res) =>
     // Keep the conversation context simple but allow much larger contexts with smart truncation
     const finalContext = createSmartContextSummary(conversationContext, messages, summary);
     
-    // Build the response in the format ElevenLabs expects (keeping it simple)
+    // Generate dynamic greeting context (BICI approach)
+    const greetingContext = generateGreetingContext(leadData, false, previousSummary);
+    
+    // Build the response in the format ElevenLabs expects with dynamic greetings
     const response = {
       dynamic_variables: {
         conversation_context: finalContext,
@@ -4043,7 +4533,9 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', async (req, res) =>
         previous_summary: previousSummary,
         organization_name: organizationName,
         organization_id: organizationId,
-        caller_type: "existing_lead"
+        caller_type: "existing_lead",
+        // Add greeting context variables
+        ...greetingContext
       }
     };
     
