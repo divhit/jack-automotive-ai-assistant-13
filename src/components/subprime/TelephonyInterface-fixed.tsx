@@ -1186,7 +1186,22 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
                             >
                               <p className="whitespace-pre-wrap">{message.content}</p>
                               <div className="flex items-center justify-between mt-1 text-xs opacity-70">
-                                <span>{formatMessageTime(message.timestamp)}</span>
+                                <div className="flex items-center gap-2">
+                                  <span>{formatMessageTime(message.timestamp)}</span>
+                                  {/* Message type indicator like BICI */}
+                                  <span className={cn(
+                                    "px-1.5 py-0.5 rounded text-xs font-medium",
+                                    message.type === 'voice' ? "bg-purple-100 text-purple-800" :
+                                    message.type === 'sms' ? "bg-blue-100 text-blue-800" :
+                                    message.type === 'call' ? "bg-green-100 text-green-800" :
+                                    "bg-gray-100 text-gray-800"
+                                  )}>
+                                    {message.type === 'voice' ? '🎤 Voice' :
+                                     message.type === 'sms' ? '📱 SMS' :
+                                     message.type === 'call' ? '📞 Call' :
+                                     '⚙️ System'}
+                                  </span>
+                                </div>
                                 {message.status && (
                                   <span className={getStatusColor(message.status)}>
                                     {message.status}

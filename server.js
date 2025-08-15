@@ -861,21 +861,48 @@ function generateGreetingContext(leadData, isOutbound = false, previousSummary =
       greeting_opener: hasName ? `Hey ${customerName}!` : "Hey!",
       greeting_variation: variation,
       is_outbound: "true",
-      call_type: "outbound_followup"
+      call_type: "outbound_followup",
+      // ElevenLabs-optimized first message components
+      first_message_dynamic: hasName && previousSummary ? 
+        `Hey ${customerName}! ${getTimeBasedGreeting()} I'm calling about ${extractCallReason(previousSummary)}` :
+        hasName ? 
+        `Hey ${customerName}! ${getTimeBasedGreeting()} ${variation}` :
+        `Hey! ${getTimeBasedGreeting()} ${variation}`
     };
   }
   
   // Inbound call greetings
+  const inboundVariation = Math.random() > 0.5 ? "What can I help you with" : "How can I help you";
+  
   return {
     time_greeting: getTimeBasedGreeting(),
     day_context: getDayContext(),
     customer_greeting: getCustomerGreeting(customerName, leadData?.lastTouchpoint),
     customer_name: customerName,
     greeting_opener: hasName ? `Hey ${customerName}!` : "Hey there!",
-    greeting_variation: Math.random() > 0.5 ? "What can I help you with" : "How can I help you",
+    greeting_variation: inboundVariation,
     is_outbound: "false",
-    call_type: "inbound"
+    call_type: "inbound",
+    // ElevenLabs-optimized first message components
+    first_message_dynamic: hasName ? 
+      `Hey ${customerName}! ${getTimeBasedGreeting()} ${inboundVariation}?` :
+      `Hey there! ${getTimeBasedGreeting()} ${inboundVariation}?`
   };
+}
+
+// Helper function to extract call reason from previous summary
+function extractCallReason(summary) {
+  const summaryText = summary.toLowerCase();
+  
+  if (summaryText.includes('suv') || summaryText.includes('truck')) return "the SUV you were interested in";
+  if (summaryText.includes('sedan') || summaryText.includes('car')) return "the vehicle you were interested in";
+  if (summaryText.includes('financing') || summaryText.includes('loan')) return "the financing options we discussed";
+  if (summaryText.includes('test drive')) return "scheduling your test drive";
+  if (summaryText.includes('service') || summaryText.includes('maintenance')) return "your service appointment";
+  if (summaryText.includes('trade') || summaryText.includes('trade-in')) return "your trade-in inquiry";
+  if (summaryText.includes('appointment')) return "your appointment";
+  
+  return "our previous conversation";
 }
 
 // NEW: Extract conversation insights based on BICI approach
