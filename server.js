@@ -459,6 +459,48 @@ async function getOrganizationIdFromPhone(phoneNumber) {
   }
 }
 
+// PERFORMANCE: Direct database query for conversation history (no cache manipulation)
+async function getConversationHistoryDirect(phoneNumber, organizationId) {
+  const normalized = normalizePhoneNumber(phoneNumber);
+  
+  if (!organizationId) {
+    console.error(`🚨 SECURITY: getConversationHistoryDirect called without organizationId for ${phoneNumber}`);
+    return [];
+  }
+  
+  try {
+    if (supabasePersistence.isEnabled && supabasePersistence.isConnected) {
+      // DIRECT DATABASE QUERY - NO CACHE MANIPULATION
+      const client = supabasePersistence.supabase;
+      const { data, error } = await client
+        .from('conversations')
+        .select('*')
+        .eq('phone_number', normalized)
+        .eq('organization_id', organizationId)
+        .order('timestamp', { ascending: true });
+      
+      if (error) {
+        console.error('🔥 Database query failed:', error);
+        return [];
+      }
+      
+      const formattedHistory = data.map(msg => ({
+        content: msg.content,
+        sentBy: msg.sent_by,
+        timestamp: msg.timestamp,
+        type: msg.type || 'text'
+      }));
+      
+      console.log(`🔍 DIRECT DB QUERY: Retrieved ${data.length} messages from database`);
+      return formattedHistory;
+    }
+  } catch (error) {
+    console.error('🔥 Error in getConversationHistoryDirect:', error);
+  }
+  
+  return [];
+}
+
 async function getConversationHistory(phoneNumber, organizationId = null) {
   const normalized = normalizePhoneNumber(phoneNumber);
   
@@ -628,7 +670,7 @@ function storeConversationSummary(phoneNumber, summary, organizationId = null) {
 // Generate comprehensive summary from voice + SMS conversations
 async function generateComprehensiveSummary(phoneNumber, organizationId) {
   try {
-    const history = await getConversationHistory(phoneNumber, organizationId);
+    const history = await getConversationHistoryDirect(phoneNumber, organizationId);
     if (history.length === 0) return null;
     
     const voiceMessages = history.filter(msg => msg.type === 'voice');
@@ -799,8 +841,8 @@ async function getConversationHistoryCached(phoneNumber, organizationId) {
     return await inflightRequests.get(requestKey);
   }
   
-  // Start the request and store it
-  const requestPromise = getConversationHistory(phoneNumber, organizationId);
+  // Start the request and store it - DIRECT DB QUERY (no cache clearing)
+  const requestPromise = getConversationHistoryDirect(phoneNumber, organizationId);
   inflightRequests.set(requestKey, requestPromise);
   
   try {
@@ -829,8 +871,8 @@ async function getConversationSummaryCached(phoneNumber, organizationId) {
     return await inflightRequests.get(requestKey);
   }
   
-  // Start the request and store it
-  const requestPromise = getConversationSummary(phoneNumber, organizationId);
+  // Start the request and store it - DIRECT DB QUERY (no cache clearing)
+  const requestPromise = getConversationSummaryDirect(phoneNumber, organizationId);
   inflightRequests.set(requestKey, requestPromise);
   
   try {
@@ -1316,6 +1358,32 @@ async function updateLeadFromConversationData(phoneNumber, dataCollectionResults
   } catch (error) {
     console.error('❌ Error updating lead from conversation data:', error);
   }
+}
+
+// PERFORMANCE: Direct database query for conversation summary (no cache manipulation)
+async function getConversationSummaryDirect(phoneNumber, organizationId) {
+  const normalized = normalizePhoneNumber(phoneNumber);
+  
+  if (!organizationId) {
+    console.error(`🚨 SECURITY: getConversationSummaryDirect called without organizationId for ${phoneNumber}`);
+    return null;
+  }
+  
+  try {
+    if (supabasePersistence.isEnabled && supabasePersistence.isConnected) {
+      // DIRECT DATABASE QUERY - NO CACHE MANIPULATION
+      const supabaseSummary = await supabasePersistence.getConversationSummary(phoneNumber, organizationId);
+      
+      if (supabaseSummary) {
+        console.log(`📋 DIRECT DB: Loaded summary from Supabase for ${phoneNumber} in organization ${organizationId}`);
+        return supabaseSummary;
+      }
+    }
+  } catch (error) {
+    console.error('🔥 Error in getConversationSummaryDirect:', error);
+  }
+  
+  return null;
 }
 
 // Get conversation summary - SECURITY FIXED with organization validation
