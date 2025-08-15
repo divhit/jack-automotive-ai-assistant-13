@@ -639,6 +639,8 @@ function addToConversationHistory(phoneNumber, message, sentBy, messageType = 't
       conversationHistoryCache.delete(memoryKey);
       conversationSummaryCache.delete(memoryKey);
       
+      console.log(`🗑️ CACHE INVALIDATED for key: ${memoryKey} (message type: ${messageType}, sentBy: ${sentBy})`);
+      
       console.log(`📝 Added ${messageType} message to org-scoped history ${memoryKey} (${sentBy}): ${message.substring(0, 100)}...`);
       
   // Persist to Supabase with organization context
@@ -4450,7 +4452,13 @@ app.get('/api/stream/conversation/:leadId', validateOrganizationAccess, async (r
     try {
       console.log(`📋 Loading conversation history for SSE connection: ${leadId} (phone: ${phoneNumber}) (org: ${organizationId})`);
       
-      // SECURITY & PERFORMANCE: Use cached versions with provided organizationId
+      // URGENT FIX: Force fresh data for SSE connections to ensure transcript updates
+      const cacheKey = createOrgMemoryKey(organizationId, phoneNumber);
+      conversationHistoryCache.delete(cacheKey);
+      conversationSummaryCache.delete(cacheKey);
+      console.log(`🗑️ FORCED CACHE CLEAR for SSE connection: ${cacheKey}`);
+      
+      // SECURITY & PERFORMANCE: Use cached versions (now will load fresh)
       const messages = await getConversationHistoryCached(phoneNumber, organizationId);
       const summary = await getConversationSummaryCached(phoneNumber, organizationId);
       
@@ -4507,6 +4515,97 @@ app.get('/api/stream/conversation/:leadId', validateOrganizationAccess, async (r
     
     clearInterval(heartbeat);
   });
+});
+
+// URGENT: Add manual call ending endpoint for end call button
+app.post('/api/elevenlabs/end-call', validateOrganizationAccess, async (req, res) => {
+  try {
+    const { conversationId, leadId } = req.body;
+    const { organizationId } = req;
+    
+    console.log(`📞 Manual call end requested for conversation: ${conversationId} (lead: ${leadId}) (org: ${organizationId})`);
+    
+    if (!conversationId) {
+      return res.status(400).json({
+        success: false,
+        error: 'conversationId is required'
+      });
+    }
+    
+    // Check if conversation belongs to this organization
+    const metadata = conversationMetadata.get(conversationId);
+    if (!metadata || metadata.organizationId !== organizationId) {
+      return res.status(403).json({
+        success: false,
+        error: 'Conversation not found or access denied'
+      });
+    }
+    
+    // End the ElevenLabs conversation
+    const elevenlabsApiKey = process.env.ELEVENLABS_API_KEY;
+    if (!elevenlabsApiKey) {
+      return res.status(500).json({
+        success: false,
+        error: 'ElevenLabs API key not configured'
+      });
+    }
+    
+    try {
+      // Call ElevenLabs API to end the conversation
+      const endCallResponse = await fetch(`https://api.elevenlabs.io/v1/convai/conversations/${conversationId}/end`, {
+        method: 'POST',
+        headers: {
+          'xi-api-key': elevenlabsApiKey,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (endCallResponse.ok) {
+        console.log(`✅ Successfully ended ElevenLabs conversation: ${conversationId}`);
+        
+        // Broadcast call ended event
+        if (leadId) {
+          broadcastConversationUpdate({
+            type: 'call_ended_manual',
+            conversationId,
+            leadId,
+            timestamp: new Date().toISOString()
+          });
+        }
+        
+        // Clean up metadata
+        conversationMetadata.delete(conversationId);
+        activeCallSessions.delete(conversationId);
+        
+        res.json({
+          success: true,
+          message: 'Call ended successfully'
+        });
+        
+      } else {
+        const errorText = await endCallResponse.text();
+        console.error(`❌ Failed to end ElevenLabs conversation:`, errorText);
+        res.status(500).json({
+          success: false,
+          error: 'Failed to end call with ElevenLabs'
+        });
+      }
+      
+    } catch (apiError) {
+      console.error(`❌ Error calling ElevenLabs end conversation API:`, apiError);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to communicate with ElevenLabs API'
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ Error in manual call end:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
 });
 
 // --- TEST AND HEALTHCHECK ---
