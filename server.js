@@ -475,7 +475,7 @@ async function getConversationHistoryDirect(phoneNumber, organizationId) {
       const { data, error } = await client
         .from('conversations')
         .select('*')
-        .eq('phone_number', normalized)
+        .eq('phone_number_normalized', normalized)
         .eq('organization_id', organizationId)
         .order('timestamp', { ascending: true });
       
@@ -676,8 +676,8 @@ async function generateComprehensiveSummary(phoneNumber, organizationId) {
     const voiceMessages = history.filter(msg => msg.type === 'voice');
     const smsMessages = history.filter(msg => msg.type === 'text' || msg.type === 'sms');
     
-    // Check if we have an ElevenLabs voice summary
-    const existingSummary = await getConversationSummary(phoneNumber, organizationId);
+    // Check if we have an ElevenLabs voice summary (CACHED)
+    const existingSummary = await getConversationSummaryCached(phoneNumber, organizationId);
     
     if (existingSummary?.summary && smsMessages.length === 0) {
       // Only voice conversations, use existing summary
@@ -923,8 +923,8 @@ async function loadConversationDataParallel(caller_id, organizationId, activeLea
 // NEW: Dynamic greeting helper functions (based on BICI approach)
 function getTimeBasedGreeting() {
   const now = new Date();
-  const easternTime = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
-  const hour = easternTime.getHours();
+  const pacificTime = new Date(now.toLocaleString("en-US", { timeZone: "America/Los_Angeles" }));
+  const hour = pacificTime.getHours();
   
   if (hour < 5) return "Thanks for calling so late!";
   if (hour < 12) return "Good morning!";
@@ -935,9 +935,9 @@ function getTimeBasedGreeting() {
 
 function getDayContext() {
   const now = new Date();
-  const easternDate = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
-  const day = easternDate.getDay();
-  const hour = easternDate.getHours();
+  const pacificDate = new Date(now.toLocaleString("en-US", { timeZone: "America/Los_Angeles" }));
+  const day = pacificDate.getDay();
+  const hour = pacificDate.getHours();
   
   // Weekend
   if (day === 0 || day === 6) {
@@ -1486,8 +1486,8 @@ async function buildConversationContext(phoneNumber, organizationId = null) {
     return ''; // Return empty context instead of risking cross-organization data leakage
   }
   
-  const history = await getConversationHistory(phoneNumber, organizationId);
-  const summaryData = await getConversationSummary(phoneNumber, organizationId);
+  const history = await getConversationHistoryCached(phoneNumber, organizationId);
+  const summaryData = await getConversationSummaryCached(phoneNumber, organizationId);
   
   if (history.length === 0 && !summaryData) {
     console.log(`📋 No conversation history or summary found for ${phoneNumber} (org: ${organizationId}) (normalized: ${normalizePhoneNumber(phoneNumber)})`);
@@ -2589,8 +2589,8 @@ app.post('/api/webhooks/twilio/sms/incoming', async (req, res) => {
       addToConversationHistory(From, Body, 'user', 'text', organizationId);
       ws.send(JSON.stringify({ type: 'user_message', text: Body }));
     } else {
-      // ENHANCED: Check conversation history BEFORE starting new conversation  
-      const existingHistory = await getConversationHistory(From, organizationId);
+      // ENHANCED: Check conversation history BEFORE starting new conversation (CACHED)
+      const existingHistory = await getConversationHistoryCached(From, organizationId);
       addToConversationHistory(From, Body, 'user', 'text', organizationId);
       
       if (existingHistory.length > 0) {
@@ -2728,13 +2728,13 @@ app.post('/api/elevenlabs/outbound-call', validateOrganizationAccess, async (req
 
     // Generate enhanced dynamic variables based on BICI approach
     const currentTime = new Date().toLocaleTimeString('en-US', { 
-      timeZone: 'America/New_York',
+      timeZone: 'America/Los_Angeles',
       hour: '2-digit', 
       minute: '2-digit',
       hour12: true 
     });
     const currentDay = new Date().toLocaleDateString('en-US', { 
-      timeZone: 'America/New_York',
+      timeZone: 'America/Los_Angeles',
       weekday: 'long' 
     });
     
@@ -2770,7 +2770,7 @@ app.post('/api/elevenlabs/outbound-call', validateOrganizationAccess, async (req
       // Time and business context
       current_time: currentTime,
       current_day: currentDay,
-      current_datetime: `${currentDay} ${currentTime} Eastern Time`,
+      current_datetime: `${currentDay} ${currentTime} Pacific Time`,
       
       // Conversation metadata
       is_outbound_call: "true",
@@ -4441,9 +4441,9 @@ app.get('/api/stream/conversation/:leadId', validateOrganizationAccess, async (r
     try {
       console.log(`📋 Loading conversation history for SSE connection: ${leadId} (phone: ${phoneNumber}) (org: ${organizationId})`);
       
-      // SECURITY: Use provided organizationId instead of trying to determine it
-      const messages = await getConversationHistory(phoneNumber, organizationId);
-      const summary = await getConversationSummary(phoneNumber, organizationId);
+      // SECURITY & PERFORMANCE: Use cached versions with provided organizationId
+      const messages = await getConversationHistoryCached(phoneNumber, organizationId);
+      const summary = await getConversationSummaryCached(phoneNumber, organizationId);
       
       // Format messages for frontend
       const formattedMessages = messages.map((msg, index) => ({
@@ -4670,9 +4670,9 @@ app.get('/api/conversation-history/:leadId', validateOrganizationAccess, async (
       });
     }
     
-    // SECURITY: Use provided organizationId instead of trying to determine it
-    const messages = await getConversationHistory(phoneToUse, organizationId);
-    const summary = await getConversationSummary(phoneToUse, organizationId);
+    // SECURITY & PERFORMANCE: Use cached versions with provided organizationId
+    const messages = await getConversationHistoryCached(phoneToUse, organizationId);
+    const summary = await getConversationSummaryCached(phoneToUse, organizationId);
     
     console.log(`📋 API: Retrieved ${messages.length} messages for lead ${leadId} (${phoneToUse}) (org: ${organizationId})`);
     
