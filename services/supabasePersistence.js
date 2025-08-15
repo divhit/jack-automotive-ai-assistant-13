@@ -36,8 +36,11 @@ class SupabasePersistenceService {
       this.supabase = createClient(supabaseUrl, supabaseKey);
       this.isEnabled = true;
       
-      // Test connection
-      this.testConnection();
+      // Test connection (non-blocking)
+      this.testConnection().catch(error => {
+        console.log('🗄️ Initial Supabase test failed, will retry later:', error.message);
+        this.isConnected = false;
+      });
       
       console.log('🗄️ Supabase persistence service initialized and ENABLED');
     } catch (error) {
