@@ -165,11 +165,19 @@ const sseConnections = new Map(); // leadId -> response object (for Server-Sent 
 const conversationMetadata = new Map(); // conversationId -> { phoneNumber, leadId, startTime }
 const activeCallSessions = new Map(); // conversationId -> call session data
 
-// PERFORMANCE: Add caching layers to reduce latency
+// PERFORMANCE: Aggressive caching layers to eliminate redundant queries
 const conversationContextCache = new Map(); // orgId:phoneNumber -> { context, timestamp }
 const comprehensiveSummaryCache = new Map(); // orgId:phoneNumber -> { summary, timestamp }
 const organizationCache = new Map(); // organizationId -> { name, timestamp }
-const CACHE_TTL = 30000; // 30 seconds cache
+const conversationHistoryCache = new Map(); // orgId:phoneNumber -> { messages, timestamp }
+const conversationSummaryCache = new Map(); // orgId:phoneNumber -> { summary, timestamp }
+const leadSyncCache = new Map(); // organizationId -> { timestamp }
+
+// PERFORMANCE: Request deduplication - prevent multiple identical queries
+const inflightRequests = new Map(); // cacheKey -> Promise
+
+const CACHE_TTL = 120000; // 2 minutes cache (increased from 30 seconds)
+const LEAD_SYNC_TTL = 300000; // 5 minutes for lead syncing
 
 // Human-in-the-loop control state
 const humanControlSessions = new Map(); // orgId:phoneNumber -> { agentName, organizationId, startTime, leadId }
@@ -579,6 +587,8 @@ function addToConversationHistory(phoneNumber, message, sentBy, messageType = 't
       // PERFORMANCE: Invalidate related caches when new message is added
       conversationContextCache.delete(memoryKey);
       comprehensiveSummaryCache.delete(memoryKey);
+      conversationHistoryCache.delete(memoryKey);
+      conversationSummaryCache.delete(memoryKey);
       
       console.log(`📝 Added ${messageType} message to org-scoped history ${memoryKey} (${sentBy}): ${message.substring(0, 100)}...`);
       
@@ -666,7 +676,7 @@ async function generateComprehensiveSummary(phoneNumber, organizationId) {
   }
 }
 
-// PERFORMANCE: Cached conversation context building
+// PERFORMANCE: Cached conversation context building with request deduplication
 async function buildConversationContextCached(phoneNumber, organizationId) {
   const cacheKey = createOrgMemoryKey(organizationId, phoneNumber);
   const cached = conversationContextCache.get(cacheKey);
@@ -676,12 +686,27 @@ async function buildConversationContextCached(phoneNumber, organizationId) {
     return cached.context;
   }
   
-  const context = await buildConversationContext(phoneNumber, organizationId);
-  conversationContextCache.set(cacheKey, { context, timestamp: Date.now() });
-  return context;
+  // PERFORMANCE: Check if request is already in flight
+  const requestKey = `context_${cacheKey}`;
+  if (inflightRequests.has(requestKey)) {
+    console.log(`⚡ Deduplicating conversation context request for ${phoneNumber}`);
+    return await inflightRequests.get(requestKey);
+  }
+  
+  // Start the request and store it
+  const requestPromise = buildConversationContext(phoneNumber, organizationId);
+  inflightRequests.set(requestKey, requestPromise);
+  
+  try {
+    const context = await requestPromise;
+    conversationContextCache.set(cacheKey, { context, timestamp: Date.now() });
+    return context;
+  } finally {
+    inflightRequests.delete(requestKey);
+  }
 }
 
-// PERFORMANCE: Cached comprehensive summary
+// PERFORMANCE: Cached comprehensive summary with request deduplication
 async function generateComprehensiveSummaryCached(phoneNumber, organizationId) {
   const cacheKey = createOrgMemoryKey(organizationId, phoneNumber);
   const cached = comprehensiveSummaryCache.get(cacheKey);
@@ -691,12 +716,27 @@ async function generateComprehensiveSummaryCached(phoneNumber, organizationId) {
     return cached.summary;
   }
   
-  const summary = await generateComprehensiveSummary(phoneNumber, organizationId);
-  comprehensiveSummaryCache.set(cacheKey, { summary, timestamp: Date.now() });
-  return summary;
+  // PERFORMANCE: Check if request is already in flight
+  const requestKey = `comprehensive_${cacheKey}`;
+  if (inflightRequests.has(requestKey)) {
+    console.log(`⚡ Deduplicating comprehensive summary request for ${phoneNumber}`);
+    return await inflightRequests.get(requestKey);
+  }
+  
+  // Start the request and store it
+  const requestPromise = generateComprehensiveSummary(phoneNumber, organizationId);
+  inflightRequests.set(requestKey, requestPromise);
+  
+  try {
+    const summary = await requestPromise;
+    comprehensiveSummaryCache.set(cacheKey, { summary, timestamp: Date.now() });
+    return summary;
+  } finally {
+    inflightRequests.delete(requestKey);
+  }
 }
 
-// PERFORMANCE: Cached organization name lookup
+// PERFORMANCE: Cached organization name lookup with request deduplication
 async function getOrganizationNameCached(organizationId) {
   const cached = organizationCache.get(organizationId);
   
@@ -705,32 +745,110 @@ async function getOrganizationNameCached(organizationId) {
     return cached.name;
   }
   
-  let organizationName = "Jack Automotive";
-  try {
-    const { data: orgData, error } = await client
-      .from('organizations')
-      .select('name')
-      .eq('id', organizationId)
-      .single();
-    
-    if (orgData && !error) {
-      organizationName = orgData.name;
-    }
-  } catch (error) {
-    console.warn(`⚠️ Could not fetch organization name for ${organizationId}, using default`);
+  // PERFORMANCE: Check if request is already in flight
+  const requestKey = `org_${organizationId}`;
+  if (inflightRequests.has(requestKey)) {
+    console.log(`⚡ Deduplicating organization name request for ${organizationId}`);
+    return await inflightRequests.get(requestKey);
   }
   
-  organizationCache.set(organizationId, { name: organizationName, timestamp: Date.now() });
-  return organizationName;
+  // Start the request and store it
+  const requestPromise = (async () => {
+    let organizationName = "Jack Automotive";
+    try {
+      const { data: orgData, error } = await client
+        .from('organizations')
+        .select('name')
+        .eq('id', organizationId)
+        .single();
+      
+      if (orgData && !error) {
+        organizationName = orgData.name;
+      }
+    } catch (error) {
+      console.warn(`⚠️ Could not fetch organization name for ${organizationId}, using default`);
+    }
+    return organizationName;
+  })();
+  
+  inflightRequests.set(requestKey, requestPromise);
+  
+  try {
+    const organizationName = await requestPromise;
+    organizationCache.set(organizationId, { name: organizationName, timestamp: Date.now() });
+    return organizationName;
+  } finally {
+    inflightRequests.delete(requestKey);
+  }
 }
 
-// PERFORMANCE: Parallel data loading for conversation initiation
+// PERFORMANCE: Cached conversation history with request deduplication
+async function getConversationHistoryCached(phoneNumber, organizationId) {
+  const cacheKey = createOrgMemoryKey(organizationId, phoneNumber);
+  const cached = conversationHistoryCache.get(cacheKey);
+  
+  if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+    console.log(`⚡ Using cached conversation history for ${phoneNumber} (${cached.messages.length} messages)`);
+    return cached.messages;
+  }
+  
+  // PERFORMANCE: Check if request is already in flight
+  const requestKey = `history_${cacheKey}`;
+  if (inflightRequests.has(requestKey)) {
+    console.log(`⚡ Deduplicating conversation history request for ${phoneNumber}`);
+    return await inflightRequests.get(requestKey);
+  }
+  
+  // Start the request and store it
+  const requestPromise = getConversationHistory(phoneNumber, organizationId);
+  inflightRequests.set(requestKey, requestPromise);
+  
+  try {
+    const messages = await requestPromise;
+    conversationHistoryCache.set(cacheKey, { messages, timestamp: Date.now() });
+    return messages;
+  } finally {
+    inflightRequests.delete(requestKey);
+  }
+}
+
+// PERFORMANCE: Cached conversation summary with request deduplication
+async function getConversationSummaryCached(phoneNumber, organizationId) {
+  const cacheKey = createOrgMemoryKey(organizationId, phoneNumber);
+  const cached = conversationSummaryCache.get(cacheKey);
+  
+  if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+    console.log(`⚡ Using cached conversation summary for ${phoneNumber}`);
+    return cached.summary;
+  }
+  
+  // PERFORMANCE: Check if request is already in flight
+  const requestKey = `summary_${cacheKey}`;
+  if (inflightRequests.has(requestKey)) {
+    console.log(`⚡ Deduplicating conversation summary request for ${phoneNumber}`);
+    return await inflightRequests.get(requestKey);
+  }
+  
+  // Start the request and store it
+  const requestPromise = getConversationSummary(phoneNumber, organizationId);
+  inflightRequests.set(requestKey, requestPromise);
+  
+  try {
+    const summary = await requestPromise;
+    conversationSummaryCache.set(cacheKey, { summary, timestamp: Date.now() });
+    return summary;
+  } finally {
+    inflightRequests.delete(requestKey);
+  }
+}
+
+// PERFORMANCE: Parallel data loading for conversation initiation (OPTIMIZED: All cached versions)
 async function loadConversationDataParallel(caller_id, organizationId, activeLead) {
-  console.log('⚡ Loading conversation data in parallel...');
+  console.log('⚡ Loading conversation data in parallel with aggressive caching...');
   
   const startTime = Date.now();
   
-  // Run all expensive operations in parallel
+  // Run all expensive operations in parallel - ALL CACHED VERSIONS!
   const [
     conversationContext,
     summary,
@@ -740,15 +858,15 @@ async function loadConversationDataParallel(caller_id, organizationId, activeLea
     comprehensiveSummary
   ] = await Promise.all([
     buildConversationContextCached(caller_id, organizationId),
-    getConversationSummary(caller_id, organizationId),
-    getConversationHistory(caller_id, organizationId),
+    getConversationSummaryCached(caller_id, organizationId),  // ⚡ CACHED
+    getConversationHistoryCached(caller_id, organizationId), // ⚡ CACHED
     activeLead ? getLeadData(activeLead) : Promise.resolve(null),
     getOrganizationNameCached(organizationId),
     generateComprehensiveSummaryCached(caller_id, organizationId)
   ]);
   
   const loadTime = Date.now() - startTime;
-  console.log(`⚡ Parallel data loading completed in ${loadTime}ms`);
+  console.log(`⚡ OPTIMIZED: Parallel data loading completed in ${loadTime}ms (using cached versions)`);
   
   return {
     conversationContext,
