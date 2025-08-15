@@ -253,6 +253,8 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
         break;
         
       case 'call_ended':
+      case 'call_completed':
+      case 'call_ended_manual':
         setIsCallActive(false);
         setCurrentMode('text');
         setConversationId(null);
@@ -263,6 +265,19 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
           timestamp: new Date().toISOString(),
           sentBy: 'system'
         });
+        // URGENT FIX: Reload conversation history after call ends to get transcript
+        console.log('📞 Call ended - reloading conversation history to get transcript');
+        setTimeout(() => {
+          loadConversationHistory();
+        }, 1000); // Small delay to ensure transcript is saved
+        break;
+        
+      case 'conversation_transcript_added':
+        // URGENT FIX: Auto-reload conversation history when transcript is added
+        console.log('📝 Transcript added - reloading conversation history');
+        setTimeout(() => {
+          loadConversationHistory();
+        }, 500);
         break;
         
       case 'post_call_summary':
@@ -275,6 +290,10 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
             sentBy: 'system'
           });
         }
+        // Also reload conversation history to get any new content
+        setTimeout(() => {
+          loadConversationHistory();
+        }, 500);
         break;
         
       default:
