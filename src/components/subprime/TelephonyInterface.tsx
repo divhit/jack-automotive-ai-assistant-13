@@ -82,6 +82,16 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [showAnalytics, setShowAnalytics] = useState(true);
   const [activeAnalyticsTab, setActiveAnalyticsTab] = useState('live');
+  
+  // ⭐ MANUAL CALLS FEATURE: State for manual call functionality
+  const [isManualCallActive, setIsManualCallActive] = useState(false);
+  const [manualCallSession, setManualCallSession] = useState<{
+    conferenceId?: string;
+    status?: string;
+    dialInNumber?: string;
+    instructions?: string;
+  } | null>(null);
+  const [agentName, setAgentName] = useState('Agent'); // Default agent name
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -444,6 +454,149 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
     toast.success('Call ended');
   };
 
+  // ⭐ MANUAL CALLS FEATURE: Handle manual call initiation
+  const handleManualCall = async () => {
+    if (!selectedLead) return;
+    
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      console.log('📞 Starting manual call to:', selectedLead.phoneNumber, '(org:', organization?.id, ')');
+      
+      // SECURITY: Include organization headers for validation
+      const response = await fetch('/api/manual-call/initiate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-organization-id': organization?.id || '',
+          'organizationId': organization?.id || ''
+        },
+        body: JSON.stringify({
+          phoneNumber: selectedLead.phoneNumber,
+          leadId: selectedLead.id,
+          agentName: agentName,
+          organizationId: organization?.id
+        })
+      });
+
+      if (!response.ok) {
+        if (response.status === 403) {
+          throw new Error('Access denied - lead belongs to different organization');
+        } else if (response.status === 400) {
+          const errorData = await response.json();
+          if (errorData.code === 'MISSING_ORG_CONTEXT') {
+            throw new Error('Organization context required - please refresh the page');
+          }
+        }
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to initiate manual call');
+      }
+
+      const result = await response.json();
+      
+      // SECURITY: Validate that the response is for the correct organization
+      if (result.organizationId && result.organizationId !== organization?.id) {
+        console.error('🚨 SECURITY: Manual call response for different organization:', result.organizationId, 'expected:', organization?.id);
+        throw new Error('Security violation - response from different organization');
+      }
+      
+      if (result.success) {
+        setIsManualCallActive(true);
+        setManualCallSession({
+          conferenceId: result.conferenceId,
+          status: result.status,
+          dialInNumber: result.dialInNumber,
+          instructions: result.instructions
+        });
+        
+        addConversationMessage({
+          id: `manual-call-init-${Date.now()}`,
+          type: 'system',
+          content: `Manual call initiated to ${selectedLead.phoneNumber}. Conference ID: ${result.conferenceId}`,
+          timestamp: new Date().toISOString(),
+          sentBy: 'system'
+        });
+        
+        toast.success(`Manual call initiated! Conference: ${result.conferenceId}`);
+        
+        // Show instructions to the user
+        if (result.instructions) {
+          toast.info(result.instructions, { duration: 10000 });
+        }
+      } else {
+        throw new Error(result.message || 'Failed to initiate manual call');
+      }
+      
+    } catch (error) {
+      console.error('Error starting manual call:', error);
+      setError(error.message || 'Failed to start manual call. Please try again.');
+      
+      if (error.message?.includes('different organization') || error.message?.includes('Access denied')) {
+        toast.error('Security Error: Cannot initiate manual call - access denied');
+      } else {
+        toast.error(error.message || 'Failed to start manual call');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // ⭐ MANUAL CALLS FEATURE: Handle ending manual call
+  const handleEndManualCall = async () => {
+    if (!isManualCallActive || !manualCallSession) return;
+    
+    setIsLoading(true);
+    
+    try {
+      console.log('📞 Ending manual call:', manualCallSession.conferenceId);
+      
+      // SECURITY: Include organization headers for validation
+      const response = await fetch('/api/manual-call/end', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-organization-id': organization?.id || '',
+          'organizationId': organization?.id || ''
+        },
+        body: JSON.stringify({
+          conferenceId: manualCallSession.conferenceId,
+          organizationId: organization?.id
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to end manual call');
+      }
+
+      const result = await response.json();
+      
+      if (result.success) {
+        setIsManualCallActive(false);
+        setManualCallSession(null);
+        
+        addConversationMessage({
+          id: `manual-call-end-${Date.now()}`,
+          type: 'system',
+          content: `Manual call ended. Conference: ${manualCallSession.conferenceId}`,
+          timestamp: new Date().toISOString(),
+          sentBy: 'system'
+        });
+        
+        toast.success('Manual call ended successfully');
+      } else {
+        throw new Error(result.message || 'Failed to end manual call');
+      }
+      
+    } catch (error) {
+      console.error('Error ending manual call:', error);
+      toast.error(error.message || 'Failed to end manual call');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleSendTextMessage = async () => {
     if (!selectedLead || !textInput.trim()) return;
     
@@ -671,6 +824,25 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
                 )}
               </CardTitle>
             </CardHeader>
+            
+            {/* ⭐ MANUAL CALLS FEATURE: Show manual call status */}
+            {isManualCallActive && manualCallSession && (
+              <div className="mx-4 mb-2">
+                <div className="px-3 py-2 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="flex items-center gap-2 text-sm text-blue-700">
+                    <Phone className="w-4 h-4" />
+                    <span className="font-medium">Manual Call Active</span>
+                    <span className="text-xs">Conference: {manualCallSession.conferenceId}</span>
+                  </div>
+                  {manualCallSession.dialInNumber && (
+                    <div className="text-xs text-blue-600 mt-1">
+                      Dial: {manualCallSession.dialInNumber}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            
             <CardContent className="flex-1 min-h-0 overflow-hidden p-0">
               {error && (
                 <Alert variant="destructive" className="mb-4 flex-shrink-0">
@@ -773,18 +945,30 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
           }}
         />
         <div className="flex flex-col gap-2">
-          {/* Call Button */}
-          {!isCallActive ? (
-            <Button 
-              onClick={handleStartVoiceCall}
-              disabled={isLoading}
-              size="sm"
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              <PhoneCall className="h-4 w-4 mr-1" />
-              Call
-            </Button>
-          ) : (
+          {/* Call Buttons */}
+          {!isCallActive && !isManualCallActive ? (
+            <>
+              <Button 
+                onClick={handleStartVoiceCall}
+                disabled={isLoading}
+                size="sm"
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                <PhoneCall className="h-4 w-4 mr-1" />
+                Jack Call
+              </Button>
+              <Button 
+                onClick={handleManualCall}
+                variant="outline"
+                size="sm"
+                disabled={isLoading}
+                className="bg-green-600 hover:bg-green-700 text-white border-green-600"
+              >
+                <Phone className="h-4 w-4 mr-1" />
+                Manual Call
+              </Button>
+            </>
+          ) : isCallActive ? (
             <Button 
               onClick={handleEndCall}
               variant="destructive"
@@ -793,7 +977,16 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
               <PhoneOff className="h-4 w-4 mr-1" />
               End ({formatDuration(callDuration)})
             </Button>
-          )}
+          ) : isManualCallActive ? (
+            <Button 
+              onClick={handleEndManualCall}
+              variant="destructive"
+              size="sm"
+            >
+              <PhoneOff className="h-4 w-4 mr-1" />
+              End Manual Call
+            </Button>
+          ) : null}
           {/* Send Button */}
           <Button 
             onClick={handleSendTextMessage}
