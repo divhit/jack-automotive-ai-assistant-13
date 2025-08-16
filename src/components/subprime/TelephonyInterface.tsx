@@ -306,6 +306,38 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
         }, 500);
         break;
         
+      // ⭐ MANUAL CALLS: Handle real-time transcription from manual calls
+      case 'manual_call_transcript':
+        if (data.message && data.speaker) {
+          addConversationMessage({
+            id: `manual-transcript-${Date.now()}`,
+            type: 'voice',
+            content: `[${data.speaker === 'user' ? 'Customer' : 'Agent'}] ${data.message}`,
+            timestamp: data.timestamp,
+            sentBy: data.speaker,
+            status: 'delivered'
+          });
+        }
+        break;
+        
+      case 'manual_call_ended':
+        setIsManualCallActive(false);
+        setManualCallSession(null);
+        if (data.summary) {
+          addConversationMessage({
+            id: `manual-summary-${Date.now()}`,
+            type: 'system',
+            content: `📞 Manual Call Summary: ${data.summary}`,
+            timestamp: data.timestamp,
+            sentBy: 'system'
+          });
+        }
+        // Reload conversation history to get complete transcript
+        setTimeout(() => {
+          loadConversationHistory();
+        }, 1000);
+        break;
+        
       default:
         console.log('Unknown real-time update type:', data.type);
     }
@@ -805,6 +837,25 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
               <span>Voice call active - {formatDuration(callDuration)}</span>
             </div>
           )}
+          
+          {/* ⭐ MANUAL CALL Status Indicator */}
+          {isManualCallActive && manualCallSession && (
+            <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-700">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                <span className="font-medium">Manual Call in Progress</span>
+              </div>
+              <div className="space-y-1 text-xs">
+                <div>Conference: {manualCallSession.conferenceId}</div>
+                {manualCallSession.dialInNumber && (
+                  <div>Dial-in: {manualCallSession.dialInNumber}</div>
+                )}
+                <div className="text-blue-600 font-medium">
+                  🔴 Recording & Transcribing for AI Context
+                </div>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -886,14 +937,22 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
                           </Avatar>
                           <div
                             className={cn(
-                              "rounded-lg px-3 py-2 text-sm",
+                              "rounded-lg px-3 py-2 text-sm relative",
                               message.sentBy === 'agent'
                                 ? "bg-blue-500 text-white"
                                 : message.sentBy === 'user'
                                 ? "bg-gray-100 text-gray-900"
-                                : "bg-yellow-50 text-yellow-800 border border-yellow-200"
+                                : "bg-yellow-50 text-yellow-800 border border-yellow-200",
+                              // ⭐ MANUAL CALLS: Special styling for manual call messages
+                              message.type === 'voice_manual' && "border-2 border-dashed border-purple-300"
                             )}
                           >
+                            {/* ⭐ MANUAL CALLS: Show manual call indicator */}
+                            {message.type === 'voice_manual' && (
+                              <div className="absolute -top-2 -right-2 bg-purple-500 text-white text-xs px-1 py-0.5 rounded-full text-[10px]">
+                                👤 MANUAL
+                              </div>
+                            )}
                             <p className="whitespace-pre-wrap">{message.content}</p>
                             <div className="flex items-center justify-between mt-1 text-xs opacity-70">
                               <span>{formatMessageTime(message.timestamp)}</span>

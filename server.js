@@ -1521,12 +1521,14 @@ async function buildConversationContext(phoneNumber, organizationId = null) {
     return '';
   }
   
-  // Separate voice and SMS messages
+  // Separate voice, SMS, and manual call messages
   const voiceMessages = history.filter(msg => msg.type === 'voice');
   const smsMessages = history.filter(msg => msg.type === 'text' || msg.type === 'sms');
+  // ⭐ MANUAL CALLS: Include manual call messages in context building
+  const manualCallMessages = history.filter(msg => msg.type === 'voice_manual');
   
   // DEBUG: Log the breakdown of message types
-  console.log(`🔍 DEBUG: Message type breakdown - Total: ${history.length}, Voice: ${voiceMessages.length}, SMS: ${smsMessages.length}`);
+  console.log(`🔍 DEBUG: Message type breakdown - Total: ${history.length}, Voice: ${voiceMessages.length}, SMS: ${smsMessages.length}, Manual: ${manualCallMessages.length}`);
   console.log(`🔍 DEBUG: All message types:`, [...new Set(history.map(msg => msg.type))]);
   
   // DEBUG: Check for human agent messages specifically
@@ -1549,27 +1551,35 @@ async function buildConversationContext(phoneNumber, organizationId = null) {
   // Group messages by channel for better organization while maintaining chronological order
   const hasVoiceMessages = voiceMessages.length > 0;
   const hasSmsMessages = smsMessages.length > 0;
+  const hasManualCallMessages = manualCallMessages.length > 0;
   
-  if (hasVoiceMessages && hasSmsMessages) {
+  if ((hasVoiceMessages || hasManualCallMessages) && hasSmsMessages) {
     // Mixed conversation - show channel breakdown for context
     contextText += `MULTI-CHANNEL CONVERSATION:\n`;
-    contextText += `- Total messages: ${history.length} (${voiceMessages.length} voice, ${smsMessages.length} SMS)\n\n`;
+    contextText += `- Total messages: ${history.length} (${voiceMessages.length} AI voice, ${manualCallMessages.length} manual call, ${smsMessages.length} SMS)\n\n`;
     
     // Show most recent messages chronologically
     contextText += `RECENT MESSAGES (last ${recentMessages.length} messages in chronological order):\n`;
     contextText += recentMessages.map(msg => {
       const speaker = msg.sentBy === 'user' ? 'Customer' : 
                      msg.sentBy === 'human_agent' ? 'Human Agent' : 'Agent';
-      const channel = msg.type === 'voice' ? ' (Voice)' : ' (SMS)';
+      const channel = msg.type === 'voice' ? ' (AI Voice)' : 
+                      msg.type === 'voice_manual' ? ' (Manual Call)' : ' (SMS)';
       return `${speaker}${channel}: ${msg.content}`;
     }).join('\n') + '\n\n';
-  } else if (hasVoiceMessages) {
-    // Voice-only conversation
-    const recentVoiceMessages = voiceMessages.slice(-3);
+  } else if (hasVoiceMessages || hasManualCallMessages) {
+    // Voice-only conversation (AI or manual)
+    const allVoiceMessages = [...voiceMessages, ...manualCallMessages].sort((a, b) => 
+      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
+    const recentVoiceMessages = allVoiceMessages.slice(-3);
     contextText += `RECENT VOICE CONVERSATION (last ${recentVoiceMessages.length} messages):\n`;
-    contextText += recentVoiceMessages.map(msg => 
-      `${msg.sentBy === 'user' ? 'Customer' : 'Agent'}: ${msg.content}`
-    ).join('\n') + '\n\n';
+    contextText += recentVoiceMessages.map(msg => {
+      const speaker = msg.sentBy === 'user' ? 'Customer' : 
+                      msg.sentBy === 'human_agent' ? 'Human Agent' : 'Agent';
+      const callType = msg.type === 'voice_manual' ? ' (Manual Call)' : ' (AI Voice)';
+      return `${speaker}${callType}: ${msg.content}`;
+    }).join('\n') + '\n\n';
   } else if (hasSmsMessages) {
     // SMS-only conversation
     const recentSmsMessages = smsMessages.slice(-3);
@@ -1589,14 +1599,15 @@ async function buildConversationContext(phoneNumber, organizationId = null) {
 - If previous summary mentions specific vehicle models, budgets, or customer details, DO NOT ask for this information again
 - This conversation may be RESUMING after a brief timeout - continue naturally from where you left off
 - IMPORTANT: If you see "Human Agent" messages, this means a human agent was helping the customer recently
+- IMPORTANT: If you see "Manual Call" messages, this means a human agent spoke directly with the customer
 - Continue from where the human agent left off - reference their conversation and the customer's responses
-- Do NOT ignore or restart from old topics if there's recent human agent interaction
+- Do NOT ignore or restart from old topics if there's recent human agent interaction or manual calls
 - Reference specific details from both the previous summary AND recent messages to show continuity
-- Be helpful and maintain context from ALL previous interactions (voice calls, SMS, human agent handoffs, etc.)
+- Be helpful and maintain context from ALL previous interactions (AI voice calls, manual calls, SMS, human agent handoffs, etc.)
 - If this feels like a continuation, acknowledge it naturally: "Great to hear from you again" or similar
 - DO NOT restart or re-introduce yourself if you've already spoken with this customer`;
   
-  console.log(`📋 Built conversation context for ${phoneNumber} (org: ${organizationId}) with ${history.length} total messages (${voiceMessages.length} voice, ${smsMessages.length} SMS):`, contextText.substring(0, 400) + '...');
+  console.log(`📋 Built conversation context for ${phoneNumber} (org: ${organizationId}) with ${history.length} total messages (${voiceMessages.length} AI voice, ${manualCallMessages.length} manual call, ${smsMessages.length} SMS):`, contextText.substring(0, 400) + '...');
   
   // Apply smart truncation if context is too large
   const finalContext = createSmartContextSummary(contextText, history, summaryData);
@@ -6224,13 +6235,22 @@ app.post('/api/manual-call/twiml-customer', (req, res) => {
   
   const response = new twilio.twiml.VoiceResponse();
   
-  // Join conference with customer-friendly settings
+  // Join conference with customer-friendly settings including recording and transcription
   const dial = response.dial();
   dial.conference(conferenceId, {
     startConferenceOnEnter: true,
     endConferenceOnExit: false,
     statusCallback: `${process.env.BASE_URL || 'https://jack-automotive-ai-assistant-13.onrender.com'}/api/manual-call/conference-status`,
-    statusCallbackEvent: 'start join leave end'
+    statusCallbackEvent: 'start join leave end',
+    // ⭐ ENHANCED: Add recording for manual calls to capture full context
+    record: 'record-from-answer-dual',
+    recordingStatusCallback: `${process.env.BASE_URL || 'https://jack-automotive-ai-assistant-13.onrender.com'}/api/manual-call/recording-status`,
+    // ⭐ ENHANCED: Add transcription for real-time context capture
+    transcribe: true,
+    transcriptionConfiguration: {
+      track: 'both',
+      transcriptionCallback: `${process.env.BASE_URL || 'https://jack-automotive-ai-assistant-13.onrender.com'}/api/manual-call/transcription`
+    }
   });
   
   res.type('text/xml');
@@ -6406,6 +6426,188 @@ app.post('/api/manual-call/end', validateOrganizationAccess, async (req, res) =>
       success: false,
       error: 'Failed to end manual call'
     });
+  }
+});
+
+// ⭐ MANUAL CALLS: Recording status webhook
+app.post('/api/manual-call/recording-status', (req, res) => {
+  try {
+    const { RecordingSid, RecordingUrl, CallSid, ConferenceSid, RecordingStatus } = req.body;
+    
+    console.log(`📼 Manual call recording status: ${RecordingSid} -> ${RecordingStatus}`, {
+      RecordingUrl,
+      CallSid,
+      ConferenceSid
+    });
+    
+    // Find the conference session to get context
+    for (const [conferenceId, session] of activeCallSessions.entries()) {
+      if (session.customerCallSid === CallSid || session.agentCallSid === CallSid) {
+        // Store recording information in session
+        if (!session.recordings) session.recordings = [];
+        session.recordings.push({
+          recordingSid: RecordingSid,
+          recordingUrl: RecordingUrl,
+          callSid: CallSid,
+          status: RecordingStatus,
+          timestamp: new Date().toISOString()
+        });
+        
+        // ⭐ CONTEXT PRESERVATION: Store recording in database for future AI context
+        if (RecordingStatus === 'completed' && session.leadId) {
+          supabasePersistence.persistCallSession({
+            id: `manual-${conferenceId}`,
+            leadId: session.leadId,
+            phoneNumber: session.phoneNumber,
+            startedAt: session.startTime,
+            endedAt: new Date().toISOString(),
+            recordingUrl: RecordingUrl,
+            recordingSid: RecordingSid,
+            callType: 'manual',
+            agentName: session.agentName,
+            organizationId: session.organizationId,
+            // Add to conversation context for future AI calls
+            conversationContext: `Manual call handled by ${session.agentName}. Recording available: ${RecordingUrl}`
+          }).catch(error => {
+            console.warn('🗄️ Failed to persist manual call recording:', error.message);
+          });
+        }
+        
+        console.log(`📼 Recording ${RecordingStatus} for manual call conference ${conferenceId}`);
+        break;
+      }
+    }
+    
+    res.status(200).send('OK');
+  } catch (error) {
+    console.error('❌ Manual call recording status error:', error);
+    res.status(500).send('Error processing recording status');
+  }
+});
+
+// ⭐ MANUAL CALLS: Transcription webhook for real-time context capture
+app.post('/api/manual-call/transcription', (req, res) => {
+  try {
+    const { TranscriptionSid, TranscriptionText, CallSid, ConferenceSid, SpeechResult } = req.body;
+    
+    console.log(`📝 Manual call transcription: ${TranscriptionSid}`, {
+      text: TranscriptionText?.substring(0, 100),
+      CallSid,
+      ConferenceSid
+    });
+    
+    // Find the conference session to get context
+    for (const [conferenceId, session] of activeCallSessions.entries()) {
+      if (session.customerCallSid === CallSid || session.agentCallSid === CallSid) {
+        const phoneNumber = session.phoneNumber;
+        const organizationId = session.organizationId;
+        const leadId = session.leadId;
+        
+        if (TranscriptionText && phoneNumber) {
+          // Determine speaker based on call SID
+          const isCustomer = session.customerCallSid === CallSid;
+          const speaker = isCustomer ? 'user' : 'agent';
+          
+          console.log(`📝 Manual call transcript: ${speaker} said "${TranscriptionText}"`);
+          
+          // ⭐ CONTEXT PRESERVATION: Add to conversation history for future AI context
+          addToConversationHistory(
+            phoneNumber, 
+            TranscriptionText, 
+            speaker, 
+            'voice_manual', 
+            organizationId
+          );
+          
+          // Store in session transcript
+          if (!session.transcript) session.transcript = [];
+          session.transcript.push({
+            speaker,
+            text: TranscriptionText,
+            timestamp: new Date().toISOString(),
+            transcriptionSid: TranscriptionSid
+          });
+          
+          // ⭐ REAL-TIME UPDATES: Broadcast to frontend for live transcription display
+          if (leadId) {
+            broadcastConversationUpdate({
+              type: 'manual_call_transcript',
+              leadId,
+              phoneNumber: normalizePhoneNumber(phoneNumber),
+              organizationId,
+              message: TranscriptionText,
+              speaker,
+              timestamp: new Date().toISOString(),
+              conferenceId,
+              isLive: true
+            });
+          }
+        }
+        break;
+      }
+    }
+    
+    res.status(200).send('OK');
+  } catch (error) {
+    console.error('❌ Manual call transcription error:', error);
+    res.status(500).send('Error processing transcription');
+  }
+});
+
+// ⭐ MANUAL CALLS: Enhanced conference status with context preservation
+app.post('/api/manual-call/conference-status-enhanced', (req, res) => {
+  try {
+    const { ConferenceSid, StatusCallbackEvent, FriendlyName, Timestamp } = req.body;
+    
+    console.log(`📞 Enhanced conference status: ${FriendlyName} -> ${StatusCallbackEvent}`);
+    
+    if (activeCallSessions.has(FriendlyName)) {
+      const session = activeCallSessions.get(FriendlyName);
+      session.conferenceStatus = StatusCallbackEvent;
+      
+      if (StatusCallbackEvent === 'conference-end') {
+        console.log(`📞 Manual call conference ended: ${FriendlyName}`);
+        
+        // ⭐ CONTEXT PRESERVATION: Generate AI summary of manual call
+        if (session.transcript && session.transcript.length > 0 && session.leadId) {
+          const transcriptText = session.transcript
+            .map(t => `${t.speaker}: ${t.text}`)
+            .join('\n');
+          
+          // Generate summary using AI (similar to ElevenLabs post-call processing)
+          const callSummary = `Manual call handled by ${session.agentName}. Duration: ${Math.floor((Date.now() - new Date(session.startTime).getTime()) / 1000)}s. Transcript: ${transcriptText}`;
+          
+          // Store summary for future AI context
+          storeConversationSummary(session.phoneNumber, callSummary, session.organizationId);
+          
+          // Broadcast call end with summary
+          broadcastConversationUpdate({
+            type: 'manual_call_ended',
+            leadId: session.leadId,
+            phoneNumber: normalizePhoneNumber(session.phoneNumber),
+            organizationId: session.organizationId,
+            summary: callSummary,
+            transcript: session.transcript,
+            duration: Math.floor((Date.now() - new Date(session.startTime).getTime()) / 1000),
+            agentName: session.agentName,
+            timestamp: new Date().toISOString()
+          });
+        }
+        
+        // Clean up after a delay to ensure all webhooks are processed
+        setTimeout(() => {
+          if (activeCallSessions.has(FriendlyName)) {
+            console.log(`🧹 Cleaning up manual call session: ${FriendlyName}`);
+            activeCallSessions.delete(FriendlyName);
+          }
+        }, 10000); // 10 second delay
+      }
+    }
+    
+    res.status(200).send('OK');
+  } catch (error) {
+    console.error('❌ Enhanced conference status error:', error);
+    res.status(500).send('Error processing conference status');
   }
 });
 

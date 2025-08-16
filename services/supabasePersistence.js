@@ -351,7 +351,13 @@ class SupabasePersistenceService {
         
         // Preserve context exactly
         conversation_context: sessionData.conversationContext,
-        dynamic_variables: JSON.stringify(sessionData.dynamicVariables || {})
+        dynamic_variables: JSON.stringify(sessionData.dynamicVariables || {}),
+        
+        // ⭐ MANUAL CALLS: Add support for manual call specific data
+        recording_url: sessionData.recordingUrl,
+        recording_sid: sessionData.recordingSid,
+        call_type: sessionData.callType || 'ai', // 'ai', 'manual', 'hybrid'
+        agent_name: sessionData.agentName // For manual calls
       };
 
       const { error } = await this.supabase
@@ -365,6 +371,49 @@ class SupabasePersistenceService {
       
     } catch (error) {
       console.error(`❌ Failed to persist call session:`, error);
+    }
+  }
+
+  // ⭐ MANUAL CALLS: Specialized logging for manual call activities
+  async logActivity(leadId, activityType, metadata = {}) {
+    if (!this.isEnabled || !this.isConnected) return;
+    
+    try {
+      const activityRecord = {
+        lead_id: leadId,
+        activity_type: activityType,
+        description: this.generateActivityDescription(activityType, metadata),
+        agent_name: metadata.agentName,
+        metadata: JSON.stringify(metadata),
+        timestamp: metadata.timestamp || new Date().toISOString(),
+        // For manual calls, include organization context
+        organization_id: metadata.organizationId
+      };
+
+      const { error } = await this.supabase
+        .from('lead_activities')
+        .insert(activityRecord);
+
+      if (error) throw error;
+      
+      console.log(`🗄️ Manual call activity logged: ${activityType} for lead ${leadId}`);
+      
+    } catch (error) {
+      console.error(`❌ Failed to log manual call activity:`, error);
+    }
+  }
+
+  // Helper to generate human-readable activity descriptions
+  generateActivityDescription(activityType, metadata) {
+    switch (activityType) {
+      case 'manual_call_initiated':
+        return `Manual call initiated by ${metadata.agentName} to ${metadata.phoneNumber}`;
+      case 'manual_call_ended':
+        return `Manual call completed by ${metadata.agentName}. Duration: ${Math.floor(metadata.duration / 1000)}s`;
+      case 'manual_call_recording_ready':
+        return `Call recording available for manual call by ${metadata.agentName}`;
+      default:
+        return `${activityType} by ${metadata.agentName || 'system'}`;
     }
   }
 
