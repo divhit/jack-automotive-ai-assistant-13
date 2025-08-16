@@ -338,6 +338,20 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
         }, 1000);
         break;
         
+      // ⭐ HUMAN AGENT: Handle human agent SMS messages
+      case 'human_message_sent':
+        if (data.message) {
+          addConversationMessage({
+            id: `human-sms-${Date.now()}`,
+            type: 'sms',
+            content: data.message,
+            timestamp: data.timestamp,
+            sentBy: 'human_agent',
+            status: 'sent'
+          });
+        }
+        break;
+        
       default:
         console.log('Unknown real-time update type:', data.type);
     }
@@ -915,13 +929,13 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
                         key={message.id}
                         className={cn(
                           "flex gap-3",
-                          message.sentBy === 'agent' ? "justify-end" : "justify-start"
+                          (message.sentBy === 'agent' || message.sentBy === 'human_agent') ? "justify-end" : "justify-start"
                         )}
                       >
                         <div
                           className={cn(
                             "flex gap-2 max-w-[80%]",
-                            message.sentBy === 'agent' ? "flex-row-reverse" : "flex-row"
+                            (message.sentBy === 'agent' || message.sentBy === 'human_agent') ? "flex-row-reverse" : "flex-row"
                           )}
                         >
                           <Avatar className="h-8 w-8 flex-shrink-0">
@@ -930,6 +944,8 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
                                 <User className="h-4 w-4" />
                               ) : message.sentBy === 'agent' ? (
                                 <Bot className="h-4 w-4" />
+                              ) : message.sentBy === 'human_agent' ? (
+                                <User className="h-4 w-4 text-green-600" />
                               ) : (
                                 <Settings className="h-4 w-4" />
                               )}
@@ -942,6 +958,8 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
                                 ? "bg-blue-500 text-white"
                                 : message.sentBy === 'user'
                                 ? "bg-gray-100 text-gray-900"
+                                : message.sentBy === 'human_agent'
+                                ? "bg-green-100 text-green-800 border border-green-300"
                                 : "bg-yellow-50 text-yellow-800 border border-yellow-200",
                               // ⭐ MANUAL CALLS: Special styling for manual call messages
                               message.type === 'voice_manual' && "border-2 border-dashed border-purple-300"
@@ -951,6 +969,12 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
                             {message.type === 'voice_manual' && (
                               <div className="absolute -top-2 -right-2 bg-purple-500 text-white text-xs px-1 py-0.5 rounded-full text-[10px]">
                                 👤 MANUAL
+                              </div>
+                            )}
+                            {/* ⭐ HUMAN AGENT: Show human agent indicator */}
+                            {message.sentBy === 'human_agent' && (
+                              <div className="absolute -top-2 -right-2 bg-green-500 text-white text-xs px-1 py-0.5 rounded-full text-[10px]">
+                                👤 HUMAN
                               </div>
                             )}
                             <p className="whitespace-pre-wrap">{message.content}</p>
