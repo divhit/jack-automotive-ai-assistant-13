@@ -233,6 +233,71 @@ class SupabasePersistenceService {
     }
   }
 
+  // ENHANCED: Conversation persistence with custom timestamp support for proper ordering
+  async persistConversationMessageWithTimestamp(phoneNumber, message, sentBy, messageType = 'text', customTimestamp, metadata = {}) {
+    if (!this.isEnabled || !this.isConnected) return;
+    
+    try {
+      const normalizedPhone = this.normalizePhoneNumber(phoneNumber);
+      
+      // Find lead ID by phone number
+      let leadQuery = this.supabase
+        .from('leads')
+        .select('id')
+        .eq('phone_number_normalized', normalizedPhone);
+
+      // If organizationId provided in metadata, scope the lookup
+      if (metadata.organizationId) {
+        leadQuery = leadQuery.eq('organization_id', metadata.organizationId);
+      }
+
+      const { data: leads, error: leadError } = await leadQuery.limit(1);
+
+      if (leadError) throw leadError;
+      if (!leads || leads.length === 0) {
+        console.log(`🗄️ No lead found for phone ${normalizedPhone}, skipping conversation persistence`);
+        return;
+      }
+
+      const leadId = leads[0].id;
+      
+      const conversationData = {
+        lead_id: leadId,
+        content: message,
+        sent_by: sentBy,
+        timestamp: customTimestamp || new Date().toISOString(), // Use custom timestamp if provided
+        type: messageType === 'text' ? 'sms' : messageType,
+        phone_number_normalized: normalizedPhone,
+        
+        // CRITICAL: Set organization_id for proper data isolation
+        organization_id: metadata.organizationId,
+        
+        // Preserve all telephony metadata
+        twilio_message_sid: metadata.twilioMessageSid,
+        twilio_call_sid: metadata.twilioCallSid,
+        elevenlabs_conversation_id: metadata.elevenlabsConversationId,
+        conversation_context: metadata.conversationContext,
+        message_status: metadata.messageStatus || 'sent',
+        dynamic_variables: metadata.dynamicVariables || {}
+      };
+
+      const { error } = await this.supabase
+        .from('conversations')
+        .insert(conversationData);
+
+      if (error) throw error;
+      
+      console.log(`🗄️ Conversation message persisted with custom timestamp for ${normalizedPhone} (${messageType}) - sentBy: ${sentBy} - timestamp: ${customTimestamp} - content: ${message.substring(0, 50)}...`);
+      
+      // Update lead activity counters
+      await this.updateLeadActivityCounters(leadId, messageType);
+      
+    } catch (error) {
+      console.error(`❌ Failed to persist conversation message with timestamp:`, error);
+      // Don't throw - let system continue with memory-only operation
+    }
+  }
+
   // Helper to persist multiple conversations (for initial data)
   async persistConversations(leadId, conversations, normalizedPhone) {
     if (!this.isEnabled || !this.isConnected) return;
@@ -494,7 +559,7 @@ class SupabasePersistenceService {
         .select('*')
         .eq('phone_number_normalized', normalizedPhone)
         .eq('organization_id', organizationId) // ALWAYS filter by organization
-        .order('timestamp', { ascending: false }) // Get newest messages first
+        .order('timestamp', { ascending: true }) // FIXED: Get oldest messages first (chronological order)
         .limit(limit);
 
       console.log(`🔒 Loading conversations for phone ${normalizedPhone} in organization: ${organizationId}`);
@@ -505,17 +570,16 @@ class SupabasePersistenceService {
       
       // DEBUG: Log what we got from database
       console.log(`🔍 DEBUG: Retrieved ${data.length} messages from database for ${normalizedPhone}`);
-      const recentMessages = data.slice(0, 5); // First 5 since we query newest first
-      console.log(`🔍 DEBUG: Most recent 5 messages from database:`, recentMessages.map(row => `${row.sent_by}: ${row.content.substring(0, 50)}... (${row.timestamp})`));
+      const firstMessages = data.slice(0, 5); // First 5 since we query oldest first
+      console.log(`🔍 DEBUG: First 5 messages from database (chronological):`, firstMessages.map(row => `${row.sent_by}: ${row.content.substring(0, 50)}... (${row.timestamp})`));
       
-      // Convert back to memory format and reverse to chronological order
-      // (since we queried newest first but want oldest first for context)
+      // Convert to memory format (already in chronological order)
       return data.map(row => ({
         content: row.content,
         sentBy: row.sent_by,
         timestamp: row.timestamp,
         type: row.type
-      })).reverse();
+      }));
       
     } catch (error) {
       console.error(`❌ Failed to retrieve conversation history:`, error);

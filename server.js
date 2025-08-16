@@ -484,7 +484,10 @@ async function getConversationHistoryDirect(phoneNumber, organizationId) {
         .select('*')
         .eq('phone_number_normalized', normalized)
         .eq('organization_id', organizationId)
-        .order('timestamp', { ascending: true });
+        .order('timestamp', { ascending: true })
+        .order('sequence_number', { ascending: true })
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true });
       
       if (error) {
         console.error('🔥 Database query failed:', error);
@@ -599,6 +602,68 @@ function addToConversationHistory(phoneNumber, message, sentBy, messageType = 't
   supabasePersistence.persistConversationMessage(phoneNumber, message, sentBy, messageType, { organizationId })
     .catch(error => {
       console.log(`🗄️ Organization-scoped persistence failed (system continues normally):`, error.message);
+    });
+}
+
+// ENHANCED: Add conversation message with custom timestamp and sequence support
+function addToConversationHistoryWithTimestamp(phoneNumber, message, sentBy, messageType = 'text', organizationId = null, customTimestamp = null, sequenceOffset = 0) {
+  // SECURITY: organizationId is now required for cross-organization data protection
+  if (!organizationId) {
+    console.error(`🚨 SECURITY: addToConversationHistoryWithTimestamp called without organizationId for ${phoneNumber}`);
+    return; // Don't store message without proper organization context
+  }
+  
+  const normalized = normalizePhoneNumber(phoneNumber);
+  
+  // Clear any contaminated non-org memory for this phone when organizationId is provided
+  clearMemoryForPhone(phoneNumber, organizationId);
+  
+  // Use organization-scoped memory key ONLY
+  const memoryKey = createOrgMemoryKey(organizationId, phoneNumber);
+  
+  if (!conversationContexts.has(memoryKey)) {
+    conversationContexts.set(memoryKey, []);
+  }
+  
+  const history = conversationContexts.get(memoryKey);
+  
+  // Use custom timestamp if provided, otherwise generate with sequence offset
+  let messageTimestamp;
+  if (customTimestamp) {
+    messageTimestamp = customTimestamp;
+  } else {
+    const baseTime = new Date();
+    messageTimestamp = new Date(baseTime.getTime() + sequenceOffset).toISOString();
+  }
+  
+  const messageData = {
+    content: message,
+    sentBy: sentBy,
+    timestamp: messageTimestamp,
+    type: messageType
+  };
+  
+  history.push(messageData);
+  
+  // Keep only last 50 messages to prevent memory issues
+  if (history.length > 50) {
+    history.shift();
+  }
+  
+  // PERFORMANCE: Invalidate related caches when new message is added
+  conversationContextCache.delete(memoryKey);
+  comprehensiveSummaryCache.delete(memoryKey);
+  conversationHistoryCache.delete(memoryKey);
+  conversationSummaryCache.delete(memoryKey);
+  
+  console.log(`🗑️ CACHE INVALIDATED for key: ${memoryKey} (message type: ${messageType}, sentBy: ${sentBy})`);
+  
+  console.log(`📝 Added ${messageType} message to org-scoped history ${memoryKey} (${sentBy}) with timestamp ${messageTimestamp}: ${message.substring(0, 100)}...`);
+  
+  // Persist to Supabase with organization context and custom timestamp
+  supabasePersistence.persistConversationMessageWithTimestamp(phoneNumber, message, sentBy, messageType, messageTimestamp, { organizationId })
+    .catch(error => {
+      console.log(`🗄️ Organization-scoped persistence with timestamp failed (system continues normally):`, error.message);
     });
 }
 
@@ -3630,9 +3695,26 @@ app.post('/api/webhooks/elevenlabs/post-call', async (req, res) => {
       const normalizedForStorage = normalizePhoneNumber(phoneNumber);
       console.log('📝 Storing post-call conversation history for:', phoneNumber, '(normalized:', normalizedForStorage + ')');
       
-      transcript.forEach(message => {
+      // ENHANCED: Use base timestamp from ElevenLabs event with microsecond offsets for proper ordering
+      const baseTimestamp = eventData.event_timestamp ? 
+        new Date(eventData.event_timestamp * 1000) : 
+        new Date();
+      
+      transcript.forEach((message, index) => {
         if (message.role && message.message) {
-          addToConversationHistory(phoneNumber, message.message, message.role, 'voice', organizationId);
+          // Use custom timestamp with microsecond offsets to ensure proper chronological ordering
+          const messageTimestamp = message.timestamp || 
+            new Date(baseTimestamp.getTime() + (index * 100)).toISOString(); // 100ms offset per message
+          
+          addToConversationHistoryWithTimestamp(
+            phoneNumber, 
+            message.message, 
+            message.role, 
+            'voice', 
+            organizationId, 
+            messageTimestamp,
+            index // sequence offset
+          );
         }
       });
       
@@ -5735,8 +5817,8 @@ app.get('/api/conversations/:leadId', async (req, res) => {
       return res.status(404).json({ error: 'Lead not found' });
     }
     
-    // Get conversation history from Supabase only - no fallbacks
-    const dbHistory = await supabasePersistence.getConversationHistory(lead.phoneNumber, parseInt(limit));
+    // Get conversation history from Supabase only - no fallbacks  
+    const dbHistory = await getConversationHistoryDirect(lead.phoneNumber, lead.organizationId);
     
     if (!dbHistory || dbHistory.length === 0) {
       return res.status(404).json({
