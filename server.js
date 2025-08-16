@@ -6027,17 +6027,31 @@ app.post('/api/manual-call/initiate', validateOrganizationAccess, async (req, re
     
     // Get organization phone number for caller ID
     const organizationPhone = await getOrganizationPhoneNumber(organizationId);
+    console.log(`📞 Manual call phone number resolution: org=${organizationId}, orgPhone=${organizationPhone}, fallback=${process.env.TWILIO_PHONE_NUMBER}`);
     
     // Use Twilio to initiate conference call
     const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
     const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
     
     if (!twilioAccountSid || !twilioAuthToken) {
+      console.error('❌ Missing Twilio credentials for manual call');
       return res.status(500).json({
         success: false,
         error: 'Twilio credentials not configured'
       });
     }
+    
+    // Validate we have a phone number to call from
+    const fromPhone = organizationPhone || process.env.TWILIO_PHONE_NUMBER;
+    if (!fromPhone) {
+      console.error('❌ No phone number available for manual call (org phone or Twilio phone)');
+      return res.status(500).json({
+        success: false,
+        error: 'No phone number configured for outbound calls'
+      });
+    }
+    
+    console.log(`📞 Manual call will use phone number: ${fromPhone}`);
     
     const twilio = require('twilio')(twilioAccountSid, twilioAuthToken);
     
@@ -6046,10 +6060,12 @@ app.post('/api/manual-call/initiate', validateOrganizationAccess, async (req, re
     
     try {
       // Start conference by calling customer first
+      console.log(`📞 Initiating Twilio call: from=${fromPhone}, to=${phoneNumber}, conference=${conferenceId}`);
+      
       const customerCall = await twilio.calls.create({
         url: `${process.env.BASE_URL || 'https://jack-automotive-ai-assistant-13.onrender.com'}/api/manual-call/twiml-customer?conferenceId=${conferenceId}&organizationId=${organizationId}&leadId=${leadId || ''}`,
         to: phoneNumber,
-        from: organizationPhone || process.env.TWILIO_PHONE_NUMBER,
+        from: fromPhone,
         statusCallback: `${process.env.BASE_URL || 'https://jack-automotive-ai-assistant-13.onrender.com'}/api/manual-call/status`,
         statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
         statusCallbackMethod: 'POST'
@@ -6094,8 +6110,12 @@ app.post('/api/manual-call/initiate', validateOrganizationAccess, async (req, re
         message: 'Manual call initiated - customer being called',
         status: 'calling_customer',
         organizationId,
-        dialInNumber: organizationPhone || process.env.TWILIO_PHONE_NUMBER,
-        instructions: `Conference ID: ${conferenceId}. Customer is being called. You will receive dial-in instructions when they answer.`
+        dialInNumber: fromPhone,
+        instructions: `Manual call started! 
+1. Customer (${phoneNumber}) is being called
+2. When they answer, you can dial ${fromPhone} 
+3. When prompted, enter conference ID: ${conferenceId}
+4. Press # to join the conference with the customer`
       });
       
     } catch (twilioError) {
