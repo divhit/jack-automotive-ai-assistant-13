@@ -485,7 +485,6 @@ async function getConversationHistoryDirect(phoneNumber, organizationId) {
         .eq('phone_number_normalized', normalized)
         .eq('organization_id', organizationId)
         .order('timestamp', { ascending: true })
-        .order('sequence_number', { ascending: true })
         .order('created_at', { ascending: true })
         .order('id', { ascending: true });
       
