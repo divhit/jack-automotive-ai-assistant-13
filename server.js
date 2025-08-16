@@ -484,7 +484,7 @@ async function getConversationHistoryDirect(phoneNumber, organizationId) {
         .select('*')
         .eq('phone_number_normalized', normalized)
         .eq('organization_id', organizationId)
-        .order('timestamp', { ascending: true });
+        .order('timestamp', { ascending: false });
       
       if (error) {
         console.error('🔥 Database query failed:', error);
