@@ -1897,6 +1897,9 @@ function startConversation(phoneNumber, initialMessage, organizationId = null) {
   // Initialize SMS response counter for this conversation
   smsResponseCounters.set(normalized, 0);
 
+  // Declare leadStatus in outer scope to be accessible in message handler
+  let leadStatus = "New Inquiry"; // Default
+
   const wsUrl = `wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${agentId}`;
   const ws = new WebSocket(wsUrl, {
     headers: { 'xi-api-key': apiKey }
@@ -1925,7 +1928,7 @@ function startConversation(phoneNumber, initialMessage, organizationId = null) {
     
     const summaryData = await getConversationSummaryCached(phoneNumber, resolvedOrganizationId);
     const history = await getConversationHistoryCached(phoneNumber, resolvedOrganizationId);
-    const leadStatus = summaryData?.summary ? "Returning Customer" : (history.length > 0 ? "Active Lead" : "New Inquiry");
+    leadStatus = summaryData?.summary ? "Returning Customer" : (history.length > 0 ? "Active Lead" : "New Inquiry");
     
     // ENHANCED: Use comprehensive summary (voice + SMS) for better context
     let previousSummary;
