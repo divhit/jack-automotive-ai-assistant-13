@@ -3575,8 +3575,8 @@ app.post('/api/webhooks/elevenlabs/post-call', async (req, res) => {
     const signature = req.headers['xi-signature'];
     const payload = JSON.stringify(req.body);
 
-    // Extract conversation ID for deduplication
-    const conversationId = req.body?.data?.conversation_id;
+    // Extract conversation ID for deduplication (declared below)
+    let conversationId = req.body?.data?.conversation_id;
     
     // Deduplicate webhooks
     if (conversationId) {
@@ -3637,7 +3637,7 @@ app.post('/api/webhooks/elevenlabs/post-call', async (req, res) => {
     const eventData = req.body;
     
     // Handle new payload structure (type + event_timestamp + data)
-    let conversationId, leadId, duration, summary, phoneNumber;
+    let leadId, duration, summary, phoneNumber;
     
     if (eventData.type === 'post_call_transcription' && eventData.data) {
       // New structure: data contains all the conversation details
