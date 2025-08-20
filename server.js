@@ -6433,12 +6433,26 @@ app.post('/api/manual-call/agent-status', async (req, res) => {
   let conferenceId = null;
   let session = null;
   
+  console.log(`🔍 DEBUG: Looking for session with agentCallSid: ${CallSid}`);
+  console.log(`🔍 DEBUG: Active sessions count: ${activeCallSessions.size}`);
+  
   for (const [confId, sess] of activeCallSessions) {
+    console.log(`🔍 DEBUG: Checking session ${confId}: agentCallSid=${sess.agentCallSid}, customerCallSid=${sess.customerCallSid}`);
     if (sess.agentCallSid === CallSid) {
       conferenceId = confId;
       session = sess;
+      console.log(`✅ DEBUG: Found matching session: ${confId}`);
       break;
     }
+  }
+  
+  if (!session) {
+    console.log(`❌ DEBUG: No session found for agentCallSid: ${CallSid}`);
+    console.log(`🔍 DEBUG: All active sessions:`, Array.from(activeCallSessions.entries()).map(([id, sess]) => ({
+      conferenceId: id,
+      agentCallSid: sess.agentCallSid,
+      status: sess.status
+    })));
   }
   
   if (session) {
