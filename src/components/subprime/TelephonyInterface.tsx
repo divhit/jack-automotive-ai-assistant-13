@@ -947,8 +947,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
       </Card>
 
       {/* AGENT PHONE NUMBER INPUT - For manual calls */}
-      {(
-        <div className="mx-4 mb-4">
+      <div className="mx-4 mb-4">
           <Card className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 shadow-sm">
             <div className="flex items-center gap-2 mb-3">
               <Phone className="h-5 w-5 text-blue-600" />
@@ -1002,8 +1001,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
               <span>This phone number will be called first, then the customer will be automatically conferenced in</span>
             </div>
           </Card>
-        </div>
-      )}
+      </div>
 
       {/* Main content area - Conversation with Analytics */}
       <div className={`flex-1 flex ${showAnalytics ? 'flex-row' : 'flex-col'} mx-4 mb-4 min-h-0 gap-4`}>
