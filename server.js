@@ -1999,12 +1999,12 @@ function startConversation(phoneNumber, initialMessage, organizationId = null) {
       first_message_dynamic: dynamicVars.first_message_dynamic
     });
     
-    // FIXED: Send comprehensive context with correct dynamic_variables structure
-    // This ensures agents get both the detailed context and rich summary when reconnecting
+    // FIXED: Send with correct ElevenLabs structure - dynamic_variables at TOP LEVEL
+    // Per ElevenLabs docs: dynamic_variables must be at root level, not in client_data
     ws.send(JSON.stringify({
       type: 'conversation_initiation_client_data',
+      dynamic_variables: dynamicVars,
       client_data: {
-        dynamic_variables: dynamicVars,
         conversation_context: conversationContext,
         phone_number: phoneNumber,
         customer_phone: phoneNumber, // For webhook identification
