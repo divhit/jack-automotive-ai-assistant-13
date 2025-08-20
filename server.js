@@ -1881,6 +1881,9 @@ function startConversationWithTimeout(phoneNumber, initialMessage, organizationI
   console.log(`⏰ Set 1-minute timeout for SMS conversation: ${phoneNumber}`);
 }
 
+// Track SMS response counts to ignore first response for returning users
+const smsResponseCounters = new Map();
+
 function startConversation(phoneNumber, initialMessage, organizationId = null) {
   const agentId = process.env.ELEVENLABS_AGENT_ID;
   const apiKey = process.env.ELEVENLABS_API_KEY;
@@ -1890,6 +1893,9 @@ function startConversation(phoneNumber, initialMessage, organizationId = null) {
     console.error('❌ Missing ElevenLabs credentials');
     return;
   }
+
+  // Initialize SMS response counter for this conversation
+  smsResponseCounters.set(normalized, 0);
 
   const wsUrl = `wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${agentId}`;
   const ws = new WebSocket(wsUrl, {
@@ -2046,6 +2052,19 @@ function startConversation(phoneNumber, initialMessage, organizationId = null) {
         if (agentResponse) {
             console.log(`✅ [${phoneNumber}] Agent response received:`, agentResponse);
             
+            // FIXED: For SMS + returning users, ignore the first agent response (template greeting)
+            // Only respond to their actual message, not the automated greeting
+            const normalized = normalizePhoneNumber(phoneNumber);
+            const responseCount = smsResponseCounters.get(normalized) || 0;
+            smsResponseCounters.set(normalized, responseCount + 1);
+            
+            if (leadStatus === "Returning Customer" && responseCount === 0) {
+              console.log(`🔇 [${phoneNumber}] Ignoring first SMS response for returning customer: ${agentResponse.substring(0, 50)}...`);
+              return; // Skip this response - don't send SMS or add to history
+            }
+            
+            console.log(`📱 [${phoneNumber}] Processing SMS response #${responseCount + 1} for ${leadStatus}: ${agentResponse.substring(0, 50)}...`);
+            
             // SECURITY FIX: Use provided organizationId or get from phone if not provided
             let resolvedOrganizationId = organizationId;
             if (!resolvedOrganizationId) {
@@ -2101,6 +2120,7 @@ function startConversation(phoneNumber, initialMessage, organizationId = null) {
   ws.on('close', () => {
     console.log(`🔌 WebSocket closed for ${phoneNumber}`);
     activeConversations.delete(normalized);
+    smsResponseCounters.delete(normalized); // Clean up response counter
     if (activeConversationTimeouts.has(normalized)) {
       clearTimeout(activeConversationTimeouts.get(normalized));
       activeConversationTimeouts.delete(normalized);
