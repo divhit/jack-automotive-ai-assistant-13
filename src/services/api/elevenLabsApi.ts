@@ -129,7 +129,10 @@ class ElevenLabsAPIService {
         llm_model: overrides?.llmModel || "claude-3.5-sonnet",
 
         // Knowledge base with lead context
-        knowledge_base: this.prepareLeadKnowledgeBase(leadData)
+        knowledge_base: this.prepareLeadKnowledgeBase(leadData),
+        
+        // Human transfer configuration to maintain voice character
+        tools: this.configureTransferTools(leadData)
       };
 
       await axios.patch(
@@ -146,6 +149,33 @@ class ElevenLabsAPIService {
       console.error('Failed to update agent configuration:', error);
       throw error;
     }
+  }
+
+  /**
+   * Configure transfer tools with lead-specific agent phone
+   */
+  private configureTransferTools(leadData: LeadContextData): any[] {
+    const tools = [];
+    
+    // Add transfer_to_number system tool if agent phone is available
+    if (leadData.agentPhone) {
+      tools.push({
+        type: "system",
+        name: "transfer_to_number",
+        config: {
+          transfer_destination: {
+            type: "phone",
+            phone_number: leadData.agentPhone
+          },
+          transfer_type: "conference",
+          condition: "When the customer explicitly requests to speak to a human agent, needs pricing information, wants to discuss specific financing details, or when I determine human intervention would be beneficial.",
+          client_message: `I'm connecting you with one of our specialists who can help you with your specific needs. Please hold on while I get them on the line.`,
+          agent_message: `You're receiving a transfer from our AI assistant Jack. Customer is ${leadData.customerName} calling about automotive financing. They need human assistance with their inquiry.`
+        }
+      });
+    }
+    
+    return tools;
   }
 
   /**

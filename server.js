@@ -2678,6 +2678,22 @@ app.post('/api/webhooks/twilio/sms/incoming', async (req, res) => {
       const existingHistory = await getConversationHistoryCached(From, organizationId);
       addToConversationHistory(From, Body, 'user', 'text', organizationId);
       
+      // Check if message needs human intervention
+      if (needsHumanIntervention(Body)) {
+        console.log('🚨 SMS message needs human intervention:', Body);
+        
+        // Get lead data for agent notification
+        const leadData = getLeadData(leadId);
+        if (leadData && leadData.agent_phone) {
+          await notifyHumanAgentViaSMS(From, Body, leadData, organizationId);
+          
+          // Send acknowledgment to customer
+          await sendSMSReply(From, `Thank you for your message. I've notified one of our specialists who will get back to you shortly. In the meantime, I'm here to help with any other questions you might have.`, organizationId);
+        } else {
+          console.log('⚠️ No agent phone configured for human intervention');
+        }
+      }
+      
       if (existingHistory.length > 0) {
         console.log(`📞➡️📱 Found ${existingHistory.length} previous messages (voice/SMS history). Starting new SMS conversation with context.`);
         startConversationWithTimeout(From, Body, organizationId);
@@ -2695,6 +2711,125 @@ app.post('/api/webhooks/twilio/sms/incoming', async (req, res) => {
     res.status(500).send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
   }
 });
+
+// Configure ElevenLabs agent with transfer settings
+async function configureAgentTransferSettings(agentId, apiKey, leadData) {
+  try {
+    // Only configure if agent phone is available
+    if (!leadData?.agent_phone) {
+      console.log('⚠️ No agent phone configured for lead - skipping transfer configuration');
+      return;
+    }
+    
+    console.log(`🔧 Configuring agent transfer settings for ${leadData.agent_phone}`);
+    
+    const agentUpdatePayload = {
+      tools: [
+        {
+          type: "system",
+          name: "transfer_to_number",
+          config: {
+            transfer_destination: {
+              type: "phone", 
+              phone_number: leadData.agent_phone
+            },
+            transfer_type: "conference",
+            condition: "When the customer explicitly requests to speak to a human agent, needs pricing information, wants to discuss specific financing details, or when I determine human intervention would be beneficial.",
+            client_message: "I'm connecting you with one of our specialists who can help you with your specific needs. Please hold on while I get them on the line.",
+            agent_message: `You're receiving a transfer from our AI assistant Jack. Customer is ${leadData.customerName} calling about automotive financing. They need human assistance with their inquiry.`
+          }
+        }
+      ]
+    };
+    
+    const response = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, {
+      method: 'PATCH',
+      headers: {
+        'xi-api-key': apiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(agentUpdatePayload)
+    });
+    
+    if (response.ok) {
+      console.log('✅ Agent transfer settings configured successfully');
+    } else {
+      const errorText = await response.text();
+      console.error('❌ Failed to configure agent transfer settings:', response.status, errorText);
+    }
+    
+  } catch (error) {
+    console.error('❌ Error configuring agent transfer settings:', error);
+  }
+}
+
+// Check if SMS message needs human intervention
+function needsHumanIntervention(message) {
+  const humanKeywords = [
+    'human', 'agent', 'person', 'representative', 'help', 'assistance',
+    'speak to someone', 'talk to someone', 'real person', 'live agent',
+    'manager', 'supervisor', 'escalate', 'complaint', 'unhappy',
+    'pricing', 'price', 'cost', 'payment', 'finance details', 'loan terms'
+  ];
+  
+  const messageText = message.toLowerCase();
+  return humanKeywords.some(keyword => messageText.includes(keyword));
+}
+
+// Send SMS notification to human agent
+async function notifyHumanAgentViaSMS(customerPhone, message, leadData, organizationId) {
+  try {
+    if (!leadData?.agent_phone) {
+      console.log('⚠️ No agent phone configured - cannot send SMS notification');
+      return;
+    }
+    
+    console.log(`📱 Sending human intervention SMS to agent: ${leadData.agent_phone}`);
+    
+    const agentNotification = `🚨 HUMAN ASSISTANCE NEEDED
+Customer: ${leadData.customerName} (${customerPhone})
+Message: "${message}"
+Lead ID: ${leadData.id}
+
+Reply with: "RESPOND: your message" to reply to customer
+Reply with: "CALL" to initiate manual call
+Dashboard: https://jack-automotive-ai-assistant-13.onrender.com/subprime`;
+
+    // Send SMS to agent using Twilio
+    const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
+    const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
+    const fromPhone = process.env.TWILIO_PHONE_NUMBER;
+    
+    if (!twilioAccountSid || !twilioAuthToken || !fromPhone) {
+      console.error('❌ Missing Twilio credentials for agent notification');
+      return;
+    }
+    
+    const { default: twilio } = await import('twilio');
+    const twilioClient = twilio(twilioAccountSid, twilioAuthToken);
+    
+    const smsResult = await twilioClient.messages.create({
+      to: leadData.agent_phone,
+      from: fromPhone,
+      body: agentNotification
+    });
+    
+    console.log('✅ Human agent notified via SMS:', smsResult.sid);
+    
+    // Log the notification activity
+    if (supabasePersistence.isEnabled) {
+      await supabasePersistence.logActivity(leadData.id, 'human_intervention_requested', {
+        customerMessage: message,
+        agentNotified: leadData.agent_phone,
+        notificationSid: smsResult.sid,
+        organizationId
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ Failed to notify human agent via SMS:', error);
+  }
+}
 
 // Twilio SMS Status Webhook
 app.post('/api/webhooks/twilio/sms/status', (req, res) => {
@@ -2871,6 +3006,9 @@ app.post('/api/elevenlabs/outbound-call', validateOrganizationAccess, async (req
       // Dynamic greeting context
       ...greetingContext
     };
+    
+    // Configure agent with transfer settings if agent phone is available
+    await configureAgentTransferSettings(agentId, apiKey, leadData);
     
     const callPayload = {
       agent_id: agentId,

@@ -74,6 +74,8 @@ export interface LeadContextData {
   chaseStatus: string;
   sentiment: string;
   specialist?: string;
+  agentPhone?: string; // Agent phone number for human transfers
+  agentName?: string; // Agent name for human transfers
   conversationHistory: SubprimeConversationMessage[];
   lastContactDate?: string;
   preferredContactMethod: 'voice' | 'text' | 'either';
