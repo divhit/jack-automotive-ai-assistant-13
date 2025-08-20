@@ -1965,6 +1965,9 @@ function startConversation(phoneNumber, initialMessage, organizationId = null) {
       }
     }
     
+    // Generate greeting context for SMS (inbound response)
+    const greetingContext = generateGreetingContext(leadData, false, previousSummary);
+    
     // DEBUG: Log the actual dynamic variables being sent
     const dynamicVars = {
       customer_name: customerName,
@@ -1972,7 +1975,9 @@ function startConversation(phoneNumber, initialMessage, organizationId = null) {
       lead_status: leadStatus,
       previous_summary: previousSummary,
       // FIXED: Include conversation_context with smart truncation for very long contexts
-      conversation_context: createSmartContextSummary(conversationContext, history, summaryData)
+      conversation_context: createSmartContextSummary(conversationContext, history, summaryData),
+      // FIXED: Include all required greeting variables
+      ...greetingContext
     };
     
     console.log(`🧪 DEBUG: SMS Dynamic variables being sent:`, {
@@ -1982,15 +1987,24 @@ function startConversation(phoneNumber, initialMessage, organizationId = null) {
       previous_summary_length: dynamicVars.previous_summary?.length || 0,
       previous_summary_preview: dynamicVars.previous_summary?.substring(0, 100) + "...",
       conversation_context_length: dynamicVars.conversation_context?.length || 0,
-      conversation_context_preview: dynamicVars.conversation_context?.substring(0, 150) + "..."
+      conversation_context_preview: dynamicVars.conversation_context?.substring(0, 150) + "...",
+      // GREETING VARIABLES (required by ElevenLabs)
+      time_greeting: dynamicVars.time_greeting,
+      day_context: dynamicVars.day_context,
+      customer_greeting: dynamicVars.customer_greeting,
+      greeting_opener: dynamicVars.greeting_opener,
+      greeting_variation: dynamicVars.greeting_variation,
+      is_outbound: dynamicVars.is_outbound,
+      call_type: dynamicVars.call_type,
+      first_message_dynamic: dynamicVars.first_message_dynamic
     });
     
-    // ENHANCED: Send comprehensive context including conversation_context AND rich dynamic variables
+    // FIXED: Send comprehensive context with correct dynamic_variables structure
     // This ensures agents get both the detailed context and rich summary when reconnecting
     ws.send(JSON.stringify({
       type: 'conversation_initiation_client_data',
-        dynamic_variables: dynamicVars,
       client_data: {
+        dynamic_variables: dynamicVars,
         conversation_context: conversationContext,
         phone_number: phoneNumber,
         customer_phone: phoneNumber, // For webhook identification
