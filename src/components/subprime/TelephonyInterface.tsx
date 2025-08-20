@@ -1006,65 +1006,6 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
         {/* Conversation Area */}
         <div className={showAnalytics ? 'flex-1' : 'w-full'}>
           <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
-            <div className="flex items-center gap-2 mb-3">
-              <Phone className="h-5 w-5 text-blue-600" />
-              <span className="font-medium text-blue-800">Manual Call Setup</span>
-              <Badge variant="outline" className="ml-2 text-xs bg-blue-100 text-blue-700">
-                Required for manual calls
-              </Badge>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-medium text-blue-700 mb-1 block">Agent Name</label>
-                <Input
-                  type="text"
-                  value={agentName}
-                  onChange={(e) => {
-                    const newName = e.target.value;
-                    setAgentName(newName);
-                    // Save to Supabase after a short delay (debounced)
-                    if (newName.trim() && agentPhoneNumber.trim()) {
-                      setTimeout(() => {
-                        saveAgentPhoneNumber(agentPhoneNumber, newName);
-                      }, 1000);
-                    }
-                  }}
-                  placeholder="Enter your name (e.g., John Smith)"
-                  className="text-sm border-blue-200 focus:border-blue-400"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-blue-700 mb-1 block">Phone Number</label>
-                <Input
-                  type="tel"
-                  value={agentPhoneNumber}
-                  onChange={(e) => {
-                    const newPhoneNumber = e.target.value;
-                    setAgentPhoneNumber(newPhoneNumber);
-                    // Save to Supabase after a short delay (debounced)
-                    if (newPhoneNumber.trim() && agentName.trim()) {
-                      setTimeout(() => {
-                        saveAgentPhoneNumber(newPhoneNumber, agentName);
-                      }, 1000);
-                    }
-                  }}
-                  placeholder="Enter your phone number (e.g., +1234567890)"
-                  className="text-sm border-blue-200 focus:border-blue-400"
-                />
-              </div>
-            </div>
-            <div className="flex items-center gap-2 mt-3 text-xs text-blue-600">
-              <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-              <span>This phone number will be called first, then the customer will be automatically conferenced in</span>
-            </div>
-          </Card>
-      </div>
-
-      {/* Main content area - Conversation with Analytics */}
-      <div className={`flex-1 flex ${showAnalytics ? 'flex-row' : 'flex-col'} mx-4 mb-4 min-h-0 gap-4`}>
-        {/* Conversation Area */}
-        <div className={showAnalytics ? 'flex-1' : 'w-full'}>
-          <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
             <CardHeader className="flex-shrink-0 py-3">
               <CardTitle className="text-lg flex items-center gap-2">
                 <MessageSquare className="h-5 w-5" />
