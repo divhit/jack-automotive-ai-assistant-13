@@ -6799,7 +6799,7 @@ app.post('/api/manual-call/transcription', (req, res) => {
 });
 
 // ⭐ MANUAL CALLS: Enhanced conference status with context preservation
-app.post('/api/manual-call/conference-status-enhanced', (req, res) => {
+app.post('/api/manual-call/conference-status-enhanced', async (req, res) => {
   try {
     const { ConferenceSid, StatusCallbackEvent, FriendlyName, Timestamp } = req.body;
     

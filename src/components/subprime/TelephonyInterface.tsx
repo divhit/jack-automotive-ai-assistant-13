@@ -47,6 +47,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
 import { ElevenLabsAnalyticsPanel } from './enhanced/ElevenLabsAnalyticsPanel';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ConversationMessage {
   id: string;
@@ -69,7 +70,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
   className
 }) => {
   // SECURITY: Get organization context
-  const { organization } = useAuth();
+  const { organization, user } = useAuth();
   
   // State management
   const [conversationHistory, setConversationHistory] = useState<ConversationMessage[]>([]);
@@ -92,6 +93,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
     instructions?: string;
   } | null>(null);
   const [agentName, setAgentName] = useState('Agent'); // Default agent name
+  const [agentPhoneNumber, setAgentPhoneNumber] = useState(''); // Agent's phone number for manual calls
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -102,6 +104,59 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [conversationHistory]);
+
+  // Load agent phone number from Supabase on mount
+  useEffect(() => {
+    const loadAgentPhoneNumber = async () => {
+      if (!organization?.id || !user?.id) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('agent_phone_numbers')
+          .select('phone_number, agent_name')
+          .eq('organization_id', organization.id)
+          .eq('user_id', user.id)
+          .eq('is_active', true)
+          .single();
+        
+        if (data && !error) {
+          setAgentPhoneNumber(data.phone_number);
+          setAgentName(data.agent_name);
+        }
+      } catch (error) {
+        console.warn('Failed to load agent phone number:', error);
+      }
+    };
+    
+    loadAgentPhoneNumber();
+  }, [organization?.id, user?.id]);
+
+  // Save agent phone number to Supabase when it changes
+  const saveAgentPhoneNumber = async (phoneNumber: string, name: string) => {
+    if (!organization?.id || !user?.id || !phoneNumber.trim()) return;
+    
+    try {
+      const { error } = await supabase
+        .from('agent_phone_numbers')
+        .upsert({
+          organization_id: organization.id,
+          user_id: user.id,
+          agent_name: name,
+          phone_number: phoneNumber.trim(),
+          is_active: true,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'organization_id,user_id'
+        });
+      
+      if (error) {
+        console.error('Failed to save agent phone number:', error);
+        toast.error('Failed to save phone number');
+      }
+    } catch (error) {
+      console.error('Error saving agent phone number:', error);
+    }
+  };
 
   // Load conversation history when lead changes
   useEffect(() => {
@@ -504,6 +559,24 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
   const handleManualCall = async () => {
     if (!selectedLead) return;
     
+    // Validate agent details
+    if (!agentName.trim()) {
+      toast.error('Please enter your name first');
+      return;
+    }
+    
+    if (!agentPhoneNumber.trim()) {
+      toast.error('Please enter your phone number first');
+      return;
+    }
+    
+    // Basic phone number validation
+    const phoneRegex = /^[\+]?[\d\s\-\(\)]{10,}$/;
+    if (!phoneRegex.test(agentPhoneNumber.trim())) {
+      toast.error('Please enter a valid phone number (e.g., +1234567890)');
+      return;
+    }
+    
     setIsLoading(true);
     setError(null);
     
@@ -521,7 +594,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
         body: JSON.stringify({
           phoneNumber: selectedLead.phoneNumber,
           leadId: selectedLead.id,
-          agentName: agentName,
+          agentName: agentPhoneNumber || agentName, // Use phone number if provided, fallback to name
           organizationId: organization?.id
         })
       });
@@ -1013,6 +1086,55 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
         )}
       </div>
 
+      {/* AGENT PHONE NUMBER INPUT - For manual calls */}
+      {!isCallActive && !isManualCallActive && (
+        <div className="mx-4 mb-2">
+          <Card className="p-3 bg-blue-50 border-blue-200">
+            <div className="flex items-center gap-2 mb-2">
+              <Phone className="h-4 w-4 text-blue-600" />
+              <span className="text-sm font-medium text-blue-800">Agent Details (for manual calls)</span>
+            </div>
+            <div className="space-y-2">
+              <Input
+                type="text"
+                value={agentName}
+                onChange={(e) => {
+                  const newName = e.target.value;
+                  setAgentName(newName);
+                  // Save to Supabase after a short delay (debounced)
+                  if (newName.trim() && agentPhoneNumber.trim()) {
+                    setTimeout(() => {
+                      saveAgentPhoneNumber(agentPhoneNumber, newName);
+                    }, 1000);
+                  }
+                }}
+                placeholder="Enter your name (e.g., John Smith)"
+                className="text-sm"
+              />
+              <Input
+                type="tel"
+                value={agentPhoneNumber}
+                onChange={(e) => {
+                  const newPhoneNumber = e.target.value;
+                  setAgentPhoneNumber(newPhoneNumber);
+                  // Save to Supabase after a short delay (debounced)
+                  if (newPhoneNumber.trim() && agentName.trim()) {
+                    setTimeout(() => {
+                      saveAgentPhoneNumber(newPhoneNumber, agentName);
+                    }, 1000);
+                  }
+                }}
+                placeholder="Enter your phone number (e.g., +1234567890)"
+                className="text-sm"
+              />
+            </div>
+            <p className="text-xs text-blue-600 mt-1">
+              💡 This number will be called first, then the customer will be conferenced in
+            </p>
+          </Card>
+        </div>
+      )}
+
       {/* INPUT AREA - Fixed at bottom */}
       <div className="flex gap-2 mt-4 flex-shrink-0">
         <Textarea
@@ -1044,8 +1166,9 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
                 onClick={handleManualCall}
                 variant="outline"
                 size="sm"
-                disabled={isLoading}
-                className="bg-green-600 hover:bg-green-700 text-white border-green-600"
+                disabled={isLoading || !agentPhoneNumber.trim() || !agentName.trim()}
+                className="bg-green-600 hover:bg-green-700 text-white border-green-600 disabled:bg-gray-400 disabled:border-gray-400"
+                title={!agentName.trim() || !agentPhoneNumber.trim() ? "Please enter your name and phone number above" : "Start manual call"}
               >
                 <Phone className="h-4 w-4 mr-1" />
                 Manual Call
