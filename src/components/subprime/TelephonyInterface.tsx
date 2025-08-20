@@ -917,6 +917,61 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
             </div>
           )}
 
+          {/* AGENT PHONE NUMBER SETUP - For manual calls */}
+          <div className="mt-4 p-3 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg">
+            <div className="flex items-center gap-2 mb-3">
+              <Phone className="h-4 w-4 text-green-600" />
+              <span className="font-medium text-green-800">Manual Call Setup</span>
+              <Badge variant="outline" className="ml-auto text-xs bg-green-100 text-green-700 border-green-300">
+                Required
+              </Badge>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-green-700 mb-1 block">Agent Name</label>
+                <Input
+                  type="text"
+                  value={agentName}
+                  onChange={(e) => {
+                    const newName = e.target.value;
+                    setAgentName(newName);
+                    // Save to Supabase after a short delay (debounced)
+                    if (newName.trim() && agentPhoneNumber.trim()) {
+                      setTimeout(() => {
+                        saveAgentPhoneNumber(agentPhoneNumber, newName);
+                      }, 1000);
+                    }
+                  }}
+                  placeholder="Enter your name (e.g., John Smith)"
+                  className="text-sm h-8 border-green-200 focus:border-green-400"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-green-700 mb-1 block">Phone Number</label>
+                <Input
+                  type="tel"
+                  value={agentPhoneNumber}
+                  onChange={(e) => {
+                    const newPhoneNumber = e.target.value;
+                    setAgentPhoneNumber(newPhoneNumber);
+                    // Save to Supabase after a short delay (debounced)
+                    if (newPhoneNumber.trim() && agentName.trim()) {
+                      setTimeout(() => {
+                        saveAgentPhoneNumber(newPhoneNumber, agentName);
+                      }, 1000);
+                    }
+                  }}
+                  placeholder="Enter your phone number (e.g., +1234567890)"
+                  className="text-sm h-8 border-green-200 focus:border-green-400"
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-1 mt-2 text-xs text-green-600">
+              <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+              <span>You will be called first, then customer will be automatically conferenced in</span>
+            </div>
+          </div>
+
           {/* Call Status Indicator */}
           {isCallActive && (
             <div className="mt-3 bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2 text-sm text-green-700">
@@ -946,9 +1001,11 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
         </CardContent>
       </Card>
 
-      {/* AGENT PHONE NUMBER INPUT - For manual calls */}
-      <div className="mx-4 mb-4">
-          <Card className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 shadow-sm">
+      {/* Main content area - Conversation with Analytics */}
+      <div className={`flex-1 flex ${showAnalytics ? 'flex-row' : 'flex-col'} mx-4 mb-4 min-h-0 gap-4`}>
+        {/* Conversation Area */}
+        <div className={showAnalytics ? 'flex-1' : 'w-full'}>
+          <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
             <div className="flex items-center gap-2 mb-3">
               <Phone className="h-5 w-5 text-blue-600" />
               <span className="font-medium text-blue-800">Manual Call Setup</span>
