@@ -159,25 +159,36 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
     if (!organization?.id || !user?.id || !phoneNumber.trim()) return;
     
     try {
+      // First, delete any existing agent phone numbers for this user/org
+      await supabase
+        .from('agent_phone_numbers')
+        .delete()
+        .eq('organization_id', organization.id)
+        .eq('user_id', user.id);
+      
+      // Then insert the new agent phone number
       const { error } = await supabase
         .from('agent_phone_numbers')
-        .upsert({
+        .insert({
           organization_id: organization.id,
           user_id: user.id,
           agent_name: name,
           phone_number: phoneNumber.trim(),
           is_active: true,
+          created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'organization_id,user_id'
         });
       
       if (error) {
         console.error('Failed to save agent phone number:', error);
-        toast.error('Failed to save phone number');
+        toast.error('Failed to save phone number: ' + error.message);
+      } else {
+        console.log('Agent phone number saved successfully');
+        toast.success('Phone number saved successfully');
       }
     } catch (error) {
       console.error('Error saving agent phone number:', error);
+      toast.error('Failed to save phone number');
     }
   };
 
