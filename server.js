@@ -2078,7 +2078,7 @@ function startConversation(phoneNumber, initialMessage, organizationId = null) {
             const leadId = await getActiveLeadForPhone(phoneNumber);
 
             // ENHANCED: Reset timeout on activity to prevent premature closure
-            const normalized = normalizePhoneNumber(phoneNumber);
+            // Use existing normalized variable from above
             if (activeConversationTimeouts.has(normalized)) {
               clearTimeout(activeConversationTimeouts.get(normalized));
               const timeoutId = setTimeout(() => {
