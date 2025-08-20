@@ -140,24 +140,51 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
 
   // Save agent phone number to the current lead
   const saveAgentPhoneNumber = async (phoneNumber: string, name: string) => {
-    if (!selectedLead?.id || !phoneNumber.trim() || !name.trim()) return;
+    console.log('🔍 DEBUG: saveAgentPhoneNumber called', {
+      selectedLeadId: selectedLead?.id,
+      phoneNumber: phoneNumber?.trim(),
+      name: name?.trim(),
+      hasSelectedLead: !!selectedLead,
+      organization: organization?.id,
+      user: user?.id
+    });
+    
+    if (!selectedLead?.id || !phoneNumber.trim() || !name.trim()) {
+      console.log('❌ DEBUG: Save validation failed', {
+        hasLeadId: !!selectedLead?.id,
+        hasPhoneNumber: !!phoneNumber.trim(),
+        hasName: !!name.trim()
+      });
+      return;
+    }
     
     try {
+      console.log('🔄 DEBUG: Attempting to update leads table', {
+        leadId: selectedLead.id,
+        updateData: {
+          agent_phone: phoneNumber.trim(),
+          agent_name: name.trim()
+        }
+      });
+      
       // Update the current lead with agent phone information
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('leads')
         .update({
           agent_phone: phoneNumber.trim(),
           agent_name: name.trim(),
           updated_at: new Date().toISOString()
         })
-        .eq('id', selectedLead.id);
+        .eq('id', selectedLead.id)
+        .select();
+      
+      console.log('🔍 DEBUG: Supabase response', { data, error });
       
       if (error) {
-        console.error('Failed to save agent phone number:', error);
+        console.error('❌ Failed to save agent phone number:', error);
         toast.error('Failed to save phone number: ' + error.message);
       } else {
-        console.log('Agent phone number saved successfully to lead');
+        console.log('✅ Agent phone number saved successfully to lead', data);
         toast.success('Phone number saved successfully');
         
         // Update the local lead data if onLeadUpdate is available
@@ -170,8 +197,8 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
         }
       }
     } catch (error) {
-      console.error('Error saving agent phone number:', error);
-      toast.error('Failed to save phone number');
+      console.error('❌ Error saving agent phone number:', error);
+      toast.error('Failed to save phone number: ' + error.message);
     }
   };
 
