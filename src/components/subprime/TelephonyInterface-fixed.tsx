@@ -128,63 +128,46 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
   const callTimerRef = useRef<NodeJS.Timeout | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
-  // Load agent phone number from Supabase on mount
+  // Load agent phone number from the current lead
   useEffect(() => {
-    const loadAgentPhoneNumber = async () => {
-      if (!organization?.id || !user?.id) return;
-      
-      try {
-        const { data, error } = await supabase
-          .from('agent_phone_numbers')
-          .select('phone_number, agent_name')
-          .eq('organization_id', organization.id)
-          .eq('user_id', user.id)
-          .eq('is_active', true)
-          .single();
-        
-        if (data && !error) {
-          setAgentPhoneNumber(data.phone_number);
-          setAgentName(data.agent_name);
-        }
-      } catch (error) {
-        console.warn('Failed to load agent phone number:', error);
-      }
-    };
-    
-    loadAgentPhoneNumber();
-  }, [organization?.id, user?.id]);
+    if (selectedLead?.agent_phone) {
+      setAgentPhoneNumber(selectedLead.agent_phone);
+    }
+    if (selectedLead?.agent_name) {
+      setAgentName(selectedLead.agent_name);
+    }
+  }, [selectedLead]);
 
-  // Save agent phone number to Supabase when it changes
+  // Save agent phone number to the current lead
   const saveAgentPhoneNumber = async (phoneNumber: string, name: string) => {
-    if (!organization?.id || !user?.id || !phoneNumber.trim()) return;
+    if (!selectedLead?.id || !phoneNumber.trim() || !name.trim()) return;
     
     try {
-      // First, delete any existing agent phone numbers for this user/org
-      await supabase
-        .from('agent_phone_numbers')
-        .delete()
-        .eq('organization_id', organization.id)
-        .eq('user_id', user.id);
-      
-      // Then insert the new agent phone number
+      // Update the current lead with agent phone information
       const { error } = await supabase
-        .from('agent_phone_numbers')
-        .insert({
-          organization_id: organization.id,
-          user_id: user.id,
-          agent_name: name,
-          phone_number: phoneNumber.trim(),
-          is_active: true,
-          created_at: new Date().toISOString(),
+        .from('leads')
+        .update({
+          agent_phone: phoneNumber.trim(),
+          agent_name: name.trim(),
           updated_at: new Date().toISOString()
-        });
+        })
+        .eq('id', selectedLead.id);
       
       if (error) {
         console.error('Failed to save agent phone number:', error);
         toast.error('Failed to save phone number: ' + error.message);
       } else {
-        console.log('Agent phone number saved successfully');
+        console.log('Agent phone number saved successfully to lead');
         toast.success('Phone number saved successfully');
+        
+        // Update the local lead data if onLeadUpdate is available
+        if (onLeadUpdate) {
+          onLeadUpdate({
+            ...selectedLead,
+            agent_phone: phoneNumber.trim(),
+            agent_name: name.trim()
+          });
+        }
       }
     } catch (error) {
       console.error('Error saving agent phone number:', error);
