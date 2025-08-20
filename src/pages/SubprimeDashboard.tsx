@@ -83,7 +83,7 @@ const SubprimeDashboard = () => {
 
   // Real-time update state
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
-  const [refreshInterval, setRefreshInterval] = useState(30000); // 30 seconds
+  const [refreshInterval, setRefreshInterval] = useState(60000); // 60 seconds - reduced frequency
 
   // Enhanced metrics calculation with better error handling and proper KPI tracking
   const metrics = useMemo(() => {

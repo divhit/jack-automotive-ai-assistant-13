@@ -5168,6 +5168,9 @@ app.post('/api/subprime/create-lead', validateOrganizationAccess, async (req, re
       organization_id: leadData.organizationId // SECURITY: Log organization context
     });
 
+    // Invalidate cache since we added a new lead
+    invalidateLeadsCache(leadData.organizationId);
+    
     res.status(201).json({ 
       success: true, 
       message: 'Lead created successfully',
@@ -5190,6 +5193,16 @@ app.post('/api/subprime/create-lead', validateOrganizationAccess, async (req, re
   }
 });
 
+// Cache for leads to prevent excessive DB queries
+const leadsCache = new Map();
+const LEADS_CACHE_TTL = 30000; // 30 seconds cache
+
+// Helper function to invalidate leads cache
+function invalidateLeadsCache(organizationId) {
+  const cacheKey = `leads_${organizationId}`;
+  leadsCache.delete(cacheKey);
+}
+
 // API endpoint to get all dynamic leads (smart: tries Supabase first, then memory)
 app.get('/api/subprime/leads', async (req, res) => {
   try {
@@ -5200,6 +5213,13 @@ app.get('/api/subprime/leads', async (req, res) => {
       return res.status(400).json({ 
         error: 'organization_id is required for lead retrieval to prevent cross-organization data access' 
       });
+    }
+    
+    // Check cache first
+    const cacheKey = `leads_${organization_id}`;
+    const cached = leadsCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp) < LEADS_CACHE_TTL) {
+      return res.json(cached.data);
     }
     
     // Try Supabase first (in case initialization failed but Supabase is working)
@@ -5248,15 +5268,26 @@ app.get('/api/subprime/leads', async (req, res) => {
             phoneToLeadMapping.set(normalizedPhone, lead.id);
           });
           
-          console.log(`📋 Retrieved ${formattedLeads.length} leads from Supabase (synced to memory)`);
-          
-          return res.json({
+          // Cache the response
+          const responseData = {
             success: true,
             leads: formattedLeads,
             count: formattedLeads.length,
             source: 'database',
             organization_id: organization_id
+          };
+          
+          leadsCache.set(cacheKey, {
+            data: responseData,
+            timestamp: Date.now()
           });
+          
+          // Only log when data actually changes, not on every request
+          if (!cached || cached.data.count !== formattedLeads.length) {
+            console.log(`📋 Retrieved ${formattedLeads.length} leads from Supabase (cached for ${LEADS_CACHE_TTL/1000}s)`);
+          }
+          
+          return res.json(responseData);
         }
       } catch (dbError) {
         console.warn('⚠️ Supabase retrieval failed, falling back to memory:', dbError.message);
