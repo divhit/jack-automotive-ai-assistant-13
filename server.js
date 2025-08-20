@@ -6240,10 +6240,30 @@ app.post('/api/manual-call/initiate', validateOrganizationAccess, async (req, re
     }
     
     // Get organization phone number for caller ID
-    const organizationPhone = await getOrganizationPhoneNumber(organizationId);
-    console.log(`📞 Manual call phone number resolution: org=${organizationId}, orgPhone=${organizationPhone}, fallback=${process.env.TWILIO_PHONE_NUMBER}`);
+    let fromPhone;
+    try {
+      const orgPhoneData = await getOrganizationPhoneNumber(organizationId);
+      fromPhone = orgPhoneData.phoneNumber; // Extract phone number string from object
+      console.log(`📞 Organization phone resolved: ${fromPhone}`);
+    } catch (error) {
+      console.warn(`⚠️ Failed to get organization phone: ${error.message}, using fallback`);
+      fromPhone = process.env.TWILIO_PHONE_NUMBER;
+    }
     
-    // Use Twilio to initiate conference call
+    console.log(`📞 Manual call phone number resolution: org=${organizationId}, orgPhone=${fromPhone}, fallback=${process.env.TWILIO_PHONE_NUMBER}`);
+    
+    // Validate we have a phone number to call from
+    if (!fromPhone) {
+      console.error('❌ No phone number available for manual call (org phone or Twilio phone)');
+      return res.status(500).json({
+        success: false,
+        error: 'No phone number configured for outbound calls'
+      });
+    }
+    
+    console.log(`📞 Manual call will use phone number: ${fromPhone}`);
+    
+    // Use Twilio credentials from environment
     const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
     const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
     
@@ -6255,19 +6275,9 @@ app.post('/api/manual-call/initiate', validateOrganizationAccess, async (req, re
       });
     }
     
-    // Validate we have a phone number to call from
-    const fromPhone = organizationPhone || process.env.TWILIO_PHONE_NUMBER;
-    if (!fromPhone) {
-      console.error('❌ No phone number available for manual call (org phone or Twilio phone)');
-      return res.status(500).json({
-        success: false,
-        error: 'No phone number configured for outbound calls'
-      });
-    }
-    
-    console.log(`📞 Manual call will use phone number: ${fromPhone}`);
-    
-    const twilio = require('twilio')(twilioAccountSid, twilioAuthToken);
+    // Import Twilio using dynamic import for ES modules
+    const { default: twilio } = await import('twilio');
+    const twilioClient = twilio(twilioAccountSid, twilioAuthToken);
     
     // Generate unique conference name
     const conferenceId = `manual-call-${Date.now()}-${leadId || 'direct'}`;
@@ -6276,7 +6286,7 @@ app.post('/api/manual-call/initiate', validateOrganizationAccess, async (req, re
       // NEW FLOW: Call agent first, then conference customer when agent answers
       console.log(`👤 Initiating agent call first: conference=${conferenceId}, agent=${agentName}`);
       
-      const agentCall = await twilio.calls.create({
+      const agentCall = await twilioClient.calls.create({
         url: `${process.env.BASE_URL || 'https://jack-automotive-ai-assistant-13.onrender.com'}/api/manual-call/twiml-agent?conferenceId=${conferenceId}&organizationId=${organizationId}&leadId=${leadId || ''}&customerPhone=${encodeURIComponent(phoneNumber)}`,
         to: agentName, // Assuming agentName is a phone number
         from: fromPhone,
@@ -6443,12 +6453,22 @@ app.post('/api/manual-call/agent-status', async (req, res) => {
       try {
         const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
         const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
-        const twilio = require('twilio')(twilioAccountSid, twilioAuthToken);
         
-        const organizationPhone = await getOrganizationPhoneNumber(session.organizationId);
-        const fromPhone = organizationPhone || process.env.TWILIO_PHONE_NUMBER;
+        // Import Twilio using dynamic import for ES modules
+        const { default: twilio } = await import('twilio');
+        const twilioClient = twilio(twilioAccountSid, twilioAuthToken);
         
-        const customerCall = await twilio.calls.create({
+        // Get organization phone number properly
+        let fromPhone;
+        try {
+          const orgPhoneData = await getOrganizationPhoneNumber(session.organizationId);
+          fromPhone = orgPhoneData.phoneNumber; // Extract phone number string from object
+        } catch (error) {
+          console.warn(`⚠️ Failed to get organization phone: ${error.message}, using fallback`);
+          fromPhone = process.env.TWILIO_PHONE_NUMBER;
+        }
+        
+        const customerCall = await twilioClient.calls.create({
           url: `${process.env.BASE_URL || 'https://jack-automotive-ai-assistant-13.onrender.com'}/api/manual-call/twiml-customer?conferenceId=${conferenceId}&organizationId=${session.organizationId}&leadId=${session.leadId || ''}`,
           to: session.phoneNumber,
           from: fromPhone,
@@ -6617,18 +6637,20 @@ app.post('/api/manual-call/end', validateOrganizationAccess, async (req, res) =>
       });
     }
     
-    const twilio = require('twilio')(twilioAccountSid, twilioAuthToken);
+    // Import Twilio using dynamic import for ES modules
+    const { default: twilio } = await import('twilio');
+    const twilioClient = twilio(twilioAccountSid, twilioAuthToken);
     
     try {
       // End all calls in the conference
-      const conferences = await twilio.conferences.list({
+      const conferences = await twilioClient.conferences.list({
         friendlyName: conferenceId,
         status: 'in-progress'
       });
       
       for (const conference of conferences) {
         // End the conference
-        await twilio.conferences(conference.sid).update({ status: 'completed' });
+        await twilioClient.conferences(conference.sid).update({ status: 'completed' });
         console.log(`📞 Ended conference: ${conference.sid}`);
       }
       
