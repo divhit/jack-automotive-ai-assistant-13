@@ -3566,17 +3566,47 @@ app.get('/api/webhooks/elevenlabs/conversation-events', (req, res) => {
 });
 
 // ElevenLabs Post-Call Webhook
+// Deduplication cache for post-call webhooks
+const processedWebhooks = new Map();
+const WEBHOOK_CACHE_TTL = 300000; // 5 minutes
+
 app.post('/api/webhooks/elevenlabs/post-call', async (req, res) => {
   try {
     const signature = req.headers['xi-signature'];
     const payload = JSON.stringify(req.body);
+
+    // Extract conversation ID for deduplication
+    const conversationId = req.body?.data?.conversation_id;
+    
+    // Deduplicate webhooks
+    if (conversationId) {
+      const now = Date.now();
+      const existing = processedWebhooks.get(conversationId);
+      
+      if (existing && (now - existing.timestamp) < WEBHOOK_CACHE_TTL) {
+        console.log(`🔄 Duplicate post-call webhook ignored for conversation: ${conversationId} (processed ${now - existing.timestamp}ms ago)`);
+        return res.status(200).json({ status: 'duplicate_ignored' });
+      }
+      
+      processedWebhooks.set(conversationId, { timestamp: now });
+      
+      // Clean up old entries every 100 webhooks
+      if (processedWebhooks.size > 100) {
+        for (const [id, data] of processedWebhooks.entries()) {
+          if (now - data.timestamp > WEBHOOK_CACHE_TTL) {
+            processedWebhooks.delete(id);
+          }
+        }
+      }
+    }
 
     console.log('📞 POST-CALL WEBHOOK RECEIVED:', {
       timestamp: new Date().toISOString(),
       signature: signature ? 'Present' : 'MISSING',
       payloadLength: payload.length,
       headers: Object.keys(req.headers),
-      bodyKeys: Object.keys(req.body || {})
+      bodyKeys: Object.keys(req.body || {}),
+      conversationId: conversationId
     });
 
     // Log the full payload structure for debugging
@@ -5210,10 +5240,24 @@ app.post('/api/subprime/create-lead', validateOrganizationAccess, async (req, re
 const leadsCache = new Map();
 const LEADS_CACHE_TTL = 30000; // 30 seconds cache
 
+// Request-level cache to prevent duplicate queries within same request
+const requestCache = new Map();
+
 // Helper function to invalidate leads cache
 function invalidateLeadsCache(organizationId) {
   const cacheKey = `leads_${organizationId}`;
   leadsCache.delete(cacheKey);
+}
+
+// Helper function for request-level caching
+function getRequestCacheKey(type, params) {
+  return `${type}:${JSON.stringify(params)}`;
+}
+
+function setRequestCache(key, data) {
+  // Auto-cleanup after 5 minutes to prevent memory leaks
+  setTimeout(() => requestCache.delete(key), 300000);
+  requestCache.set(key, data);
 }
 
 // API endpoint to get all dynamic leads (smart: tries Supabase first, then memory)
