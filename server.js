@@ -981,7 +981,17 @@ function getDayContext() {
     return "Happy Friday!";
   }
   
-  return "";
+  // Tuesday-Thursday and Friday morning
+  if (day >= 2 && day <= 4) {
+    return "Hope you're having a great week!";
+  }
+  
+  // Friday morning
+  if (day === 5 && hour <= 12) {
+    return "Hope your week is going well!";
+  }
+  
+  return ""; // Fallback for any edge cases
 }
 
 function getCustomerGreeting(customerName, lastVisit) {
