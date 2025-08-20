@@ -6273,30 +6273,31 @@ app.post('/api/manual-call/initiate', validateOrganizationAccess, async (req, re
     const conferenceId = `manual-call-${Date.now()}-${leadId || 'direct'}`;
     
     try {
-      // Start conference by calling customer first
-      console.log(`📞 Initiating Twilio call: from=${fromPhone}, to=${phoneNumber}, conference=${conferenceId}`);
+      // NEW FLOW: Call agent first, then conference customer when agent answers
+      console.log(`👤 Initiating agent call first: conference=${conferenceId}, agent=${agentName}`);
       
-      const customerCall = await twilio.calls.create({
-        url: `${process.env.BASE_URL || 'https://jack-automotive-ai-assistant-13.onrender.com'}/api/manual-call/twiml-customer?conferenceId=${conferenceId}&organizationId=${organizationId}&leadId=${leadId || ''}`,
-        to: phoneNumber,
+      const agentCall = await twilio.calls.create({
+        url: `${process.env.BASE_URL || 'https://jack-automotive-ai-assistant-13.onrender.com'}/api/manual-call/twiml-agent?conferenceId=${conferenceId}&organizationId=${organizationId}&leadId=${leadId || ''}&customerPhone=${encodeURIComponent(phoneNumber)}`,
+        to: agentName, // Assuming agentName is a phone number
         from: fromPhone,
-        statusCallback: `${process.env.BASE_URL || 'https://jack-automotive-ai-assistant-13.onrender.com'}/api/manual-call/status`,
+        statusCallback: `${process.env.BASE_URL || 'https://jack-automotive-ai-assistant-13.onrender.com'}/api/manual-call/agent-status`,
         statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
         statusCallbackMethod: 'POST'
       });
       
-      console.log(`📞 Customer call initiated: ${customerCall.sid}`);
+      console.log(`👤 Agent call initiated: ${agentCall.sid}`);
       
       // Store manual call session
       const manualCallSession = {
         conferenceId,
-        customerCallSid: customerCall.sid,
-        agentCallSid: null,
+        customerCallSid: null,
+        agentCallSid: agentCall.sid,
         phoneNumber: normalizePhoneNumber(phoneNumber),
         leadId,
         organizationId,
         agentName,
-        status: 'calling_customer',
+        agentPhone: agentName, // Store agent phone for reference
+        status: 'calling_agent',
         startTime: new Date().toISOString()
       };
       
@@ -6320,16 +6321,16 @@ app.post('/api/manual-call/initiate', validateOrganizationAccess, async (req, re
       res.json({
         success: true,
         conferenceId,
-        customerCallSid: customerCall.sid,
-        message: 'Manual call initiated - customer being called',
-        status: 'calling_customer',
+        agentCallSid: agentCall.sid,
+        message: 'Manual call initiated - agent being called first',
+        status: 'calling_agent',
         organizationId,
-        dialInNumber: fromPhone,
-        instructions: `Manual call started! 
-1. Customer (${phoneNumber}) is being called
-2. When they answer, you can dial ${fromPhone} 
-3. When prompted, enter conference ID: ${conferenceId}
-4. Press # to join the conference with the customer`
+        agentPhone: agentName,
+        customerPhone: phoneNumber,
+        instructions: `New manual call flow:
+1. Agent (${agentName}) is being called first
+2. Once agent answers, customer (${phoneNumber}) will be automatically conferenced in
+3. No manual dialing required - system handles the conference setup`
       });
       
     } catch (twilioError) {
@@ -6360,7 +6361,7 @@ app.post('/api/manual-call/twiml-customer', (req, res) => {
   // Join conference with customer-friendly settings including recording and transcription
   const dial = response.dial();
   dial.conference(conferenceId, {
-    startConferenceOnEnter: true,
+    startConferenceOnEnter: false, // Don't start on customer enter since agent is already there
     endConferenceOnExit: false,
     statusCallback: `${process.env.BASE_URL || 'https://jack-automotive-ai-assistant-13.onrender.com'}/api/manual-call/conference-status`,
     statusCallbackEvent: 'start join leave end',
@@ -6377,6 +6378,127 @@ app.post('/api/manual-call/twiml-customer', (req, res) => {
   
   res.type('text/xml');
   res.send(response.toString());
+});
+
+// ⭐ MANUAL CALLS: TwiML for agent connection to conference (NEW FLOW)
+app.post('/api/manual-call/twiml-agent', (req, res) => {
+  const { conferenceId, organizationId, leadId, customerPhone } = req.query;
+  
+  console.log(`👤 Agent TwiML request for conference ${conferenceId}`);
+  
+  const response = new twilio.twiml.VoiceResponse();
+  
+  // Greet the agent and explain the flow
+  response.say({
+    voice: 'alice'
+  }, `Hello! You are being connected to a manual call conference. Please hold while we connect the customer at ${decodeURIComponent(customerPhone)}.`);
+  
+  // Join conference with agent-friendly settings
+  const dial = response.dial();
+  dial.conference(conferenceId, {
+    startConferenceOnEnter: true,
+    endConferenceOnExit: true, // End conference when agent leaves
+    statusCallback: `${process.env.BASE_URL || 'https://jack-automotive-ai-assistant-13.onrender.com'}/api/manual-call/conference-status`,
+    statusCallbackEvent: 'start join leave end',
+    record: 'record-from-answer-dual',
+    recordingStatusCallback: `${process.env.BASE_URL || 'https://jack-automotive-ai-assistant-13.onrender.com'}/api/manual-call/recording-status`,
+    transcribe: true,
+    transcriptionConfiguration: {
+      track: 'both',
+      transcriptionCallback: `${process.env.BASE_URL || 'https://jack-automotive-ai-assistant-13.onrender.com'}/api/manual-call/transcription`
+    }
+  });
+  
+  res.type('text/xml');
+  res.send(response.toString());
+});
+
+// ⭐ MANUAL CALLS: Agent status callback to handle agent connection
+app.post('/api/manual-call/agent-status', async (req, res) => {
+  const { CallSid, CallStatus, To, From, ConferenceSid } = req.body;
+  
+  console.log(`👤 Agent call status: ${CallStatus} for call ${CallSid}`);
+  
+  // Find the session by agent call SID
+  let conferenceId = null;
+  let session = null;
+  
+  for (const [confId, sess] of activeCallSessions) {
+    if (sess.agentCallSid === CallSid) {
+      conferenceId = confId;
+      session = sess;
+      break;
+    }
+  }
+  
+  if (session) {
+    // Update session status
+    session.agentStatus = CallStatus;
+    session.lastUpdate = new Date().toISOString();
+    
+    // When agent answers, immediately call customer
+    if (CallStatus === 'answered') {
+      console.log(`👤 Agent answered! Now calling customer ${session.phoneNumber}`);
+      
+      try {
+        const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
+        const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
+        const twilio = require('twilio')(twilioAccountSid, twilioAuthToken);
+        
+        const organizationPhone = await getOrganizationPhoneNumber(session.organizationId);
+        const fromPhone = organizationPhone || process.env.TWILIO_PHONE_NUMBER;
+        
+        const customerCall = await twilio.calls.create({
+          url: `${process.env.BASE_URL || 'https://jack-automotive-ai-assistant-13.onrender.com'}/api/manual-call/twiml-customer?conferenceId=${conferenceId}&organizationId=${session.organizationId}&leadId=${session.leadId || ''}`,
+          to: session.phoneNumber,
+          from: fromPhone,
+          statusCallback: `${process.env.BASE_URL || 'https://jack-automotive-ai-assistant-13.onrender.com'}/api/manual-call/status`,
+          statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
+          statusCallbackMethod: 'POST'
+        });
+        
+        // Update session with customer call info
+        session.customerCallSid = customerCall.sid;
+        session.status = 'calling_customer';
+        activeCallSessions.set(conferenceId, session);
+        
+        console.log(`📞 Customer call initiated: ${customerCall.sid} for conference ${conferenceId}`);
+        
+        // ⭐ SUPABASE MCP: Log manual call session to database
+        if (session.leadId) {
+          try {
+            await supabasePersistence.logCallSession(
+              session.leadId,
+              conferenceId, // Use conferenceId as conversation identifier
+              session.customerCallSid,
+              session.phoneNumber,
+              'manual', // call_type
+              session.organizationId,
+              {
+                agentName: session.agentName,
+                agentCallSid: session.agentCallSid,
+                customerCallSid: session.customerCallSid,
+                conferenceId: conferenceId
+              }
+            );
+            console.log(`📊 Manual call session logged to Supabase: ${conferenceId}`);
+          } catch (dbError) {
+            console.warn('📊 Failed to log manual call session to Supabase:', dbError.message);
+          }
+        }
+        
+      } catch (error) {
+        console.error('❌ Failed to call customer after agent answered:', error);
+        session.status = 'error';
+        session.error = error.message;
+      }
+    }
+    
+    // Update session in memory
+    activeCallSessions.set(conferenceId, session);
+  }
+  
+  res.status(200).send('OK');
 });
 
 // ⭐ MANUAL CALLS: Get agent dial-in information
@@ -6701,6 +6823,23 @@ app.post('/api/manual-call/conference-status-enhanced', (req, res) => {
           
           // Store summary for future AI context
           storeConversationSummary(session.phoneNumber, callSummary, session.organizationId);
+          
+          // ⭐ SUPABASE MCP: Update call session with completion data
+          if (session.leadId) {
+            try {
+              const duration = Math.floor((Date.now() - new Date(session.startTime).getTime()) / 1000);
+              await supabasePersistence.updateCallSession(FriendlyName, {
+                summary: callSummary,
+                transcript: transcriptText,
+                duration_seconds: duration,
+                call_outcome: 'completed',
+                ended_at: new Date().toISOString()
+              });
+              console.log(`📊 Manual call completion logged to Supabase: ${FriendlyName}`);
+            } catch (dbError) {
+              console.warn('📊 Failed to update manual call session in Supabase:', dbError.message);
+            }
+          }
           
           // Broadcast call end with summary
           broadcastConversationUpdate({
