@@ -6447,7 +6447,7 @@ app.post('/api/manual-call/agent-status', async (req, res) => {
     session.lastUpdate = new Date().toISOString();
     
     // When agent answers, immediately call customer
-    if (CallStatus === 'answered') {
+    if (CallStatus === 'in-progress') {
       console.log(`👤 Agent answered! Now calling customer ${session.phoneNumber}`);
       
       try {
