@@ -1,0 +1,27 @@
+{
+  "mcpServers": {
+    "supabase": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@supabase/mcp-server-supabase@latest",
+        "--project-ref=dgzadilmtuqvimolzxms"
+      ],
+      "env": {
+        "SUPABASE_ACCESS_TOKEN": "sbp_76b60d323249485de1144f002518b9a4f5a0178f"
+      }
+    },
+    "twilio": {
+      "command": "npx",
+      "args": [
+        "-y", 
+        "@twilio-alpha/mcp",
+        "AC922e23b76c582ae9156d893e0166476c:0202e916041b84b7225c872154597217",
+        "--services",
+        "twilio_api_v2010",
+        "--tags",
+        "Api20100401IncomingPhoneNumber"
+      ]
+    }
+  }
+}
