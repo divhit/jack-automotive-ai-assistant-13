@@ -2617,6 +2617,13 @@ app.post('/api/webhooks/twilio/sms/incoming', async (req, res) => {
 
     const normalizedFrom = normalizePhoneNumber(From);
 
+    // Check if this is a human agent command (RESPOND: or CALL)
+    if (Body.startsWith('RESPOND:') || Body.toUpperCase() === 'CALL') {
+      console.log('🤖 Processing human agent command:', Body);
+      await processHumanAgentCommand(From, Body, To);
+      return res.status(200).send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+    }
+
     // ORGANIZATION ROUTING: Find organization by the phone number that RECEIVED the message (To)
     const organizationId = await getOrganizationByPhoneNumber(To);
     
@@ -2690,9 +2697,7 @@ app.post('/api/webhooks/twilio/sms/incoming', async (req, res) => {
         const leadData = getLeadData(leadId);
         if (leadData && leadData.agent_phone) {
           await notifyHumanAgentViaSMS(From, Body, leadData, organizationId);
-          
-          // Send acknowledgment to customer
-          await sendSMSReply(From, `Thank you for your message. I've notified one of our specialists who will get back to you shortly. In the meantime, I'm here to help with any other questions you might have.`, organizationId);
+          console.log('✅ Human agent notified - letting AI respond naturally to customer');
         } else {
           console.log('⚠️ No agent phone configured for human intervention');
         }
@@ -2780,6 +2785,69 @@ function needsHumanIntervention(message) {
   return humanKeywords.some(keyword => messageText.includes(keyword));
 }
 
+// Process human agent commands from SMS (RESPOND: or CALL)
+async function processHumanAgentCommand(agentPhone, command, systemPhone) {
+  try {
+    console.log(`🤖 Human agent command from ${agentPhone}: ${command}`);
+    
+    // Find which lead this agent is associated with
+    let targetLead = null;
+    for (const [leadId, lead] of dynamicLeads) {
+      if (lead.agent_phone === agentPhone) {
+        targetLead = lead;
+        break;
+      }
+    }
+    
+    if (!targetLead) {
+      console.log(`⚠️ No lead found for agent phone ${agentPhone}`);
+      return;
+    }
+    
+    console.log(`📱 Agent command for lead: ${targetLead.customerName} (${targetLead.phoneNumber})`);
+    
+    if (command.toUpperCase() === 'CALL') {
+      // Initiate manual call
+      console.log(`📞 Initiating manual call for agent ${agentPhone} to customer ${targetLead.phoneNumber}`);
+      
+      // Use the existing manual call API
+      const callResponse = await fetch('/api/manual-call/initiate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'organizationId': targetLead.organizationId
+        },
+        body: JSON.stringify({
+          phoneNumber: targetLead.phoneNumber,
+          leadId: targetLead.id,
+          agentName: agentPhone
+        })
+      });
+      
+      if (callResponse.ok) {
+        console.log('✅ Manual call initiated via SMS command');
+      } else {
+        console.error('❌ Failed to initiate manual call via SMS command');
+      }
+      
+    } else if (command.startsWith('RESPOND:')) {
+      // Send response to customer
+      const responseMessage = command.substring(8).trim(); // Remove "RESPOND:" prefix
+      console.log(`💬 Sending agent response to customer: ${responseMessage}`);
+      
+      await sendSMSReply(targetLead.phoneNumber, responseMessage, targetLead.organizationId);
+      
+      // Add to conversation history as human agent message
+      addToConversationHistory(targetLead.phoneNumber, responseMessage, 'human_agent', 'text', targetLead.organizationId);
+      
+      console.log('✅ Human agent response sent to customer');
+    }
+    
+  } catch (error) {
+    console.error('❌ Error processing human agent command:', error);
+  }
+}
+
 // Send SMS notification to human agent
 async function notifyHumanAgentViaSMS(customerPhone, message, leadData, organizationId) {
   try {
@@ -2790,14 +2858,13 @@ async function notifyHumanAgentViaSMS(customerPhone, message, leadData, organiza
     
     console.log(`📱 Sending human intervention SMS to agent: ${leadData.agent_phone}`);
     
-    const agentNotification = `🚨 HUMAN ASSISTANCE NEEDED
-Customer: ${leadData.customerName} (${customerPhone})
-Message: "${message}"
-Lead ID: ${leadData.id}
+    const agentNotification = `🚨 Customer needs assistance
+${leadData.customerName}: "${message}"
 
-Reply with: "RESPOND: your message" to reply to customer
-Reply with: "CALL" to initiate manual call
-Dashboard: https://jack-automotive-ai-assistant-13.onrender.com/subprime`;
+Reply options:
+• RESPOND: your message (sends SMS to customer)
+• CALL (starts phone call)
+• Dashboard: https://jack-automotive-ai-assistant-13.onrender.com/subprime`;
 
     // Send SMS to agent using Twilio
     const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
