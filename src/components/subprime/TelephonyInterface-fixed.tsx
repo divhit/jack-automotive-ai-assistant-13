@@ -122,6 +122,8 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
   const [agentName, setAgentName] = useState('Agent'); // Default agent name for human control
   const [agentPhoneNumber, setAgentPhoneNumber] = useState(''); // Agent's phone number for manual calls
 
+  // Refs for proper debouncing
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -223,6 +225,30 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
       toast.error('Failed to save phone number: ' + error.message);
     }
   };
+
+  // Debounced save function to prevent excessive notifications
+  const debouncedSave = useCallback((phoneNumber: string, name: string) => {
+    // Clear any existing timeout
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    
+    // Set new timeout for debounced save
+    saveTimeoutRef.current = setTimeout(() => {
+      if (phoneNumber.trim() && name.trim()) {
+        saveAgentPhoneNumber(phoneNumber, name);
+      }
+    }, 1500); // 1.5 second delay
+  }, [saveAgentPhoneNumber]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Smart auto-scroll: only scroll if user is near bottom
   useEffect(() => {
@@ -1897,12 +1923,8 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
                     onChange={(e) => {
                       const newName = e.target.value;
                       setAgentName(newName);
-                      // Save to Supabase after a short delay (debounced)
-                      if (newName.trim() && agentPhoneNumber.trim()) {
-                        setTimeout(() => {
-                          saveAgentPhoneNumber(agentPhoneNumber, newName);
-                        }, 1000);
-                      }
+                      // Use debounced save to prevent excessive notifications
+                      debouncedSave(agentPhoneNumber, newName);
                     }}
                     placeholder="Enter your name (e.g., John Smith)"
                     className="border-green-200 focus:border-green-400"
@@ -1916,12 +1938,8 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
                     onChange={(e) => {
                       const newPhoneNumber = e.target.value;
                       setAgentPhoneNumber(newPhoneNumber);
-                      // Save to Supabase after a short delay (debounced)
-                      if (newPhoneNumber.trim() && agentName.trim()) {
-                        setTimeout(() => {
-                          saveAgentPhoneNumber(newPhoneNumber, agentName);
-                        }, 1000);
-                      }
+                      // Use debounced save to prevent excessive notifications
+                      debouncedSave(newPhoneNumber, agentName);
                     }}
                     placeholder="Enter your phone number (e.g., +1234567890)"
                     className="border-green-200 focus:border-green-400"
