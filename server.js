@@ -591,13 +591,8 @@ function addToConversationHistory(phoneNumber, message, sentBy, messageType = 't
         history.shift();
       }
       
-      // PERFORMANCE: Invalidate related caches when new message is added
+      // PERFORMANCE: Only invalidate context cache (keep expensive history/summary caches)
       conversationContextCache.delete(memoryKey);
-      comprehensiveSummaryCache.delete(memoryKey);
-      conversationHistoryCache.delete(memoryKey);
-      conversationSummaryCache.delete(memoryKey);
-      
-      console.log(`🗑️ CACHE INVALIDATED for key: ${memoryKey} (message type: ${messageType}, sentBy: ${sentBy})`);
       
       console.log(`📝 Added ${messageType} message to org-scoped history ${memoryKey} (${sentBy}): ${message.substring(0, 100)}...`);
       
@@ -653,13 +648,8 @@ function addToConversationHistoryWithTimestamp(phoneNumber, message, sentBy, mes
     history.shift();
   }
   
-  // PERFORMANCE: Invalidate related caches when new message is added
+  // PERFORMANCE: Only invalidate context cache (keep expensive history/summary caches)
   conversationContextCache.delete(memoryKey);
-  comprehensiveSummaryCache.delete(memoryKey);
-  conversationHistoryCache.delete(memoryKey);
-  conversationSummaryCache.delete(memoryKey);
-  
-  console.log(`🗑️ CACHE INVALIDATED for key: ${memoryKey} (message type: ${messageType}, sentBy: ${sentBy})`);
   
   console.log(`📝 Added ${messageType} message to org-scoped history ${memoryKey} (${sentBy}) with timestamp ${messageTimestamp}: ${message.substring(0, 100)}...`);
   
@@ -4911,13 +4901,7 @@ app.get('/api/stream/conversation/:leadId', validateOrganizationAccess, async (r
     try {
       console.log(`📋 Loading conversation history for SSE connection: ${leadId} (phone: ${phoneNumber}) (org: ${organizationId})`);
       
-      // URGENT FIX: Force fresh data for SSE connections to ensure transcript updates
-      const cacheKey = createOrgMemoryKey(organizationId, phoneNumber);
-      conversationHistoryCache.delete(cacheKey);
-      conversationSummaryCache.delete(cacheKey);
-      console.log(`🗑️ FORCED CACHE CLEAR for SSE connection: ${cacheKey}`);
-      
-      // SECURITY & PERFORMANCE: Use cached versions (now will load fresh)
+      // PERFORMANCE: Use cached versions for fast SSE loading
       const messages = await getConversationHistoryCached(phoneNumber, organizationId);
       const summary = await getConversationSummaryCached(phoneNumber, organizationId);
       
