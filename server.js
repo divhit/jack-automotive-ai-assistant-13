@@ -591,8 +591,8 @@ function addToConversationHistory(phoneNumber, message, sentBy, messageType = 't
         history.shift();
       }
       
-      // PERFORMANCE: Only invalidate context cache (keep expensive history/summary caches)
-      conversationContextCache.delete(memoryKey);
+      // PERFORMANCE: No cache invalidation during conversations (preserves speed)
+      // Cache will be invalidated after call ends to get fresh transcription data
       
       console.log(`📝 Added ${messageType} message to org-scoped history ${memoryKey} (${sentBy}): ${message.substring(0, 100)}...`);
       
@@ -648,8 +648,8 @@ function addToConversationHistoryWithTimestamp(phoneNumber, message, sentBy, mes
     history.shift();
   }
   
-  // PERFORMANCE: Only invalidate context cache (keep expensive history/summary caches)
-  conversationContextCache.delete(memoryKey);
+  // PERFORMANCE: No cache invalidation during conversations (preserves speed)
+  // Cache will be invalidated after call ends to get fresh transcription data
   
   console.log(`📝 Added ${messageType} message to org-scoped history ${memoryKey} (${sentBy}) with timestamp ${messageTimestamp}: ${message.substring(0, 100)}...`);
   
@@ -4208,6 +4208,15 @@ app.post('/api/webhooks/elevenlabs/post-call', async (req, res) => {
         transcript,
         timestamp: new Date().toISOString()
       };
+      
+      // Invalidate caches after call ends to ensure fresh transcription data
+      if (phoneNumber && organizationId) {
+        const memoryKey = createOrgMemoryKey(organizationId, phoneNumber);
+        conversationHistoryCache.delete(memoryKey);
+        conversationSummaryCache.delete(memoryKey);
+        comprehensiveSummaryCache.delete(memoryKey);
+        console.log(`🔄 Post-call cache invalidated for fresh transcription: ${memoryKey}`);
+      }
       
       console.log('📞 Broadcasting post-call update:', {
         leadId,
