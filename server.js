@@ -2617,10 +2617,18 @@ app.post('/api/webhooks/twilio/sms/incoming', async (req, res) => {
 
     const normalizedFrom = normalizePhoneNumber(From);
 
-    // Check if this is a human agent command (RESPOND: or CALL)
+    // Check if this is a human agent command (RESPOND: or CALL) - MUST be processed FIRST
     if (Body.startsWith('RESPOND:') || Body.toUpperCase() === 'CALL') {
       console.log('🤖 Processing human agent command:', Body);
-      await processHumanAgentCommand(From, Body, To);
+      
+      // Get organization ID for database lookup
+      const organizationId = await getOrganizationByPhoneNumber(To);
+      if (!organizationId) {
+        console.error(`❌ No organization found for agent command from ${From}`);
+        return res.status(404).send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+      }
+      
+      await processHumanAgentCommand(From, Body, To, organizationId);
       return res.status(200).send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
     }
 
@@ -2786,16 +2794,52 @@ function needsHumanIntervention(message) {
 }
 
 // Process human agent commands from SMS (RESPOND: or CALL)
-async function processHumanAgentCommand(agentPhone, command, systemPhone) {
+async function processHumanAgentCommand(agentPhone, command, systemPhone, organizationId) {
   try {
     console.log(`🤖 Human agent command from ${agentPhone}: ${command}`);
     
     // Find which lead this agent is associated with
     let targetLead = null;
+    const normalizedAgentPhone = normalizePhoneNumber(agentPhone);
+    
     for (const [leadId, lead] of dynamicLeads) {
-      if (lead.agent_phone === agentPhone) {
+      if (lead.agent_phone && normalizePhoneNumber(lead.agent_phone) === normalizedAgentPhone) {
         targetLead = lead;
+        console.log(`✅ Found lead for agent phone ${agentPhone}: ${lead.customerName}`);
         break;
+      }
+    }
+    
+    // If not found in memory, check database with organization scope
+    if (!targetLead && client) {
+      try {
+        console.log(`🔍 Searching database for agent phone ${agentPhone} in org ${organizationId}`);
+        const { data: dbLead, error } = await client
+          .from('leads')
+          .select('*')
+          .eq('agent_phone', agentPhone)
+          .eq('organization_id', organizationId)
+          .single();
+        
+        if (dbLead && !error) {
+          targetLead = {
+            id: dbLead.id,
+            customerName: dbLead.customer_name,
+            phoneNumber: dbLead.phone_number,
+            organizationId: dbLead.organization_id,
+            agent_phone: dbLead.agent_phone,
+            agent_name: dbLead.agent_name,
+            sentiment: dbLead.sentiment,
+            fundingReadiness: dbLead.funding_readiness
+          };
+          console.log(`✅ Found lead in database for agent phone ${agentPhone}: ${targetLead.customerName}`);
+          
+          // Update memory cache with fresh data
+          dynamicLeads.set(dbLead.id, targetLead);
+          console.log(`📋 Updated memory cache with agent phone data for ${dbLead.id}`);
+        }
+      } catch (dbError) {
+        console.error('❌ Error looking up lead by agent phone in database:', dbError);
       }
     }
     
