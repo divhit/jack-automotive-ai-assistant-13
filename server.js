@@ -2075,8 +2075,10 @@ function startConversation(phoneNumber, initialMessage, organizationId = null) {
             const responseCount = smsResponseCounters.get(normalized) || 0;
             smsResponseCounters.set(normalized, responseCount + 1);
             
-            // REMOVED: Problematic logic that ignores first responses for returning customers
-            // This was causing customers to not get responses when requesting human assistance
+            if (leadStatus === "Returning Customer" && responseCount === 0) {
+              console.log(`🔇 [${phoneNumber}] Ignoring first SMS response for returning customer: ${agentResponse.substring(0, 50)}...`);
+              return; // Skip this response - don't send SMS or add to history
+            }
             
             console.log(`📱 [${phoneNumber}] Processing SMS response #${responseCount + 1} for ${leadStatus}: ${agentResponse.substring(0, 50)}...`);
             
