@@ -185,6 +185,29 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
         toast.error('Failed to save phone number: ' + error.message);
       } else {
         console.log('✅ Agent phone number saved successfully to lead', data);
+        
+        // Update memory cache immediately for instant availability
+        try {
+          const cacheResponse = await fetch('/api/leads/update-agent-phone', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...getOrganizationHeaders(organizationId)
+            },
+            body: JSON.stringify({
+              leadId: selectedLead.id,
+              agent_phone: phoneNumber.trim(),
+              agent_name: name.trim()
+            })
+          });
+          
+          if (cacheResponse.ok) {
+            console.log('✅ Memory cache updated immediately');
+          }
+        } catch (cacheError) {
+          console.warn('⚠️ Failed to update memory cache:', cacheError);
+        }
+        
         toast.success('Phone number saved successfully');
         
         // Update the local lead data if onLeadUpdate is available

@@ -101,7 +101,9 @@ async function loadExistingLeadsIntoMemory(organizationId = null) {
             scriptProgress: {
               currentStep: dbLead.script_progress_current_step || 'contacted',
               completedSteps: dbLead.script_progress_completed_steps ? JSON.parse(dbLead.script_progress_completed_steps) : ['contacted']
-            }
+            },
+            agent_phone: dbLead.agent_phone, // Include agent phone field
+            agent_name: dbLead.agent_name     // Include agent name field
           };
           
           // Store in memory with organization context
@@ -1829,7 +1831,9 @@ async function getActiveLeadForPhone(phoneNumber) {
             scriptProgress: {
               currentStep: leadData.script_progress_current_step || 'contacted',
               completedSteps: leadData.script_progress_completed_steps ? JSON.parse(leadData.script_progress_completed_steps) : ['contacted']
-            }
+            },
+            agent_phone: leadData.agent_phone, // Include agent phone field
+            agent_name: leadData.agent_name     // Include agent name field
           };
           
           dynamicLeads.set(leadData.id, memoryLead);
@@ -2830,6 +2834,47 @@ Dashboard: https://jack-automotive-ai-assistant-13.onrender.com/subprime`;
     console.error('❌ Failed to notify human agent via SMS:', error);
   }
 }
+
+// ⭐ AGENT PHONE UPDATE: Update memory cache immediately when agent phone is saved
+app.post('/api/leads/update-agent-phone', validateOrganizationAccess, async (req, res) => {
+  try {
+    const { leadId, agent_phone, agent_name } = req.body;
+    const { organizationId } = req;
+    
+    console.log(`📱 Updating agent phone for lead ${leadId}: ${agent_name} - ${agent_phone}`);
+    
+    if (!leadId || !agent_phone || !agent_name) {
+      return res.status(400).json({
+        success: false,
+        error: 'leadId, agent_phone, and agent_name are required'
+      });
+    }
+    
+    // Update memory cache immediately (no latency)
+    if (dynamicLeads.has(leadId)) {
+      const existingLead = dynamicLeads.get(leadId);
+      const updatedLead = {
+        ...existingLead,
+        agent_phone: agent_phone.trim(),
+        agent_name: agent_name.trim()
+      };
+      dynamicLeads.set(leadId, updatedLead);
+      console.log('✅ Memory cache updated immediately for lead:', leadId);
+    }
+    
+    res.json({
+      success: true,
+      message: 'Agent phone updated in memory cache'
+    });
+    
+  } catch (error) {
+    console.error('❌ Failed to update agent phone in memory:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update memory cache'
+    });
+  }
+});
 
 // Twilio SMS Status Webhook
 app.post('/api/webhooks/twilio/sms/status', (req, res) => {
@@ -5452,7 +5497,9 @@ app.get('/api/subprime/leads', async (req, res) => {
             scriptProgress: {
               currentStep: dbLead.script_progress_current_step || 'contacted',
               completedSteps: dbLead.script_progress_completed_steps ? JSON.parse(dbLead.script_progress_completed_steps) : ['contacted']
-            }
+            },
+            agent_phone: dbLead.agent_phone, // Include agent phone field
+            agent_name: dbLead.agent_name     // Include agent name field
           }));
           
           // Also sync to memory for faster future access
