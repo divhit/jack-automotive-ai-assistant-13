@@ -1,22 +1,24 @@
+import dotenv from 'dotenv';
+// Load environment variables FIRST before any other imports
+dotenv.config();
+
 import express from 'express';
 import cors from 'cors';
 import crypto from 'crypto';
-import dotenv from 'dotenv';
 import { WebSocket } from 'ws';
 import twilio from 'twilio';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 
-// ENHANCED: Import Supabase persistence service (non-breaking addition)
-import supabasePersistence from './services/supabasePersistence.js';
 // Import Supabase client for direct operations
 import { createClient } from '@supabase/supabase-js';
 
-dotenv.config();
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Import Supabase persistence service AFTER dotenv.config() has run
+const { default: supabasePersistence } = await import('./services/supabasePersistence.js');
 
 // Initialize Supabase client for direct operations
 let client = null;
@@ -7292,8 +7294,28 @@ try {
   app.listen(PORT, async () => {
     console.log(`🚀 Webhook server running on port ${PORT}`);
     
-    // SECURITY: Skip global lead loading - leads will be loaded on-demand per organization
-    await loadExistingLeadsIntoMemory(); // This will log security message and skip loading
+    // Load leads for organizations when Supabase persistence is enabled
+    if (supabasePersistence.isEnabled && client) {
+      try {
+        console.log('🔄 Loading leads from database for organizations...');
+        
+        // Get all organizations and load their leads
+        const { data: orgs, error } = await client
+          .from('organizations')
+          .select('id')
+          .eq('is_active', true);
+        
+        if (orgs && !error) {
+          for (const org of orgs) {
+            await loadExistingLeadsIntoMemory(org.id);
+          }
+        }
+      } catch (error) {
+        console.log('⚠️ Failed to load organizational leads:', error.message);
+      }
+    } else {
+      console.log('🔒 SECURITY: Skipping lead loading - Supabase persistence not available');
+    }
     
     console.log('==> Your service is live 🎉');
     console.log('==> ');
