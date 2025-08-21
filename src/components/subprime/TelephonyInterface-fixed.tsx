@@ -189,8 +189,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
         
         // Update the local lead data if onLeadUpdate is available
         if (onLeadUpdate) {
-          onLeadUpdate({
-            ...selectedLead,
+          onLeadUpdate(selectedLead.id, {
             agent_phone: phoneNumber.trim(),
             agent_name: name.trim()
           });
