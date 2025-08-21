@@ -2075,10 +2075,8 @@ function startConversation(phoneNumber, initialMessage, organizationId = null) {
             const responseCount = smsResponseCounters.get(normalized) || 0;
             smsResponseCounters.set(normalized, responseCount + 1);
             
-            if (leadStatus === "Returning Customer" && responseCount === 0) {
-              console.log(`🔇 [${phoneNumber}] Ignoring first SMS response for returning customer: ${agentResponse.substring(0, 50)}...`);
-              return; // Skip this response - don't send SMS or add to history
-            }
+            // REMOVED: Problematic logic that ignores first responses for returning customers
+            // This was causing customers to not get responses when requesting human assistance
             
             console.log(`📱 [${phoneNumber}] Processing SMS response #${responseCount + 1} for ${leadStatus}: ${agentResponse.substring(0, 50)}...`);
             
@@ -2854,24 +2852,55 @@ async function processHumanAgentCommand(agentPhone, command, systemPhone, organi
       // Initiate manual call
       console.log(`📞 Initiating manual call for agent ${agentPhone} to customer ${targetLead.phoneNumber}`);
       
-      // Use the existing manual call API
-      const callResponse = await fetch('/api/manual-call/initiate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'organizationId': targetLead.organizationId
-        },
-        body: JSON.stringify({
-          phoneNumber: targetLead.phoneNumber,
-          leadId: targetLead.id,
-          agentName: agentPhone
-        })
-      });
+      // Initiate manual call directly using existing Twilio logic
+      const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
+      const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
       
-      if (callResponse.ok) {
-        console.log('✅ Manual call initiated via SMS command');
-      } else {
-        console.error('❌ Failed to initiate manual call via SMS command');
+      if (!twilioAccountSid || !twilioAuthToken) {
+        console.error('❌ Missing Twilio credentials for SMS-initiated manual call');
+        return;
+      }
+      
+      try {
+        const { default: twilio } = await import('twilio');
+        const twilioClient = twilio(twilioAccountSid, twilioAuthToken);
+        
+        // Get organization phone number
+        const orgPhone = await getOrganizationPhoneNumber(targetLead.organizationId);
+        const fromPhone = orgPhone?.phoneNumber || process.env.TWILIO_PHONE_NUMBER;
+        
+        // Generate unique conference ID  
+        const conferenceId = `sms-call-${Date.now()}-${targetLead.id}`;
+        
+        // Call agent first (same logic as manual call API)
+        const agentCall = await twilioClient.calls.create({
+          url: `${process.env.BASE_URL || 'https://jack-automotive-ai-assistant-13.onrender.com'}/api/manual-call/twiml-agent?conferenceId=${conferenceId}&organizationId=${targetLead.organizationId}&leadId=${targetLead.id}&customerPhone=${encodeURIComponent(targetLead.phoneNumber)}`,
+          to: agentPhone,
+          from: fromPhone,
+          statusCallback: `${process.env.BASE_URL || 'https://jack-automotive-ai-assistant-13.onrender.com'}/api/manual-call/agent-status`,
+          statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
+          statusCallbackMethod: 'POST'
+        });
+        
+        // Store manual call session
+        const manualCallSession = {
+          conferenceId,
+          customerCallSid: null,
+          agentCallSid: agentCall.sid,
+          phoneNumber: normalizePhoneNumber(targetLead.phoneNumber),
+          leadId: targetLead.id,
+          organizationId: targetLead.organizationId,
+          agentName: agentPhone,
+          agentPhone: agentPhone,
+          status: 'calling_agent',
+          startTime: new Date().toISOString()
+        };
+        
+        activeCallSessions.set(conferenceId, manualCallSession);
+        console.log('✅ Manual call initiated via SMS command:', agentCall.sid);
+        
+      } catch (twilioError) {
+        console.error('❌ Failed to initiate SMS manual call:', twilioError);
       }
       
     } else if (command.startsWith('RESPOND:')) {
