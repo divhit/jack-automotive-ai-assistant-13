@@ -2657,7 +2657,19 @@ app.post('/api/webhooks/twilio/sms/incoming', async (req, res) => {
       receivedOnNumber: To
     });
 
-    // SECURITY FIX: Use organization-specific context
+    // Check if message needs human intervention (APPLIES TO ALL SMS MESSAGES)
+    if (needsHumanIntervention(Body)) {
+      console.log('🚨 SMS message needs human intervention:', Body);
+      
+      // Get lead data for agent notification
+      const leadData = getLeadData(leadId);
+      if (leadData && leadData.agent_phone) {
+        await notifyHumanAgentViaSMS(From, Body, leadData, organizationId);
+        console.log('✅ Human agent notified - AI will also respond naturally');
+      } else {
+        console.log('⚠️ No agent phone configured for human intervention');
+      }
+    }
 
     // HUMAN-IN-THE-LOOP: Check if conversation is under human control
     if (isUnderHumanControl(From, organizationId)) {
@@ -2696,20 +2708,6 @@ app.post('/api/webhooks/twilio/sms/incoming', async (req, res) => {
       // ENHANCED: Check conversation history BEFORE starting new conversation (CACHED)
       const existingHistory = await getConversationHistoryCached(From, organizationId);
       addToConversationHistory(From, Body, 'user', 'text', organizationId);
-      
-      // Check if message needs human intervention
-      if (needsHumanIntervention(Body)) {
-        console.log('🚨 SMS message needs human intervention:', Body);
-        
-        // Get lead data for agent notification
-        const leadData = getLeadData(leadId);
-        if (leadData && leadData.agent_phone) {
-          await notifyHumanAgentViaSMS(From, Body, leadData, organizationId);
-          console.log('✅ Human agent notified - letting AI respond naturally to customer');
-        } else {
-          console.log('⚠️ No agent phone configured for human intervention');
-        }
-      }
       
       if (existingHistory.length > 0) {
         console.log(`📞➡️📱 Found ${existingHistory.length} previous messages (voice/SMS history). Starting new SMS conversation with context.`);
