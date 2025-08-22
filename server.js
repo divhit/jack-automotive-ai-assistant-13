@@ -988,23 +988,23 @@ async function loadConversationDataParallel(caller_id, organizationId, activeLea
   
   const startTime = Date.now();
   
-  // MAXIMUM SPEED: Load base data first, then build derived data using loaded data
+  // ULTRA PERFORMANCE: True parallel execution of all operations
   const [
     summary,
     messages,
-    organizationName
+    organizationName,
+    conversationContext,
+    comprehensiveSummary
   ] = await Promise.all([
     getConversationSummaryCached(caller_id, organizationId),  // ⚡ CACHED
     getConversationHistoryCached(caller_id, organizationId), // ⚡ CACHED  
-    getOrganizationNameCached(organizationId)
+    getOrganizationNameCached(organizationId),
+    buildConversationContextCached(caller_id, organizationId),
+    generateComprehensiveSummaryCached(caller_id, organizationId)
   ]);
   
-  // Synchronous operations using already-loaded data (no cache hits needed)
+  // Synchronous operations (memory-based, no await needed)
   const leadData = activeLead ? getLeadData(activeLead) : null;
-  
-  // PERFORMANCE: Build derived data using already-loaded messages and summary (no additional cache calls)
-  const conversationContext = buildConversationContextFromData(messages, summary, caller_id, organizationId);
-  const comprehensiveSummary = generateComprehensiveSummaryFromData(messages, summary, organizationId);
   
   const loadTime = Date.now() - startTime;
   console.log(`⚡ OPTIMIZED: Parallel data loading completed in ${loadTime}ms (using cached versions)`);
@@ -4321,20 +4321,20 @@ app.post('/api/webhooks/elevenlabs/post-call', async (req, res) => {
       if (phoneNumber && organizationId && transcript && transcript.length > 0) {
         const memoryKey = createOrgMemoryKey(organizationId, phoneNumber);
         
-        // Get existing cache
-        const existingCache = conversationHistoryCache.get(memoryKey);
-        if (existingCache) {
-          // Append new messages to existing cache instead of invalidating
-          const existingCount = existingCache.messages.length;
-          console.log(`🔄 Appending ${transcript.length} new messages to cache (existing: ${existingCount})`);
-          // Only invalidate comprehensive summary (needs regeneration with new data)
+        // CACHE FIX: Check the correct memory cache where messages are actually stored
+        const existingMemoryMessages = conversationContexts.get(memoryKey) || [];
+        if (existingMemoryMessages.length > 0) {
+          // Messages exist in memory, only invalidate derived caches that need regeneration
+          const existingCount = existingMemoryMessages.length;
+          console.log(`🔄 Memory has ${existingCount} messages, invalidating derived caches only (preserves memory)`);
           comprehensiveSummaryCache.delete(memoryKey);
+          conversationHistoryCache.delete(memoryKey); // Will be rebuilt from memory, not database
         } else {
-          // No existing cache, safe to invalidate
+          // No memory messages, full cache invalidation needed
           conversationHistoryCache.delete(memoryKey);
           conversationSummaryCache.delete(memoryKey);
           comprehensiveSummaryCache.delete(memoryKey);
-          console.log(`🔄 No existing cache - will rebuild from database`);
+          console.log(`🔄 No memory messages - full cache invalidation`);
         }
       } else if (phoneNumber && organizationId) {
         console.log(`⚡ Keeping all caches - no new transcript data`);
@@ -5498,13 +5498,21 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', async (req, res) =>
     
     // PERFORMANCE: Populate session cache to eliminate redundant lookups during conversation
     if (call_sid && leadData) {
-      conversationSessionCache.set(call_sid, {
+      const sessionData = {
         leadData: leadData,
         organizationId: organizationId,
         startTime: new Date().toISOString(),
-        phoneNumber: normalizedPhone
-      });
+        phoneNumber: normalizedPhone,
+        organizationName: organizationName
+      };
+      
+      conversationSessionCache.set(call_sid, sessionData);
       console.log(`⚡ Cached conversation session data for ${call_sid} (eliminates redundant lookups)`);
+      
+      // Also cache by conversationId for webhook lookups
+      if (conversationId) {
+        conversationSessionCache.set(conversationId, sessionData);
+      }
     }
     
     console.log(`🧪 DEBUG: conversationContext length: ${conversationContext.length}`);

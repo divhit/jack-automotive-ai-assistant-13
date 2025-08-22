@@ -609,10 +609,9 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
         
       case 'conversation_transcript_added':
         // URGENT FIX: Auto-reload conversation history when transcript is added
-        console.log('📝 Transcript added - reloading conversation history');
-        setTimeout(() => {
-          loadConversationHistory();
-        }, 500);
+        console.log('📝 Transcript added - reloading conversation history immediately');
+        // Remove delay and reload immediately for better UX
+        loadConversationHistory();
         break;
         
       case 'post_call_summary':
@@ -625,10 +624,8 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
             sentBy: 'system'
           });
         }
-        // Also reload conversation history to get any new content
-        setTimeout(() => {
-          loadConversationHistory();
-        }, 500);
+        // Also reload conversation history to get any new content immediately
+        loadConversationHistory();
         break;
 
       case 'lead_profile_updated':
