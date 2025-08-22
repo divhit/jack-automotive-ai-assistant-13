@@ -543,7 +543,15 @@ async function getConversationHistory(phoneNumber, organizationId = null) {
   if (orgHistory.length === 0 && supabasePersistence.isEnabled && supabasePersistence.isConnected) {
     try {
       console.log(`📋 Memory empty - loading from database for ${phoneNumber} (org: ${organizationId})`);
-      return await getConversationHistoryDirect(phoneNumber, organizationId);
+      const dbMessages = await getConversationHistoryDirect(phoneNumber, organizationId);
+      
+      // CRITICAL FIX: Store database results in memory to preserve them for subsequent calls
+      if (dbMessages.length > 0) {
+        conversationContexts.set(orgMemoryKey, dbMessages);
+        console.log(`📝 Cached ${dbMessages.length} database messages in memory for ${phoneNumber} (org: ${organizationId})`);
+      }
+      
+      return dbMessages;
     } catch (error) {
       console.log(`⚠️ Database fallback failed:`, error.message);
     }
@@ -4782,7 +4790,8 @@ async function validateOrganizationAccess(req, res, next) {
       fromQuery: req.query.organizationId,
       finalOrgId: organizationId,
       url: req.url,
-      method: req.method
+      method: req.method,
+      allHeaders: Object.keys(req.headers)
     });
     
     if (!organizationId) {
