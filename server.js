@@ -1452,9 +1452,9 @@ async function getConversationSummary(phoneNumber, organizationId = null) {
         
         return supabaseSummary;
       }
+    } catch (error) {
+      console.log(`⚠️ Failed to load summary from Supabase, falling back to organization-scoped memory:`, error.message);
     }
-  } catch (error) {
-    console.log(`⚠️ Failed to load summary from Supabase, falling back to organization-scoped memory:`, error.message);
   }
   
   // Fallback to organization-scoped memory ONLY
