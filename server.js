@@ -1458,7 +1458,6 @@ async function getConversationSummary(phoneNumber, organizationId = null) {
   }
   
   // Fallback to organization-scoped memory ONLY
-  const orgMemoryKey = createOrgMemoryKey(organizationId, phoneNumber);
   return conversationSummaries.get(orgMemoryKey);
 }
 
