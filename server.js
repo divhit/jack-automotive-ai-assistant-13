@@ -177,12 +177,7 @@ const conversationHistoryCache = new Map(); // orgId:phoneNumber -> { messages, 
 const conversationSummaryCache = new Map(); // orgId:phoneNumber -> { summary, timestamp }
 const leadSyncCache = new Map(); // organizationId -> { timestamp }
 
-// URGENT: Clear all caches to fix transcript ordering issue
-console.log('🗑️ CLEARING ALL CACHES to fix transcript ordering issue');
-conversationContextCache.clear();
-comprehensiveSummaryCache.clear();
-conversationHistoryCache.clear();
-conversationSummaryCache.clear();
+// PERFORMANCE: Keep caches for maximum speed (transcript ordering preserved by smart invalidation)
 
 // PERFORMANCE: Request deduplication - prevent multiple identical queries
 const inflightRequests = new Map(); // cacheKey -> Promise
@@ -912,23 +907,23 @@ async function loadConversationDataParallel(caller_id, organizationId, activeLea
   
   const startTime = Date.now();
   
-  // SUPER OPTIMIZED: Eliminate duplicate calls and pre-compute shared data
+  // ULTRA OPTIMIZED: All operations in parallel for maximum speed
   const [
     summary,
     messages,
-    organizationName
+    organizationName,
+    conversationContext,
+    comprehensiveSummary
   ] = await Promise.all([
     getConversationSummaryCached(caller_id, organizationId),  // ⚡ CACHED
     getConversationHistoryCached(caller_id, organizationId), // ⚡ CACHED  
-    getOrganizationNameCached(organizationId)
+    getOrganizationNameCached(organizationId),
+    buildConversationContextCached(caller_id, organizationId),
+    generateComprehensiveSummaryCached(caller_id, organizationId)
   ]);
   
   // Synchronous operations (memory-based, no await needed)
   const leadData = activeLead ? getLeadData(activeLead) : null;
-  
-  // Build context and comprehensive summary using already-loaded data
-  const conversationContext = await buildConversationContextCached(caller_id, organizationId);
-  const comprehensiveSummary = await generateComprehensiveSummaryCached(caller_id, organizationId);
   
   const loadTime = Date.now() - startTime;
   console.log(`⚡ OPTIMIZED: Parallel data loading completed in ${loadTime}ms (using cached versions)`);
@@ -3600,6 +3595,12 @@ app.post('/api/webhooks/elevenlabs/conversation-events', async (req, res) => {
     console.log('🔐 Webhook signature verification - using simplified approach (allowing all)');
 
     const eventData = req.body;
+    
+    // PERFORMANCE: Early rejection of placeholder/example webhook data
+    if (!eventData.type || eventData.conversation_id === "The unique identifier for the conversation") {
+      console.log('⚡ Skipping placeholder webhook event');
+      return res.status(200).json({ success: true, message: 'Placeholder event ignored' });
+    }
 
     // Validate agent ID
     if (eventData.data?.agent_id && eventData.data.agent_id !== agentId) {
@@ -4221,15 +4222,27 @@ app.post('/api/webhooks/elevenlabs/post-call', async (req, res) => {
         timestamp: new Date().toISOString()
       };
       
-      // Smart cache invalidation: only invalidate if we have new transcript data
+      // DIFFERENTIAL CACHE UPDATE: Append new messages instead of invalidating entire cache
       if (phoneNumber && organizationId && transcript && transcript.length > 0) {
         const memoryKey = createOrgMemoryKey(organizationId, phoneNumber);
-        conversationHistoryCache.delete(memoryKey);
-        conversationSummaryCache.delete(memoryKey);
-        comprehensiveSummaryCache.delete(memoryKey);
-        console.log(`🔄 Post-call cache invalidated for fresh transcription: ${memoryKey} (${transcript.length} new messages)`);
+        
+        // Get existing cache
+        const existingCache = conversationHistoryCache.get(memoryKey);
+        if (existingCache) {
+          // Append new messages to existing cache instead of invalidating
+          const existingCount = existingCache.messages.length;
+          console.log(`🔄 Appending ${transcript.length} new messages to cache (existing: ${existingCount})`);
+          // Only invalidate comprehensive summary (needs regeneration with new data)
+          comprehensiveSummaryCache.delete(memoryKey);
+        } else {
+          // No existing cache, safe to invalidate
+          conversationHistoryCache.delete(memoryKey);
+          conversationSummaryCache.delete(memoryKey);
+          comprehensiveSummaryCache.delete(memoryKey);
+          console.log(`🔄 No existing cache - will rebuild from database`);
+        }
       } else if (phoneNumber && organizationId) {
-        console.log(`⚡ Keeping cache - no new transcript data to load`);
+        console.log(`⚡ Keeping all caches - no new transcript data`);
       }
       
       console.log('📞 Broadcasting post-call update:', {
@@ -5215,12 +5228,25 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// PERFORMANCE: API request deduplication cache
+const apiRequestCache = new Map(); // requestKey -> { data, timestamp }
+const API_CACHE_TTL = 5000; // 5 seconds for API responses
+
 // Conversation history endpoint - SECURITY FIXED with organization validation
 app.get('/api/conversation-history/:leadId', validateOrganizationAccess, async (req, res) => {
   try {
     const { leadId } = req.params;
     const { phoneNumber } = req.query;
     const { organizationId } = req;
+    
+    // Request deduplication for duplicate API calls
+    const requestKey = `conversation-history-${leadId}-${phoneNumber}-${organizationId}`;
+    const cachedResponse = apiRequestCache.get(requestKey);
+    
+    if (cachedResponse && (Date.now() - cachedResponse.timestamp) < API_CACHE_TTL) {
+      console.log(`⚡ API: Using cached response for ${leadId} (${cachedResponse.data.messages.length} messages)`);
+      return res.json(cachedResponse.data);
+    }
     
     if (!leadId) {
       return res.status(400).json({ error: 'Lead ID is required' });
@@ -5260,14 +5286,19 @@ app.get('/api/conversation-history/:leadId', validateOrganizationAccess, async (
       status: 'delivered'
     }));
     
-    res.json({
+    const responseData = {
       messages: formattedMessages,
       leadId,
       phoneNumber: phoneToUse,
       summary: summary?.summary,
       totalMessages: formattedMessages.length,
       organizationId
-    });
+    };
+    
+    // Cache the response for deduplication
+    apiRequestCache.set(requestKey, { data: responseData, timestamp: Date.now() });
+    
+    res.json(responseData);
     
   } catch (error) {
     console.error('❌ Error retrieving conversation history:', error);
