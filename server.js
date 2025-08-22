@@ -863,8 +863,8 @@ async function getConversationHistoryCached(phoneNumber, organizationId) {
   
   console.log(`🔍 STARTING NEW: Direct DB query for conversation history: ${phoneNumber} (cache key: ${requestKey})`);
   
-  // Start the request and store it - DIRECT DB QUERY (no cache clearing)
-  const requestPromise = getConversationHistoryDirect(phoneNumber, organizationId);
+  // Start the request and store it - Use memory-first approach
+  const requestPromise = getConversationHistory(phoneNumber, organizationId);
   inflightRequests.set(requestKey, requestPromise);
   
   try {
@@ -893,8 +893,8 @@ async function getConversationSummaryCached(phoneNumber, organizationId) {
     return await inflightRequests.get(requestKey);
   }
   
-  // Start the request and store it - DIRECT DB QUERY (no cache clearing)
-  const requestPromise = getConversationSummaryDirect(phoneNumber, organizationId);
+  // Start the request and store it - Use memory-first approach
+  const requestPromise = getConversationSummary(phoneNumber, organizationId);
   inflightRequests.set(requestKey, requestPromise);
   
   try {
@@ -912,22 +912,23 @@ async function loadConversationDataParallel(caller_id, organizationId, activeLea
   
   const startTime = Date.now();
   
-  // Run all expensive operations in parallel - ALL CACHED VERSIONS!
+  // SUPER OPTIMIZED: Eliminate duplicate calls and pre-compute shared data
   const [
-    conversationContext,
     summary,
     messages,
-    leadData,
-    organizationName,
-    comprehensiveSummary
+    organizationName
   ] = await Promise.all([
-    buildConversationContextCached(caller_id, organizationId),
     getConversationSummaryCached(caller_id, organizationId),  // ⚡ CACHED
-    getConversationHistoryCached(caller_id, organizationId), // ⚡ CACHED
-    activeLead ? getLeadData(activeLead) : Promise.resolve(null),
-    getOrganizationNameCached(organizationId),
-    generateComprehensiveSummaryCached(caller_id, organizationId)
+    getConversationHistoryCached(caller_id, organizationId), // ⚡ CACHED  
+    getOrganizationNameCached(organizationId)
   ]);
+  
+  // Synchronous operations (memory-based, no await needed)
+  const leadData = activeLead ? getLeadData(activeLead) : null;
+  
+  // Build context and comprehensive summary using already-loaded data
+  const conversationContext = await buildConversationContextCached(caller_id, organizationId);
+  const comprehensiveSummary = await generateComprehensiveSummaryCached(caller_id, organizationId);
   
   const loadTime = Date.now() - startTime;
   console.log(`⚡ OPTIMIZED: Parallel data loading completed in ${loadTime}ms (using cached versions)`);
@@ -1476,7 +1477,9 @@ function getLeadData(leadId) {
       customerName: lead.customerName,
       phoneNumber: lead.phoneNumber,
       sentiment: lead.sentiment,
-      fundingReadiness: lead.fundingReadiness
+      fundingReadiness: lead.fundingReadiness,
+      agent_phone: lead.agent_phone,
+      agent_name: lead.agent_name
     });
     return lead;
   }
