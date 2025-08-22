@@ -861,7 +861,7 @@ async function getConversationHistoryCached(phoneNumber, organizationId) {
     return await inflightRequests.get(requestKey);
   }
   
-  console.log(`🔍 STARTING NEW: Direct DB query for conversation history: ${phoneNumber} (cache key: ${requestKey})`);
+  console.log(`🔍 STARTING NEW: Memory-first query for conversation history: ${phoneNumber} (cache key: ${requestKey})`);
   
   // Start the request and store it - Use memory-first approach
   const requestPromise = getConversationHistory(phoneNumber, organizationId);
@@ -4221,13 +4221,15 @@ app.post('/api/webhooks/elevenlabs/post-call', async (req, res) => {
         timestamp: new Date().toISOString()
       };
       
-      // Invalidate caches after call ends to ensure fresh transcription data
-      if (phoneNumber && organizationId) {
+      // Smart cache invalidation: only invalidate if we have new transcript data
+      if (phoneNumber && organizationId && transcript && transcript.length > 0) {
         const memoryKey = createOrgMemoryKey(organizationId, phoneNumber);
         conversationHistoryCache.delete(memoryKey);
         conversationSummaryCache.delete(memoryKey);
         comprehensiveSummaryCache.delete(memoryKey);
-        console.log(`🔄 Post-call cache invalidated for fresh transcription: ${memoryKey}`);
+        console.log(`🔄 Post-call cache invalidated for fresh transcription: ${memoryKey} (${transcript.length} new messages)`);
+      } else if (phoneNumber && organizationId) {
+        console.log(`⚡ Keeping cache - no new transcript data to load`);
       }
       
       console.log('📞 Broadcasting post-call update:', {
