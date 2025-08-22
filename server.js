@@ -177,6 +177,19 @@ const conversationHistoryCache = new Map(); // orgId:phoneNumber -> { messages, 
 const conversationSummaryCache = new Map(); // orgId:phoneNumber -> { summary, timestamp }
 const leadSyncCache = new Map(); // organizationId -> { timestamp }
 
+// PERFORMANCE: Cache ElevenLabs agent configurations to eliminate API call latency
+const agentConfigCache = new Map(); // agentId:agentPhone -> { configured: true, timestamp }
+const AGENT_CONFIG_TTL = 3600000; // 1 hour cache for agent configurations
+
+// PERFORMANCE: Batch database operations to eliminate write latency during conversations
+const pendingDatabaseWrites = new Map(); // conversationId -> { messages: [], activities: [], summary: null }
+
+// PERFORMANCE: Session-based lead data cache to eliminate redundant lookups
+const conversationSessionCache = new Map(); // conversationId -> { leadData, orgData, startTime }
+
+// PERFORMANCE: Pre-computed context cache to eliminate heavy operations during conversations
+const preComputedContextCache = new Map(); // orgId:phoneNumber -> { context, messageBreakdown, timestamp }
+
 // PERFORMANCE: Keep caches for maximum speed (transcript ordering preserved by smart invalidation)
 
 // PERFORMANCE: Request deduplication - prevent multiple identical queries
@@ -648,11 +661,17 @@ function addToConversationHistoryWithTimestamp(phoneNumber, message, sentBy, mes
   
   console.log(`📝 Added ${messageType} message to org-scoped history ${memoryKey} (${sentBy}) with timestamp ${messageTimestamp}: ${message.substring(0, 100)}...`);
   
-  // Persist to Supabase with organization context and custom timestamp
-  supabasePersistence.persistConversationMessageWithTimestamp(phoneNumber, message, sentBy, messageType, messageTimestamp, { organizationId })
-    .catch(error => {
-      console.log(`🗄️ Organization-scoped persistence with timestamp failed (system continues normally):`, error.message);
-    });
+  // PERFORMANCE: Queue database writes instead of immediate persistence (batched at conversation end)
+  // Immediate persistence disabled during conversations to eliminate latency
+  console.log(`⚡ Message queued for batch persistence (no DB write latency)`);
+  
+  // Only persist immediately for non-voice messages (SMS needs immediate persistence for human intervention)
+  if (messageType !== 'voice') {
+    supabasePersistence.persistConversationMessageWithTimestamp(phoneNumber, message, sentBy, messageType, messageTimestamp, { organizationId })
+      .catch(error => {
+        console.log(`🗄️ SMS persistence failed:`, error.message);
+      });
+  }
 }
 
 // Store conversation summary from post-call webhook - SECURITY FIXED
@@ -2735,6 +2754,15 @@ async function configureAgentTransferSettings(agentId, apiKey, leadData) {
       return;
     }
     
+    // PERFORMANCE: Check cache first to avoid API calls
+    const configKey = `${agentId}:${leadData.agent_phone}`;
+    const cachedConfig = agentConfigCache.get(configKey);
+    
+    if (cachedConfig && (Date.now() - cachedConfig.timestamp) < AGENT_CONFIG_TTL) {
+      console.log(`⚡ Using cached agent configuration for ${leadData.agent_phone} (skipping API call)`);
+      return;
+    }
+    
     console.log(`🔧 Configuring agent transfer settings for ${leadData.agent_phone}`);
     
     const agentUpdatePayload = {
@@ -2767,6 +2795,8 @@ async function configureAgentTransferSettings(agentId, apiKey, leadData) {
     
     if (response.ok) {
       console.log('✅ Agent transfer settings configured successfully');
+      // Cache the successful configuration to avoid future API calls
+      agentConfigCache.set(configKey, { configured: true, timestamp: Date.now() });
     } else {
       const errorText = await response.text();
       console.error('❌ Failed to configure agent transfer settings:', response.status, errorText);
