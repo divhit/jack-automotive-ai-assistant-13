@@ -5508,11 +5508,6 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', async (req, res) =>
       
       conversationSessionCache.set(call_sid, sessionData);
       console.log(`⚡ Cached conversation session data for ${call_sid} (eliminates redundant lookups)`);
-      
-      // Also cache by conversationId for webhook lookups
-      if (conversationId) {
-        conversationSessionCache.set(conversationId, sessionData);
-      }
     }
     
     console.log(`🧪 DEBUG: conversationContext length: ${conversationContext.length}`);
