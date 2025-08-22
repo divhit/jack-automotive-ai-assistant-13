@@ -5639,6 +5639,17 @@ app.post('/api/subprime/create-lead', validateOrganizationAccess, async (req, re
   try {
     const leadData = req.body;
     
+    // PERFORMANCE: Check for duplicate lead creation before processing
+    if (dynamicLeads.has(leadData.id)) {
+      console.log(`⚡ Lead ${leadData.id} already exists - returning existing lead data`);
+      return res.json({
+        success: true,
+        message: 'Lead already exists',
+        leadId: leadData.id,
+        organizationId: leadData.organizationId
+      });
+    }
+    
     console.log('📝 Creating new subprime lead:', {
       id: leadData.id,
       customerName: leadData.customerName,
@@ -5660,6 +5671,26 @@ app.post('/api/subprime/create-lead', validateOrganizationAccess, async (req, re
       return res.status(400).json({ 
         error: 'Phone number must be in format (555) 123-4567 for Twilio integration' 
       });
+    }
+    
+    // PERFORMANCE: Check for existing lead with same phone number in organization
+    const normalizedPhone = normalizePhoneNumber(leadData.phoneNumber);
+    for (const [existingId, existingLead] of dynamicLeads.entries()) {
+      if (existingLead.organizationId === leadData.organizationId && 
+          normalizePhoneNumber(existingLead.phoneNumber) === normalizedPhone) {
+        console.log(`⚡ Lead with phone ${leadData.phoneNumber} already exists (${existingId}) - updating instead of creating duplicate`);
+        
+        // Update existing lead instead of creating duplicate
+        const updatedLead = { ...existingLead, ...leadData, id: existingId };
+        dynamicLeads.set(existingId, updatedLead);
+        
+        return res.json({
+          success: true,
+          message: 'Lead updated (phone number already exists)',
+          leadId: existingId,
+          organizationId: leadData.organizationId
+        });
+      }
     }
 
     // SECURITY: Validate organization context
@@ -5692,6 +5723,11 @@ app.post('/api/subprime/create-lead', validateOrganizationAccess, async (req, re
     };
     
     dynamicLeads.set(leadData.id, leadRecord);
+    
+    // CRITICAL: Set up phone-to-lead mapping to preserve existing conversation history
+    const normalizedPhone = normalizePhoneNumber(leadData.phoneNumber);
+    phoneToLeadMapping.set(normalizedPhone, leadData.id);
+    console.log(`🔗 Established phone mapping: ${normalizedPhone} → ${leadData.id} (preserves existing conversations)`);
     
     // ENHANCED: Async persistence to Supabase (non-blocking)
     supabasePersistence.persistLead(leadRecord)
