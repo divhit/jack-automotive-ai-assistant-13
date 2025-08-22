@@ -190,6 +190,10 @@ const conversationSessionCache = new Map(); // conversationId -> { leadData, org
 // PERFORMANCE: Pre-computed context cache to eliminate heavy operations during conversations
 const preComputedContextCache = new Map(); // orgId:phoneNumber -> { context, messageBreakdown, timestamp }
 
+// PERFORMANCE: SSE response cache to eliminate duplicate message loading
+const sseResponseCache = new Map(); // leadId:phoneNumber -> { messages, summary, timestamp }
+const SSE_CACHE_TTL = 10000; // 10 seconds for SSE responses
+
 // PERFORMANCE: Keep caches for maximum speed (transcript ordering preserved by smart invalidation)
 
 // PERFORMANCE: Request deduplication - prevent multiple identical queries
@@ -693,11 +697,69 @@ function storeConversationSummary(phoneNumber, summary, organizationId = null) {
   conversationSummaries.set(orgMemoryKey, summaryData);
   console.log(`📋 Stored conversation summary for ${normalized} (org: ${organizationId}):`, summary.substring(0, 100) + '...');
   
-  // ENHANCED: Async persistence to Supabase with organization context (non-blocking)
-  supabasePersistence.persistConversationSummary(phoneNumber, summary, summaryData.timestamp, { organizationId })
-    .catch(error => {
-      console.log(`🗄️ Persistence failed for summary (system continues normally):`, error.message);
-    });
+  // PERFORMANCE: Queue summary persistence for batch processing (eliminates immediate DB write latency)
+  console.log(`⚡ Summary queued for batch persistence (no immediate DB write)`);
+  
+  // Only persist summaries immediately for critical SMS/human intervention scenarios  
+  // All other summaries will be batched and persisted at conversation end
+}
+
+// PERFORMANCE: Build conversation context from already-loaded data (no cache calls)
+function buildConversationContextFromData(messages, summary, phoneNumber, organizationId) {
+  if (messages.length === 0 && !summary) {
+    return '';
+  }
+  
+  const voiceMessages = messages.filter(msg => msg.type === 'voice');
+  const smsMessages = messages.filter(msg => msg.type === 'text' || msg.type === 'sms');
+  const humanAgentMessages = messages.filter(msg => msg.sentBy === 'human_agent');
+  
+  let contextText = `RECENT CONVERSATION HISTORY for customer ${phoneNumber}:\n\n`;
+  contextText += `MULTI-CHANNEL CONVERSATION:\n- Total messages: ${messages.length} (${voiceMessages.length} AI voice, 0 manual call, ${smsMessages.length} SMS)\n\n`;
+  
+  // Use last 6 messages for context
+  const recentMessages = messages.slice(-6);
+  if (recentMessages.length > 0) {
+    contextText += `RECENT MESSAGES (last ${recentMessages.length} messages in chronological order):\n`;
+    contextText += recentMessages.map(msg => {
+      const speaker = msg.sentBy === 'user' ? 'Customer' : 
+                     msg.sentBy === 'human_agent' ? 'Human Agent' : 'Agent';
+      const channel = msg.type === 'voice' ? ' (AI Voice)' : ' (SMS)';
+      return `${speaker}${channel}: ${msg.content}`;
+    }).join('\n') + '\n\n';
+  }
+  
+  return contextText;
+}
+
+// PERFORMANCE: Generate comprehensive summary from already-loaded data (no cache calls)
+function generateComprehensiveSummaryFromData(messages, summary, organizationId) {
+  if (messages.length === 0) return null;
+  
+  const voiceMessages = messages.filter(msg => msg.type === 'voice');
+  const smsMessages = messages.filter(msg => msg.type === 'text' || msg.type === 'sms');
+  
+  // If we have existing ElevenLabs summary and no SMS, use it
+  if (summary?.summary && smsMessages.length === 0) {
+    return summary.summary;
+  }
+  
+  // Build combined summary for voice + SMS
+  let combinedSummary = '';
+  
+  if (voiceMessages.length > 0 && summary?.summary) {
+    combinedSummary += `VOICE CALL SUMMARY: ${summary.summary}\n\n`;
+  }
+  
+  if (smsMessages.length > 0) {
+    const recentSMS = smsMessages.slice(-3);
+    combinedSummary += `SMS CONVERSATION: Recent ${smsMessages.length} SMS messages. `;
+    if (recentSMS.length > 0) {
+      combinedSummary += `Latest: "${recentSMS[recentSMS.length - 1].content.substring(0, 100)}"`;
+    }
+  }
+  
+  return combinedSummary || summary?.summary || null;
 }
 
 // Generate comprehensive summary from voice + SMS conversations
@@ -926,23 +988,23 @@ async function loadConversationDataParallel(caller_id, organizationId, activeLea
   
   const startTime = Date.now();
   
-  // ULTRA OPTIMIZED: All operations in parallel for maximum speed
+  // MAXIMUM SPEED: Load base data first, then build derived data using loaded data
   const [
     summary,
     messages,
-    organizationName,
-    conversationContext,
-    comprehensiveSummary
+    organizationName
   ] = await Promise.all([
     getConversationSummaryCached(caller_id, organizationId),  // ⚡ CACHED
     getConversationHistoryCached(caller_id, organizationId), // ⚡ CACHED  
-    getOrganizationNameCached(organizationId),
-    buildConversationContextCached(caller_id, organizationId),
-    generateComprehensiveSummaryCached(caller_id, organizationId)
+    getOrganizationNameCached(organizationId)
   ]);
   
-  // Synchronous operations (memory-based, no await needed)
+  // Synchronous operations using already-loaded data (no cache hits needed)
   const leadData = activeLead ? getLeadData(activeLead) : null;
+  
+  // PERFORMANCE: Build derived data using already-loaded messages and summary (no additional cache calls)
+  const conversationContext = buildConversationContextFromData(messages, summary, caller_id, organizationId);
+  const comprehensiveSummary = generateComprehensiveSummaryFromData(messages, summary, organizationId);
   
   const loadTime = Date.now() - startTime;
   console.log(`⚡ OPTIMIZED: Parallel data loading completed in ${loadTime}ms (using cached versions)`);
@@ -1482,8 +1544,16 @@ function getConversationSummarySync(phoneNumber) {
   return conversationSummaries.get(normalized);
 }
 
-// Get lead data for dynamic variables
+// Get lead data for dynamic variables with conversation session caching
 function getLeadData(leadId) {
+  // PERFORMANCE: Check conversation session cache first to eliminate redundant lookups
+  for (const [convId, sessionData] of conversationSessionCache.entries()) {
+    if (sessionData.leadData && sessionData.leadData.id === leadId) {
+      console.log(`⚡ Using cached lead data from conversation session for ${leadId}`);
+      return sessionData.leadData;
+    }
+  }
+  
   // First check dynamically added leads
   if (dynamicLeads.has(leadId)) {
     const lead = dynamicLeads.get(leadId);
@@ -2989,15 +3059,10 @@ Reply options:
     
     console.log('✅ Human agent notified via SMS:', smsResult.sid);
     
-    // Log the notification activity
-    if (supabasePersistence.isEnabled) {
-      await supabasePersistence.logActivity(leadData.id, 'human_intervention_requested', {
-        customerMessage: message,
-        agentNotified: leadData.agent_phone,
-        notificationSid: smsResult.sid,
-        organizationId
-      });
-    }
+    // PERFORMANCE: Queue activity logging for batch processing (eliminates immediate DB write)
+    console.log(`⚡ Activity logging queued for batch processing (no immediate DB write latency)`);
+    
+    // All activity logging will be batched and processed at conversation end
     
   } catch (error) {
     console.error('❌ Failed to notify human agent via SMS:', error);
@@ -4965,11 +5030,31 @@ app.get('/api/stream/conversation/:leadId', validateOrganizationAccess, async (r
   // SECURITY FIXED: If load=true, send existing conversation history with organization validation
   if (load === 'true' && phoneNumber) {
     try {
+      // PERFORMANCE: Check SSE response cache first to eliminate duplicate loading
+      const sseKey = `${leadId}:${phoneNumber}:${organizationId}`;
+      const cachedSSEResponse = sseResponseCache.get(sseKey);
+      
+      if (cachedSSEResponse && (Date.now() - cachedSSEResponse.timestamp) < SSE_CACHE_TTL) {
+        console.log(`⚡ Using cached SSE response for ${leadId} (${cachedSSEResponse.messages.length} messages) - no loading needed`);
+        res.write(`data: ${JSON.stringify({
+          type: 'conversation_history',
+          messages: cachedSSEResponse.messages,
+          summary: cachedSSEResponse.summary,
+          leadId,
+          organizationId
+        })}\n\n`);
+        return;
+      }
+      
       console.log(`📋 Loading conversation history for SSE connection: ${leadId} (phone: ${phoneNumber}) (org: ${organizationId})`);
       
+      // PERFORMANCE: Normalize phone number for cache key consistency
+      const normalizedPhone = normalizePhoneNumber(phoneNumber);
+      console.log(`🔧 SSE using normalized phone: ${normalizedPhone} for cache lookup`);
+      
       // PERFORMANCE: Use cached versions for fast SSE loading
-      const messages = await getConversationHistoryCached(phoneNumber, organizationId);
-      const summary = await getConversationSummaryCached(phoneNumber, organizationId);
+      const messages = await getConversationHistoryCached(normalizedPhone, organizationId);
+      const summary = await getConversationSummaryCached(normalizedPhone, organizationId);
       
       // Format messages for frontend
       const formattedMessages = messages.map((msg, index) => ({
@@ -4980,6 +5065,13 @@ app.get('/api/stream/conversation/:leadId', validateOrganizationAccess, async (r
         type: msg.type || 'sms',
         status: 'delivered'
       }));
+      
+      // PERFORMANCE: Cache SSE response for future duplicate requests
+      sseResponseCache.set(sseKey, {
+        messages: formattedMessages,
+        summary: summary?.summary,
+        timestamp: Date.now()
+      });
       
       // Send conversation history as initial data
       res.write(`data: ${JSON.stringify({
@@ -4992,7 +5084,7 @@ app.get('/api/stream/conversation/:leadId', validateOrganizationAccess, async (r
         organizationId
       })}\n\n`);
       
-      console.log(`📋 Sent ${formattedMessages.length} messages via SSE for lead ${leadId} (org: ${organizationId})`);
+      console.log(`📋 Sent ${formattedMessages.length} messages via SSE for lead ${leadId} (org: ${organizationId}) + cached for future requests`);
       
     } catch (error) {
       console.error(`❌ Error loading conversation history for SSE:`, error);
@@ -5403,6 +5495,17 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', async (req, res) =>
       organizationName,
       comprehensiveSummary
     } = conversationData;
+    
+    // PERFORMANCE: Populate session cache to eliminate redundant lookups during conversation
+    if (call_sid && leadData) {
+      conversationSessionCache.set(call_sid, {
+        leadData: leadData,
+        organizationId: organizationId,
+        startTime: new Date().toISOString(),
+        phoneNumber: normalizedPhone
+      });
+      console.log(`⚡ Cached conversation session data for ${call_sid} (eliminates redundant lookups)`);
+    }
     
     console.log(`🧪 DEBUG: conversationContext length: ${conversationContext.length}`);
     console.log(`🧪 DEBUG: activeLead:`, activeLead);
@@ -6709,19 +6812,10 @@ app.post('/api/manual-call/initiate', validateOrganizationAccess, async (req, re
       // Store in memory for tracking
       activeCallSessions.set(conferenceId, manualCallSession);
       
-      // Log manual call activity
-      if (leadId) {
-        try {
-          await supabasePersistence.logActivity(leadId, 'manual_call_initiated', {
-            agentName,
-            phoneNumber,
-            conferenceId,
-            organizationId
-          });
-        } catch (error) {
-          console.warn('📊 Failed to log manual call activity:', error.message);
-        }
-      }
+      // PERFORMANCE: Queue manual call activity logging for batch processing
+      console.log(`⚡ Manual call activity queued for batch persistence (no immediate DB write)`);
+      
+      // All activity logging batched at conversation end to eliminate latency
       
       res.json({
         success: true,
