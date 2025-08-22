@@ -523,19 +523,19 @@ async function getConversationHistory(phoneNumber, organizationId = null) {
     return []; // Return empty array instead of falling back to global data
   }
   
-  // FIXED: Use the consistent Direct function instead of problematic cache-clearing logic
-  try {
-    if (supabasePersistence.isEnabled && supabasePersistence.isConnected) {
-      console.log(`📋 getConversationHistory: Delegating to getConversationHistoryDirect for ${phoneNumber} (org: ${organizationId})`);
-      return await getConversationHistoryDirect(phoneNumber, organizationId);
-    }
-  } catch (error) {
-    console.log(`⚠️ Failed to load from Supabase, falling back to organization-scoped memory:`, error.message);
-  }
-  
-  // Fallback to organization-scoped memory ONLY
+  // PERFORMANCE: Use memory-first approach during calls
   const orgMemoryKey = createOrgMemoryKey(organizationId, phoneNumber);
   const orgHistory = conversationContexts.get(orgMemoryKey) || [];
+  
+  // Only use database if memory is completely empty
+  if (orgHistory.length === 0 && supabasePersistence.isEnabled && supabasePersistence.isConnected) {
+    try {
+      console.log(`📋 Memory empty - loading from database for ${phoneNumber} (org: ${organizationId})`);
+      return await getConversationHistoryDirect(phoneNumber, organizationId);
+    } catch (error) {
+      console.log(`⚠️ Database fallback failed:`, error.message);
+    }
+  }
   
   // Debug: Count message types to understand the voice message issue
   const voiceCount = orgHistory.filter(msg => msg.type === 'voice').length;
@@ -689,7 +689,8 @@ function storeConversationSummary(phoneNumber, summary, organizationId = null) {
 // Generate comprehensive summary from voice + SMS conversations
 async function generateComprehensiveSummary(phoneNumber, organizationId) {
   try {
-    const history = await getConversationHistoryDirect(phoneNumber, organizationId);
+    // Use cached data instead of direct database calls for performance
+    const history = await getConversationHistoryCached(phoneNumber, organizationId);
     if (history.length === 0) return null;
     
     const voiceMessages = history.filter(msg => msg.type === 'voice');
@@ -1427,17 +1428,26 @@ async function getConversationSummary(phoneNumber, organizationId = null) {
     return null; // Return null instead of falling back to global data
   }
   
-  // ENHANCED: Try to load from Supabase first, then fallback to organization-scoped memory
-  try {
-    if (supabasePersistence.isEnabled && supabasePersistence.isConnected) {
-      console.log(`🗄️ Loading conversation summary from Supabase for ${normalized} (org: ${organizationId})`);
+  // PERFORMANCE: Use memory-first approach during calls
+  const orgMemoryKey = createOrgMemoryKey(organizationId, phoneNumber);
+  const memorySummary = conversationSummaries.get(orgMemoryKey);
+  
+  // Return memory data if available
+  if (memorySummary) {
+    console.log(`⚡ Using memory summary for ${phoneNumber} (org: ${organizationId})`);
+    return memorySummary;
+  }
+  
+  // Only use database if memory is empty
+  if (supabasePersistence.isEnabled && supabasePersistence.isConnected) {
+    try {
+      console.log(`📋 Memory empty - loading summary from database for ${phoneNumber} (org: ${organizationId})`);
       const supabaseSummary = await supabasePersistence.getConversationSummary(phoneNumber, organizationId);
       
       if (supabaseSummary) {
         console.log(`📋 Loaded summary from Supabase for ${phoneNumber} in organization ${organizationId}`);
         
-        // Sync to organization-scoped memory for faster access
-        const orgMemoryKey = createOrgMemoryKey(organizationId, phoneNumber);
+        // Store in memory for future fast access
         conversationSummaries.set(orgMemoryKey, supabaseSummary);
         
         return supabaseSummary;
