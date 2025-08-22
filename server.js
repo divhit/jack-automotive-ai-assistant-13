@@ -5725,7 +5725,6 @@ app.post('/api/subprime/create-lead', validateOrganizationAccess, async (req, re
     dynamicLeads.set(leadData.id, leadRecord);
     
     // CRITICAL: Set up phone-to-lead mapping to preserve existing conversation history
-    const normalizedPhone = normalizePhoneNumber(leadData.phoneNumber);
     phoneToLeadMapping.set(normalizedPhone, leadData.id);
     console.log(`🔗 Established phone mapping: ${normalizedPhone} → ${leadData.id} (preserves existing conversations)`);
     
