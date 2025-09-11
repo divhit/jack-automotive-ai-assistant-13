@@ -1,0 +1,60 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Environment variables and sensitive files
+.env
+.env.*
+*.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# MCP configuration files with API keys
+.cursor/mcp.json
+**/mcp.json
+mcp.json
+cursor-settings.json
+
+# API keys and secrets
+*secret*
+*key.json
+*credentials.json
+*webhook.js
+*.config.json
+*test-sms*.js
+*TWILIO*
+*ELEVENLABS*
+*SID*
+*TOKEN*
+
+# Specific sensitive files
+.claude_code_mcp_config.json
+test-sms-webhook.js
+server.log
+
+# Technical documentation (contains implementation details)
+TWILIO_ELEVENLABS_IMPLEMENTATION_GUIDE.md
+.mcp.json

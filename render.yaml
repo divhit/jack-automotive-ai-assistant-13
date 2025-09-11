@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: jack-automotive-ai-assistant
+    env: node
+    plan: starter
+    buildCommand: NODE_ENV=development npm install && npm run build && npm run build:fallback
+    startCommand: NODE_ENV=production npm run server
+    envVars:
+      - key: PORT
+        value: 3001
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: ELEVENLABS_AGENT_ID
+        sync: false
+      - key: ELEVENLABS_PHONE_NUMBER_ID
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_PHONE_NUMBER
+        sync: false
+    healthCheckPath: /api/health 
