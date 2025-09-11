@@ -1,4 +1,9 @@
 services:
+  - type: redis
+    name: jack-automotive-redis
+    plan: starter
+    maxmemoryPolicy: allkeys-lru
+
   - type: web
     name: jack-automotive-ai-assistant
     env: node
@@ -8,6 +13,31 @@ services:
     envVars:
       - key: PORT
         value: 3001
+      - key: NODE_ENV
+        value: production
+      - key: REDIS_HOST
+        fromService:
+          type: redis
+          name: jack-automotive-redis
+          property: host
+      - key: REDIS_PORT
+        fromService:
+          type: redis
+          name: jack-automotive-redis
+          property: port
+      - key: REDIS_PASSWORD
+        fromService:
+          type: redis
+          name: jack-automotive-redis
+          property: password
+      - key: REDIS_DB
+        value: 0
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
       - key: ELEVENLABS_API_KEY
         sync: false
       - key: ELEVENLABS_AGENT_ID
