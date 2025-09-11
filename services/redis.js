@@ -4,7 +4,38 @@ class RedisManager {
   constructor() {
     this.client = null;
     this.isConnected = false;
-    this.config = {
+    
+    // Support both connection string (REDIS_URL) and individual parameters
+    this.config = this.buildRedisConfig();
+    
+    console.log('🔧 Redis Config:', {
+      hasUrl: !!process.env.REDIS_URL,
+      host: this.config.host || 'from url',
+      port: this.config.port || 'from url',
+      db: this.config.db
+    });
+    
+    this.initializeProperties();
+  }
+
+  buildRedisConfig() {
+    // If REDIS_URL is provided (from Render service), use it
+    if (process.env.REDIS_URL) {
+      return {
+        connectionString: process.env.REDIS_URL,
+        retryDelayOnFailover: 100,
+        enableReadyCheck: true,
+        maxRetriesPerRequest: 3,
+        lazyConnect: true,
+        keepAlive: 30000,
+        family: 4,
+        connectTimeout: 10000,
+        commandTimeout: 5000,
+      };
+    }
+    
+    // Otherwise use individual parameters
+    return {
       host: process.env.REDIS_HOST || 'localhost',
       port: process.env.REDIS_PORT || 6379,
       password: process.env.REDIS_PASSWORD || undefined,
@@ -18,7 +49,9 @@ class RedisManager {
       connectTimeout: 10000,
       commandTimeout: 5000,
     };
-    
+  }
+
+  initializeProperties() {
     // Connection pool settings
     this.poolConfig = {
       min: 5,

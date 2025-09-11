@@ -3,6 +3,9 @@ services:
     name: jack-automotive-redis
     plan: starter
     maxmemoryPolicy: allkeys-lru
+    ipAllowList:
+      - source: 0.0.0.0/0
+        description: Allow all connections
 
   - type: web
     name: jack-automotive-ai-assistant
@@ -15,6 +18,11 @@ services:
         value: 3001
       - key: NODE_ENV
         value: production
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: jack-automotive-redis
+          property: connectionString
       - key: REDIS_HOST
         fromService:
           type: redis
@@ -25,11 +33,6 @@ services:
           type: redis
           name: jack-automotive-redis
           property: port
-      - key: REDIS_PASSWORD
-        fromService:
-          type: redis
-          name: jack-automotive-redis
-          property: password
       - key: REDIS_DB
         value: 0
       - key: SUPABASE_URL
