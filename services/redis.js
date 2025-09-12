@@ -19,21 +19,11 @@ class RedisManager {
   }
 
   buildRedisConfig() {
-    // If REDIS_URL is provided (from Render service), use it
+    // If REDIS_URL is provided (from Render service), use it directly
     if (process.env.REDIS_URL) {
-      return {
-        connectionString: process.env.REDIS_URL,
-        retryDelayOnFailover: 100,
-        enableReadyCheck: true,
-        maxRetriesPerRequest: 2,
-        lazyConnect: true,
-        keepAlive: 30000,
-        family: 4,
-        connectTimeout: 5000,
-        commandTimeout: 3000,
-        retryDelayOnClusterDown: 300,
-        retryDelayOnReconnect: 500,
-      };
+      console.log('🔧 Using Redis connection string from REDIS_URL');
+      // For ioredis, pass the URL directly as the first parameter
+      return process.env.REDIS_URL;
     }
     
     // Otherwise use individual parameters
@@ -89,9 +79,22 @@ class RedisManager {
   async init() {
     try {
       console.log('🔄 Initializing Redis connection...');
+      console.log('🔧 Config type:', typeof this.config);
       
-      // Create Redis client with connection pooling
-      this.client = new Redis(this.config);
+      // Create Redis client - handle both URL string and config object
+      if (typeof this.config === 'string') {
+        console.log('🔗 Connecting with URL:', this.config.substring(0, 20) + '...');
+        this.client = new Redis(this.config, {
+          maxRetriesPerRequest: 2,
+          connectTimeout: 10000,
+          commandTimeout: 5000,
+          retryDelayOnReconnect: 500,
+          lazyConnect: false, // Connect immediately when using URL
+        });
+      } else {
+        console.log('🔧 Connecting with config object');
+        this.client = new Redis(this.config);
+      }
       
       // Connection event handlers
       this.client.on('connect', () => {
@@ -107,6 +110,7 @@ class RedisManager {
       
       this.client.on('error', (err) => {
         console.error('❌ Redis connection error:', err.message);
+        console.error('❌ Error details:', err.code || 'NO_CODE', err.errno || 'NO_ERRNO');
         this.isConnected = false;
         this.metrics.errors++;
         this.handleConnectionError(err);
@@ -122,12 +126,17 @@ class RedisManager {
         console.log(`🔄 Redis reconnecting in ${ms}ms...`);
       });
 
-      // Test connection
-      await this.client.ping();
+      // Test connection with timeout
+      console.log('🔍 Testing Redis connection...');
+      await Promise.race([
+        this.client.ping(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Connection timeout')), 10000))
+      ]);
       console.log('📡 Redis connection tested successfully');
       
     } catch (error) {
       console.error('💥 Failed to initialize Redis:', error.message);
+      console.error('💥 Error stack:', error.stack);
       this.handleInitError(error);
     }
   }
