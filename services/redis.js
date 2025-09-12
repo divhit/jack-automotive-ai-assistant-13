@@ -171,10 +171,20 @@ class RedisManager {
       await this.client.ping();
       const responseTime = Date.now() - start;
       
+      // Get memory usage safely
+      let memory = 'unavailable';
+      try {
+        const info = await this.client.info('memory');
+        const memoryMatch = info.match(/used_memory:(\d+)/);
+        memory = memoryMatch ? `${Math.round(memoryMatch[1] / 1024 / 1024)}MB` : 'unavailable';
+      } catch (memError) {
+        memory = 'unavailable';
+      }
+      
       return {
         status: 'healthy',
         responseTime: `${responseTime}ms`,
-        memory: await this.client.memory('usage'),
+        memory: memory,
         info: await this.client.info('server'),
       };
     } catch (error) {
