@@ -25,12 +25,14 @@ class RedisManager {
         connectionString: process.env.REDIS_URL,
         retryDelayOnFailover: 100,
         enableReadyCheck: true,
-        maxRetriesPerRequest: 3,
+        maxRetriesPerRequest: 2,
         lazyConnect: true,
         keepAlive: 30000,
         family: 4,
-        connectTimeout: 10000,
-        commandTimeout: 5000,
+        connectTimeout: 5000,
+        commandTimeout: 3000,
+        retryDelayOnClusterDown: 300,
+        retryDelayOnReconnect: 500,
       };
     }
     
@@ -42,12 +44,14 @@ class RedisManager {
       db: process.env.REDIS_DB || 0,
       retryDelayOnFailover: 100,
       enableReadyCheck: true,
-      maxRetriesPerRequest: 3,
+      maxRetriesPerRequest: 2,
       lazyConnect: true,
       keepAlive: 30000,
       family: 4,
-      connectTimeout: 10000,
-      commandTimeout: 5000,
+      connectTimeout: 5000,
+      commandTimeout: 3000,
+      retryDelayOnClusterDown: 300,
+      retryDelayOnReconnect: 200,
     };
   }
 
@@ -65,8 +69,8 @@ class RedisManager {
     };
 
     this.connectionAttempts = 0;
-    this.maxConnectionAttempts = 5;
-    this.reconnectDelay = 2000;
+    this.maxConnectionAttempts = 3;
+    this.reconnectDelay = 1000;
     
     // Performance metrics
     this.metrics = {
@@ -132,12 +136,13 @@ class RedisManager {
     if (this.connectionAttempts < this.maxConnectionAttempts) {
       this.connectionAttempts++;
       console.log(`🔄 Attempting to reconnect (${this.connectionAttempts}/${this.maxConnectionAttempts})...`);
-      
-      setTimeout(() => {
-        this.init();
-      }, this.reconnectDelay * this.connectionAttempts);
+      // Don't call init() again - ioredis handles reconnection automatically
     } else {
       console.error('💥 Max connection attempts reached. Redis will operate in fallback mode.');
+      // Disconnect to stop reconnection attempts
+      if (this.client) {
+        this.client.disconnect();
+      }
     }
   }
 
