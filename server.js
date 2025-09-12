@@ -5454,6 +5454,71 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
+// Debug Redis connection endpoint
+app.get('/api/debug/redis', async (req, res) => {
+  try {
+    console.log('🔍 Debug Redis endpoint called');
+    
+    const envInfo = {
+      hasRedisUrl: !!process.env.REDIS_URL,
+      redisUrlLength: process.env.REDIS_URL ? process.env.REDIS_URL.length : 0,
+      redisUrlSample: process.env.REDIS_URL ? process.env.REDIS_URL.substring(0, 30) + '...' : null,
+      redisHost: process.env.REDIS_HOST || 'not set',
+      redisPort: process.env.REDIS_PORT || 'not set',
+      redisDb: process.env.REDIS_DB || 'not set'
+    };
+    
+    console.log('🔍 Environment info:', envInfo);
+    
+    // Test direct Redis connection
+    let directConnectionTest = null;
+    if (process.env.REDIS_URL) {
+      try {
+        console.log('🔍 Testing direct Redis connection...');
+        const Redis = require('ioredis');
+        const testClient = new Redis(process.env.REDIS_URL, {
+          connectTimeout: 5000,
+          commandTimeout: 3000,
+          maxRetriesPerRequest: 1
+        });
+        
+        await testClient.ping();
+        directConnectionTest = { status: 'success', message: 'Direct connection successful' };
+        testClient.disconnect();
+        console.log('🔍 Direct Redis test: SUCCESS');
+      } catch (err) {
+        directConnectionTest = { 
+          status: 'error', 
+          message: err.message,
+          code: err.code,
+          errno: err.errno 
+        };
+        console.log('🔍 Direct Redis test: FAILED -', err.message);
+      }
+    }
+    
+    const redisManagerStatus = await getRedisHealthStatus();
+    
+    res.json({
+      timestamp: new Date().toISOString(),
+      environment: envInfo,
+      directConnectionTest,
+      redisManagerStatus: redisManagerStatus.health,
+      redisManagerDetails: {
+        isConnected: redisMigrationManager.redisManager ? redisMigrationManager.redisManager.isConnected : null,
+        connectionAttempts: redisMigrationManager.redisManager ? redisMigrationManager.redisManager.connectionAttempts : null,
+        maxAttempts: redisMigrationManager.redisManager ? redisMigrationManager.redisManager.maxConnectionAttempts : null
+      }
+    });
+  } catch (error) {
+    console.error('🔍 Debug Redis endpoint error:', error);
+    res.status(500).json({
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Redis cache statistics endpoint
 app.get('/api/cache/stats', async (req, res) => {
   try {
