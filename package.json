@@ -14,7 +14,14 @@
     "dev:full": "concurrently \"npm run dev\" \"npm run server\"",
     "start": "node server.js",
     "test:supabase": "node test-supabase-persistence.js",
+    "db:verify": "node scripts/verify-new-db.mjs",
+    "db:seed:org": "node scripts/seed-organization.mjs",
+    "db:reset:notice": "echo 'Open migrations/000_reset_public_schema.sql in Supabase SQL editor (NEW project), run it, then run COMPLETE-SCHEMA-MIGRATION.sql'",
     "test:redis": "node test-redis-integration.js",
+    "db:migrate:data": "node scripts/migrate-from-old-project.mjs",
+    "db:apply:reset": "SQL_FILE=migrations/000_reset_public_schema.sql TARGET=new node scripts/apply-sql-via-mgmt.mjs",
+    "db:apply:complete": "SQL_FILE=COMPLETE-SCHEMA-MIGRATION.sql TARGET=new node scripts/apply-sql-via-mgmt.mjs",
+    "db:migrate:mgmt": "node scripts/migrate-old-to-new-via-mgmt.mjs",
     "setup:crm": "echo '🚀 Setting up Supabase CRM persistence...' && npm install @supabase/supabase-js && echo '✅ Dependencies installed! Next: Set up Supabase project and add environment variables. See SUPABASE_CRM_SETUP.md for details.'"
   },
   "dependencies": {

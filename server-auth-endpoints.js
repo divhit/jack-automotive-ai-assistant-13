@@ -4,7 +4,8 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.SUPABASE_URL || 'https://dgzadilmtuqvimolzxms.supabase.co';
+const supabaseUrl = process.env.SUPABASE_URL;
+if (!supabaseUrl) throw new Error('Missing SUPABASE_URL');
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRnejFkaWxtdHVxdmltb2x6eG1zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzM5MDEyMzMsImV4cCI6MjA0OTQ3NzIzM30.e80AhUU44MNlXZpJR4LPcQB8sWhRn-kNLjFDFPuwCx4';
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 

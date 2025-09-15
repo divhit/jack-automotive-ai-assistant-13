@@ -4,7 +4,11 @@ import { createClient } from '@supabase/supabase-js';
 console.log('🔍 Verifying Conversation Ordering Fix');
 console.log('=====================================\n');
 
-const supabaseUrl = process.env.SUPABASE_URL || 'https://dgzadilmtuqvimolzxms.supabase.co';
+const supabaseUrl = process.env.SUPABASE_URL;
+if (!supabaseUrl) {
+  console.error('Missing SUPABASE_URL');
+  process.exit(1);
+}
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 console.log('📋 Configuration:');

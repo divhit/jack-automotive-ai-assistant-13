@@ -1,0 +1,33 @@
+{
+    "agents": [
+        {
+            "name": "Jack Automotive AI Assistant",
+            "environments": {
+                "prod": {
+                    "config_path": "agent_configs/prod/jack_automotive.json",
+                    "agent_id": "agent_01jwc5v1nafjwv7zw4vtz1050m"
+                }
+            }
+        },
+        {
+            "name": "BICI Unified Agent",
+            "config": "agent_configs/bici_unified_agent.json"
+        },
+        {
+            "name": "Ryder - Bici AI Teammate",
+            "config": "agent_configs/ryder_-_bici_ai_teammate.json"
+        },
+        {
+            "name": "Winnie",
+            "config": "agent_configs/winnie.json"
+        },
+        {
+            "name": "Bike agent",
+            "config": "agent_configs/bike_agent.json"
+        },
+        {
+            "name": "Sales agent",
+            "config": "agent_configs/sales_agent.json"
+        }
+    ]
+}

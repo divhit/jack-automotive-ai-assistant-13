@@ -1,0 +1,41 @@
+{
+    "agents": {
+        "Jack Automotive AI Assistant": {
+            "prod": {
+                "agent_id": "agent_01jwc5v1nafjwv7zw4vtz1050m",
+                "hash": "existing"
+            }
+        },
+        "BICI Unified Agent": {
+            "prod": {
+                "id": "agent_6801k4r2aegae1gavzmrmy5qdap4",
+                "hash": "3e8d9079f15a6b1e8f41a051cc2f8bb9"
+            }
+        },
+        "Ryder - Bici AI Teammate": {
+            "prod": {
+                "id": "agent_3101k3ap505kenp8yzwet9p4f99h",
+                "hash": "eb781e963dda72ff5a4811e172332cbf"
+            }
+        },
+        "Winnie": {
+            "prod": {
+                "id": "agent_4801k1ctesfjers9kr4mfx03jd10",
+                "hash": "9a61ea322240fa5d24e3ab2d89f06d64"
+            }
+        },
+        "Bike agent": {
+            "prod": {
+                "id": "agent_01jy5s8gwnfw5v3bpr1ep6bj1c",
+                "hash": "289217a517f98122b1b46fd480506d3e"
+            }
+        },
+        "Sales agent": {
+            "prod": {
+                "id": "agent_01jwc5v1nafjwv7zw4vtz1050m",
+                "hash": "84719be57d5da1b0250a83653ec7fbeb"
+            }
+        }
+    },
+    "tools": {}
+}

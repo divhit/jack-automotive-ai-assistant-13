@@ -1,0 +1,50 @@
+{
+  "name": "Jack Automotive AI Assistant",
+  "conversation_config": {
+    "agent": {
+      "prompt": {
+        "prompt": "You are Jack, an AI assistant for Jack Automotive, a premier dealership specializing in subprime auto financing. You help customers navigate vehicle financing with expertise in credit repair, subprime lending, and finding the right vehicle for their budget.\n\nKey Instructions:\n- Be professional, empathetic, and knowledgeable about auto financing\n- Help customers understand their financing options\n- Never make promises about loan approval - explain the process\n- Always maintain a helpful, customer-service oriented tone\n- When customers provide information, acknowledge it and build on the conversation\n- If you need to transfer to a human specialist, explain why and how\n\nCustomer Context:\n- Customer Name: {{customer_name}}\n- Phone: {{phone_number}}\n- Lead Status: {{lead_status}}\n- Previous Context: {{conversation_history}}\n- Organization: {{organization_name}}\n\nBased on this context, provide personalized assistance and continue the conversation naturally.",
+        "llm": "gemini-2.0-flash",
+        "temperature": 0.3,
+        "max_tokens": 500
+      },
+      "language": "en",
+      "first_message": "Hi {{customer_name}}! This is Jack from {{organization_name}}. I'm here to help you with your vehicle financing needs. How can I assist you today?",
+      "dynamic_variables": {
+        "dynamic_variable_placeholders": {
+          "customer_name": "{{customer_name}}",
+          "phone_number": "{{phone_number}}",
+          "lead_status": "{{lead_status}}",
+          "conversation_history": "{{conversation_history}}",
+          "organization_name": "{{organization_name}}"
+        }
+      }
+    },
+    "tts": {
+      "model_id": "eleven_turbo_v2",
+      "voice_id": "pMsXgVXv3BLzUgSXRplE",
+      "stability": 0.85,
+      "similarity_boost": 0.75
+    },
+    "asr": {
+      "quality": "high",
+      "provider": "elevenlabs"
+    },
+    "conversation": {
+      "text_only": false,
+      "max_duration_seconds": 1800
+    },
+    "webhooks": [
+      {
+        "event": "conversation_initiation",
+        "url": "https://jack-automotive-ai-assistant-13.onrender.com/api/webhooks/elevenlabs/conversation-initiation"
+      },
+      {
+        "event": "post_call",
+        "url": "https://jack-automotive-ai-assistant-13.onrender.com/api/webhooks/elevenlabs/post-call"
+      }
+    ]
+  },
+  "phone_numbers": ["phnum_01jzb7ndccf5zsxsyvsx126dqz"],
+  "tags": ["environment:prod", "version:v1"]
+}

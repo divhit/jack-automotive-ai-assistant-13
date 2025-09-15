@@ -64,7 +64,7 @@ class SupabasePersistenceService {
         if (error.message.includes('Invalid API key')) {
           console.error('🔐 API Key Issue: The Supabase API key is invalid for this project');
           console.error('💡 Solution: Get the correct API keys from your Supabase dashboard');
-          console.error('📋 Project URL: https://dgzadilmtuqvimolzxms.supabase.co');
+          console.error('📋 Check your Supabase project URL in environment variables.');
         } else if (error.message.includes('table') && error.message.includes('does not exist')) {
           console.error('📋 Table Issue: The "leads" table does not exist in your database');
           console.error('💡 Solution: Run the schema creation SQL in your Supabase SQL editor');

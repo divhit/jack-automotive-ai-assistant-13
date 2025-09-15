@@ -7,7 +7,7 @@ console.log('=====================================\n');
 
 // Try both URLs to find the correct one
 const testUrl = 'https://ynukllskptalptwfgkss.supabase.co';
-const fallbackUrl = 'https://dgzadilmtuqvimolzxms.supabase.co';
+const fallbackUrl = null;
 
 // Use the URL from environment or test file
 const supabaseUrl = process.env.SUPABASE_URL || testUrl;
