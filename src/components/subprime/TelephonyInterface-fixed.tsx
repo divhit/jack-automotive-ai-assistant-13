@@ -97,7 +97,15 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
   const [activeQuickTab, setActiveQuickTab] = useState<'chat' | 'profile' | 'analytics' | 'settings'>('chat');
   const [isUpdating, setIsUpdating] = useState(false);
   const [isTabsExpanded, setIsTabsExpanded] = useState(false);
-  
+
+  // Real-time Supabase integration state
+  const [leadData, setLeadData] = useState<any>(null);
+  const [profileFormData, setProfileFormData] = useState<any>({});
+  const [analyticsData, setAnalyticsData] = useState<any>({});
+  const [settingsData, setSettingsData] = useState<any>({});
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+
   // NEW: Main tab navigation state
   const [activeMainTab, setActiveMainTab] = useState<'conversation' | 'profile' | 'analytics' | 'settings'>('conversation');
   const [isAutoMode, setIsAutoMode] = useState(true); // Auto vs Manual mode toggle
@@ -240,6 +248,175 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
       }
     }, 1500); // 1.5 second delay
   }, [saveAgentPhoneNumber]);
+
+  // Real-time Supabase integration functions
+  const loadLeadFromSupabase = useCallback(async () => {
+    if (!selectedLead?.id || !organizationId) return;
+
+    try {
+      setIsLoading(true);
+      const { data, error } = await supabase
+        .from('leads')
+        .select('*')
+        .eq('id', selectedLead.id)
+        .eq('organization_id', organizationId)
+        .single();
+
+      if (error) throw error;
+
+      if (data) {
+        setLeadData(data);
+        setProfileFormData({
+          customerName: data.customer_name || '',
+          phoneNumber: data.phone_number || '',
+          email: data.email || '',
+          dateOfBirth: data.date_of_birth || '',
+          ssnLast4: data.ssn_last_4 || '',
+          driversLicense: data.drivers_license || '',
+          currentAddress: data.current_address || '',
+          city: data.city || '',
+          state: data.state || '',
+          zipCode: data.zip_code || '',
+          lengthAtAddress: data.length_at_address || '',
+          housingStatus: data.housing_status || '',
+          monthlyHousingPayment: data.monthly_housing_payment || ''
+        });
+        setAnalyticsData({
+          leadScore: data.lead_score || 0,
+          conversionProbability: data.conversion_probability || 0.36,
+          contactAttempts: data.contact_attempts || 0,
+          fundingReadiness: data.funding_readiness || 'Not Ready',
+          sentiment: data.sentiment || 'Neutral',
+          chaseStatus: data.chase_status || 'Inactive'
+        });
+        setSettingsData({
+          agentName: data.agent_name || '',
+          agentPhone: data.agent_phone || '',
+          autoChaseEnabled: data.auto_chase_enabled || false,
+          notificationsEnabled: data.notifications_enabled || true,
+          smartResponsesEnabled: data.smart_responses_enabled || true,
+          moodDetectionEnabled: data.mood_detection_enabled || true,
+          priorityLevel: data.priority_level || 'Normal'
+        });
+      }
+    } catch (error) {
+      console.error('Error loading lead from Supabase:', error);
+      setError(error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedLead?.id, organizationId]);
+
+  const saveLeadToSupabase = useCallback(async (updates: any) => {
+    if (!selectedLead?.id || !organizationId) return;
+
+    try {
+      setIsSaving(true);
+      setSaveStatus('saving');
+
+      const { data, error } = await supabase
+        .from('leads')
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', selectedLead.id)
+        .eq('organization_id', organizationId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setSaveStatus('saved');
+      toast.success('Changes saved successfully');
+
+      // Update local state
+      if (data) {
+        setLeadData(data);
+      }
+
+      // Auto-hide saved status after 2 seconds
+      setTimeout(() => setSaveStatus('idle'), 2000);
+
+    } catch (error) {
+      console.error('Error saving lead to Supabase:', error);
+      setSaveStatus('error');
+      toast.error('Failed to save changes: ' + error.message);
+
+      // Auto-hide error status after 3 seconds
+      setTimeout(() => setSaveStatus('idle'), 3000);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [selectedLead?.id, organizationId]);
+
+  const debouncedSaveProfile = useCallback((fieldName: string, value: any) => {
+    // Update local state immediately for responsive UI
+    setProfileFormData(prev => ({ ...prev, [fieldName]: value }));
+
+    // Debounced save to database
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    saveTimeoutRef.current = setTimeout(() => {
+      const dbFieldMap: Record<string, string> = {
+        customerName: 'customer_name',
+        phoneNumber: 'phone_number',
+        email: 'email',
+        dateOfBirth: 'date_of_birth',
+        ssnLast4: 'ssn_last_4',
+        driversLicense: 'drivers_license',
+        currentAddress: 'current_address',
+        city: 'city',
+        state: 'state',
+        zipCode: 'zip_code',
+        lengthAtAddress: 'length_at_address',
+        housingStatus: 'housing_status',
+        monthlyHousingPayment: 'monthly_housing_payment'
+      };
+
+      const dbFieldName = dbFieldMap[fieldName] || fieldName;
+      saveLeadToSupabase({ [dbFieldName]: value });
+    }, 1000); // 1 second delay
+  }, [saveLeadToSupabase]);
+
+  // Load lead data on mount and when selectedLead changes
+  useEffect(() => {
+    if (selectedLead?.id) {
+      loadLeadFromSupabase();
+    }
+  }, [selectedLead?.id, loadLeadFromSupabase]);
+
+  // Real-time subscription to lead updates
+  useEffect(() => {
+    if (!selectedLead?.id || !organizationId) return;
+
+    const subscription = supabase
+      .channel(`lead_${selectedLead.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'leads',
+          filter: `id=eq.${selectedLead.id}`
+        },
+        (payload) => {
+          console.log('Real-time lead update:', payload);
+          // Update local state with new data
+          if (payload.new) {
+            setLeadData(payload.new);
+            // You could also update individual form states here
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [selectedLead?.id, organizationId]);
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -1576,8 +1753,9 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700">Full Name</label>
-                  <Input 
-                    value={selectedLead?.customerName || ''} 
+                  <Input
+                    value={profileFormData.customerName || ''}
+                    onChange={(e) => debouncedSaveProfile('customerName', e.target.value)}
                     placeholder="Enter full name"
                     className="w-full"
                   />
@@ -1585,33 +1763,41 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
                 
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700">Phone Number</label>
-                  <Input 
-                    value={selectedLead?.phoneNumber || ''} 
-                    placeholder="(555) 123-4567"
+                  <Input
+                    value={profileFormData.phoneNumber || ''}
+                    onChange={(e) => debouncedSaveProfile('phoneNumber', e.target.value)}
+                    placeholder="(604) 908-5474"
                     className="w-full"
                   />
                 </div>
                 
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700">Email Address</label>
-                  <Input 
-                    value={selectedLead?.email || ''} 
+                  <Input
+                    value={profileFormData.email || ''}
+                    onChange={(e) => debouncedSaveProfile('email', e.target.value)}
                     placeholder="Enter email address"
                     className="w-full"
+                    type="email"
                   />
                 </div>
                 
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700">Date of Birth</label>
-                  <Input 
-                    placeholder="2025-07-16"
+                  <Input
+                    value={profileFormData.dateOfBirth || ''}
+                    onChange={(e) => debouncedSaveProfile('dateOfBirth', e.target.value)}
+                    placeholder="YYYY-MM-DD"
                     className="w-full"
+                    type="date"
                   />
                 </div>
                 
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700">SSN (Last 4)</label>
-                  <Input 
+                  <Input
+                    value={profileFormData.ssnLast4 || ''}
+                    onChange={(e) => debouncedSaveProfile('ssnLast4', e.target.value)}
                     placeholder="XXXX"
                     maxLength={4}
                     className="w-full"
@@ -1620,7 +1806,9 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
                 
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700">Driver's License</label>
-                  <Input 
+                  <Input
+                    value={profileFormData.driversLicense || ''}
+                    onChange={(e) => debouncedSaveProfile('driversLicense', e.target.value)}
                     placeholder="License number"
                     className="w-full"
                   />
@@ -1638,7 +1826,9 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
               <div className="grid grid-cols-1 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700">Current Address</label>
-                  <Input 
+                  <Input
+                    value={profileFormData.currentAddress || ''}
+                    onChange={(e) => debouncedSaveProfile('currentAddress', e.target.value)}
                     placeholder="Street address"
                     className="w-full"
                   />
@@ -1647,7 +1837,9 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">City</label>
-                    <Input 
+                    <Input
+                      value={profileFormData.city || ''}
+                      onChange={(e) => debouncedSaveProfile('city', e.target.value)}
                       placeholder="City"
                       className="w-full"
                     />
@@ -1655,7 +1847,9 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
                   
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">State</label>
-                    <Input 
+                    <Input
+                      value={profileFormData.state || ''}
+                      onChange={(e) => debouncedSaveProfile('state', e.target.value)}
                       placeholder="State"
                       className="w-full"
                     />
@@ -1665,7 +1859,9 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">ZIP Code</label>
-                    <Input 
+                    <Input
+                      value={profileFormData.zipCode || ''}
+                      onChange={(e) => debouncedSaveProfile('zipCode', e.target.value)}
                       placeholder="ZIP code"
                       className="w-full"
                     />
@@ -1673,12 +1869,16 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
                   
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">Length at Address</label>
-                    <select className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white">
-                      <option>Select duration</option>
-                      <option>Less than 1 year</option>
-                      <option>1-2 years</option>
-                      <option>2-5 years</option>
-                      <option>5+ years</option>
+                    <select
+                      value={profileFormData.lengthAtAddress || ''}
+                      onChange={(e) => debouncedSaveProfile('lengthAtAddress', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white"
+                    >
+                      <option value="">Select duration</option>
+                      <option value="Less than 1 year">Less than 1 year</option>
+                      <option value="1-2 years">1-2 years</option>
+                      <option value="2-5 years">2-5 years</option>
+                      <option value="5+ years">5+ years</option>
                     </select>
                   </div>
                 </div>
@@ -1686,19 +1886,26 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">Housing Status</label>
-                    <select className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white">
-                      <option>Select status</option>
-                      <option>Own</option>
-                      <option>Rent</option>
-                      <option>Living with family</option>
-                      <option>Other</option>
+                    <select
+                      value={profileFormData.housingStatus || ''}
+                      onChange={(e) => debouncedSaveProfile('housingStatus', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white"
+                    >
+                      <option value="">Select status</option>
+                      <option value="Own">Own</option>
+                      <option value="Rent">Rent</option>
+                      <option value="Living with family">Living with family</option>
+                      <option value="Other">Other</option>
                     </select>
                   </div>
                   
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">Monthly Housing Payment</label>
-                    <Input 
+                    <Input
+                      value={profileFormData.monthlyHousingPayment || ''}
+                      onChange={(e) => debouncedSaveProfile('monthlyHousingPayment', e.target.value)}
                       placeholder="$0"
+                      type="number"
                       className="w-full"
                     />
                   </div>
@@ -1716,9 +1923,9 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
                   <TrendingUp className="w-4 h-4 text-blue-500" />
                   <span className="text-sm font-medium">Lead Status</span>
                 </div>
-                <div className="text-lg font-semibold text-blue-600">Warm</div>
+                <div className="text-lg font-semibold text-blue-600">{analyticsData.chaseStatus || 'Inactive'}</div>
                 <div className="text-xs text-gray-500">routing</div>
-                <div className="text-xs text-gray-500">8 days in pipeline</div>
+                <div className="text-xs text-gray-500">{leadData?.created_at ? Math.floor((Date.now() - new Date(leadData.created_at).getTime()) / (1000 * 60 * 60 * 24)) : 0} days in pipeline</div>
               </div>
               
               <div className="bg-white p-4 rounded-lg border">
@@ -1726,9 +1933,9 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
                   <BarChart3 className="w-4 h-4 text-green-500" />
                   <span className="text-sm font-medium">Progress</span>
                 </div>
-                <div className="text-lg font-semibold">Info Gathered</div>
-                <div className="text-sm text-green-600 font-medium">72%</div>
-                <div className="text-xs text-gray-500">Est. 6 days to close</div>
+                <div className="text-lg font-semibold">{analyticsData.fundingReadiness || 'Not Ready'}</div>
+                <div className="text-sm text-green-600 font-medium">{Math.round((analyticsData.conversionProbability || 0) * 100)}%</div>
+                <div className="text-xs text-gray-500">Est. {Math.max(1, Math.round(7 - (analyticsData.conversionProbability || 0) * 10))} days to close</div>
               </div>
               
               <div className="bg-white p-4 rounded-lg border">
@@ -1736,10 +1943,10 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
                   <Target className="w-4 h-4 text-orange-500" />
                   <span className="text-sm font-medium">Lead Score</span>
                 </div>
-                <div className="text-3xl font-bold text-orange-600">69</div>
-                <div className="text-xs text-gray-500">Average</div>
+                <div className="text-3xl font-bold text-orange-600">{analyticsData.leadScore || 0}</div>
+                <div className="text-xs text-gray-500">{analyticsData.leadScore >= 70 ? 'High' : analyticsData.leadScore >= 40 ? 'Average' : 'Low'}</div>
                 <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                  <div className="bg-orange-500 h-2 rounded-full" style={{width: '69%'}}></div>
+                  <div className="bg-orange-500 h-2 rounded-full" style={{width: `${analyticsData.leadScore || 0}%`}}></div>
                 </div>
               </div>
               
@@ -1748,9 +1955,9 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
                   <Clock className="w-4 h-4 text-purple-500" />
                   <span className="text-sm font-medium">Contact Activity</span>
                 </div>
-                <div className="text-2xl font-bold">6</div>
+                <div className="text-2xl font-bold">{analyticsData.contactAttempts || 0}</div>
                 <div className="text-xs text-gray-500">total attempts</div>
-                <div className="text-xs text-gray-500">22h since last</div>
+                <div className="text-xs text-gray-500">{leadData?.last_contact_date ? Math.round((Date.now() - new Date(leadData.last_contact_date).getTime()) / (1000 * 60 * 60)) + 'h' : 'Never'} since last</div>
               </div>
               
               <div className="bg-white p-4 rounded-lg border">
@@ -1758,8 +1965,8 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
                   <TrendingUp className="w-4 h-4 text-green-500" />
                   <span className="text-sm font-medium">Conversion</span>
                 </div>
-                <div className="text-2xl font-bold text-green-600">36%</div>
-                <div className="text-xs text-gray-500">Low probability</div>
+                <div className="text-2xl font-bold text-green-600">{Math.round((analyticsData.conversionProbability || 0) * 100)}%</div>
+                <div className="text-xs text-gray-500">{(analyticsData.conversionProbability || 0) >= 0.7 ? 'High' : (analyticsData.conversionProbability || 0) >= 0.4 ? 'Medium' : 'Low'} probability</div>
               </div>
             </div>
 
@@ -1916,12 +2123,11 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
                   <label className="text-sm font-medium text-green-700 mb-2 block">Agent Name</label>
                   <Input
                     type="text"
-                    value={agentName}
+                    value={settingsData.agentName || ''}
                     onChange={(e) => {
                       const newName = e.target.value;
-                      setAgentName(newName);
-                      // Use debounced save to prevent excessive notifications
-                      debouncedSave(agentPhoneNumber, newName);
+                      setSettingsData(prev => ({ ...prev, agentName: newName }));
+                      saveLeadToSupabase({ agent_name: newName });
                     }}
                     placeholder="Enter your name (e.g., John Smith)"
                     className="border-green-200 focus:border-green-400"
@@ -1931,12 +2137,11 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
                   <label className="text-sm font-medium text-green-700 mb-2 block">Phone Number</label>
                   <Input
                     type="tel"
-                    value={agentPhoneNumber}
+                    value={settingsData.agentPhone || ''}
                     onChange={(e) => {
                       const newPhoneNumber = e.target.value;
-                      setAgentPhoneNumber(newPhoneNumber);
-                      // Use debounced save to prevent excessive notifications
-                      debouncedSave(newPhoneNumber, agentName);
+                      setSettingsData(prev => ({ ...prev, agentPhone: newPhoneNumber }));
+                      saveLeadToSupabase({ agent_phone: newPhoneNumber });
                     }}
                     placeholder="Enter your phone number (e.g., +1234567890)"
                     className="border-green-200 focus:border-green-400"
@@ -1959,7 +2164,13 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-sm">Active</span>
-                    <Switch checked={true} />
+                    <Switch
+                      checked={settingsData.autoChaseEnabled || false}
+                      onCheckedChange={(checked) => {
+                        setSettingsData(prev => ({ ...prev, autoChaseEnabled: checked }));
+                        saveLeadToSupabase({ auto_chase_enabled: checked });
+                      }}
+                    />
                   </div>
                   <div className="text-xs text-gray-500">Automated follow-up sequences</div>
                 </div>
@@ -1991,11 +2202,23 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-sm">Call Events</span>
-                    <Switch checked={true} />
+                    <Switch
+                      checked={settingsData.notificationsEnabled || false}
+                      onCheckedChange={(checked) => {
+                        setSettingsData(prev => ({ ...prev, notificationsEnabled: checked }));
+                        saveLeadToSupabase({ notifications_enabled: checked });
+                      }}
+                    />
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm">Text Messages</span>
-                    <Switch checked={true} />
+                    <Switch
+                      checked={settingsData.notificationsEnabled || false}
+                      onCheckedChange={(checked) => {
+                        setSettingsData(prev => ({ ...prev, notificationsEnabled: checked }));
+                        saveLeadToSupabase({ notifications_enabled: checked });
+                      }}
+                    />
                   </div>
                   <div className="text-xs text-gray-500">Notify specialists of lead activity</div>
                 </div>
@@ -2079,11 +2302,23 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-sm">Smart Responses</span>
-                    <Switch checked={true} />
+                    <Switch
+                      checked={settingsData.smartResponsesEnabled || false}
+                      onCheckedChange={(checked) => {
+                        setSettingsData(prev => ({ ...prev, smartResponsesEnabled: checked }));
+                        saveLeadToSupabase({ smart_responses_enabled: checked });
+                      }}
+                    />
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm">Mood Detection</span>
-                    <Switch checked={true} />
+                    <Switch
+                      checked={settingsData.moodDetectionEnabled || false}
+                      onCheckedChange={(checked) => {
+                        setSettingsData(prev => ({ ...prev, moodDetectionEnabled: checked }));
+                        saveLeadToSupabase({ mood_detection_enabled: checked });
+                      }}
+                    />
                   </div>
                   <div className="text-xs text-gray-500">AI analyzes conversations and suggests optimal responses</div>
                 </div>
