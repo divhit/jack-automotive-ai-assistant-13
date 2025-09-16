@@ -20,6 +20,9 @@ const __dirname = path.dirname(__filename);
 // Import Supabase persistence service AFTER dotenv.config() has run
 const { default: supabasePersistence } = await import('./services/supabasePersistence.js');
 
+// Import ultra-fast caching system
+const { default: cacheManager } = await import('./services/cacheManager.js');
+
 // Initialize Supabase client for direct operations
 let client = null;
 try {
@@ -611,12 +614,19 @@ function addToConversationHistory(phoneNumber, message, sentBy, messageType = 't
         history.shift();
       }
       
-      // PERFORMANCE: No cache invalidation during conversations (preserves speed)
-      // Cache will be invalidated after call ends to get fresh transcription data
-      
       console.log(`📝 Added ${messageType} message to org-scoped history ${memoryKey} (${sentBy}): ${message.substring(0, 100)}...`);
-      
-  // Persist to Supabase with organization context
+
+  // ULTRA-FAST: Update cache with new message data (write-through to all layers)
+  const cacheKey = createOrgMemoryKey(organizationId, phoneNumber);
+  cacheManager.set('history', cacheKey, history).catch(error => {
+    console.warn(`⚠️ Cache update failed for ${cacheKey}:`, error.message);
+  });
+
+  // Invalidate context and summary caches since conversation has changed
+  cacheManager.delete('context', cacheKey).catch(() => {}); // Fire-and-forget
+  cacheManager.delete('comprehensive', cacheKey).catch(() => {}); // Fire-and-forget
+
+  // Persist to Supabase with organization context (async)
   supabasePersistence.persistConversationMessage(phoneNumber, message, sentBy, messageType, { organizationId })
     .catch(error => {
       console.log(`🗄️ Organization-scoped persistence failed (system continues normally):`, error.message);
@@ -822,84 +832,34 @@ async function generateComprehensiveSummary(phoneNumber, organizationId) {
   }
 }
 
-// PERFORMANCE: Cached conversation context building with request deduplication
+// ULTRA-FAST: Three-layer cached conversation context (LRU → Redis → Database)
 async function buildConversationContextCached(phoneNumber, organizationId) {
   const cacheKey = createOrgMemoryKey(organizationId, phoneNumber);
-  const cached = conversationContextCache.get(cacheKey);
-  
-  if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
-    console.log(`⚡ Using cached conversation context for ${phoneNumber}`);
-    return cached.context;
-  }
-  
-  // PERFORMANCE: Check if request is already in flight
-  const requestKey = `context_${cacheKey}`;
-  if (inflightRequests.has(requestKey)) {
-    console.log(`⚡ Deduplicating conversation context request for ${phoneNumber}`);
-    return await inflightRequests.get(requestKey);
-  }
-  
-  // Start the request and store it
-  const requestPromise = buildConversationContext(phoneNumber, organizationId);
-  inflightRequests.set(requestKey, requestPromise);
-  
-  try {
-    const context = await requestPromise;
-    conversationContextCache.set(cacheKey, { context, timestamp: Date.now() });
-    return context;
-  } finally {
-    inflightRequests.delete(requestKey);
-  }
+
+  // Use three-layer cache system with automatic fallback
+  return await cacheManager.get('context', cacheKey, async () => {
+    console.log(`🔍 L3 FALLBACK: Building conversation context from scratch for ${phoneNumber}`);
+    return await buildConversationContext(phoneNumber, organizationId);
+  });
 }
 
-// PERFORMANCE: Cached comprehensive summary with request deduplication
+// ULTRA-FAST: Three-layer cached comprehensive summary (LRU → Redis → Database)
 async function generateComprehensiveSummaryCached(phoneNumber, organizationId) {
   const cacheKey = createOrgMemoryKey(organizationId, phoneNumber);
-  const cached = comprehensiveSummaryCache.get(cacheKey);
-  
-  if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
-    console.log(`⚡ Using cached comprehensive summary for ${phoneNumber}`);
-    return cached.summary;
-  }
-  
-  // PERFORMANCE: Check if request is already in flight
-  const requestKey = `comprehensive_${cacheKey}`;
-  if (inflightRequests.has(requestKey)) {
-    console.log(`⚡ Deduplicating comprehensive summary request for ${phoneNumber}`);
-    return await inflightRequests.get(requestKey);
-  }
-  
-  // Start the request and store it
-  const requestPromise = generateComprehensiveSummary(phoneNumber, organizationId);
-  inflightRequests.set(requestKey, requestPromise);
-  
-  try {
-    const summary = await requestPromise;
-    comprehensiveSummaryCache.set(cacheKey, { summary, timestamp: Date.now() });
-    return summary;
-  } finally {
-    inflightRequests.delete(requestKey);
-  }
+
+  // Use three-layer cache system with automatic fallback
+  return await cacheManager.get('comprehensive', cacheKey, async () => {
+    console.log(`🔍 L3 FALLBACK: Generating comprehensive summary from scratch for ${phoneNumber}`);
+    return await generateComprehensiveSummary(phoneNumber, organizationId);
+  });
 }
 
-// PERFORMANCE: Cached organization name lookup with request deduplication
+// ULTRA-FAST: Three-layer cached organization name (LRU → Redis → Database)
 async function getOrganizationNameCached(organizationId) {
-  const cached = organizationCache.get(organizationId);
-  
-  if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
-    console.log(`⚡ Using cached organization name for ${organizationId}`);
-    return cached.name;
-  }
-  
-  // PERFORMANCE: Check if request is already in flight
-  const requestKey = `org_${organizationId}`;
-  if (inflightRequests.has(requestKey)) {
-    console.log(`⚡ Deduplicating organization name request for ${organizationId}`);
-    return await inflightRequests.get(requestKey);
-  }
-  
-  // Start the request and store it
-  const requestPromise = (async () => {
+  // Use three-layer cache system with automatic fallback
+  return await cacheManager.get('organization', organizationId, async () => {
+    console.log(`🔍 L3 FALLBACK: Loading organization name from database for ${organizationId}`);
+
     let organizationName = "Jack Automotive";
     try {
       const { data: orgData, error } = await client
@@ -907,7 +867,7 @@ async function getOrganizationNameCached(organizationId) {
         .select('name')
         .eq('id', organizationId)
         .single();
-      
+
       if (orgData && !error) {
         organizationName = orgData.name;
       }
@@ -915,79 +875,36 @@ async function getOrganizationNameCached(organizationId) {
       console.warn(`⚠️ Could not fetch organization name for ${organizationId}, using default`);
     }
     return organizationName;
-  })();
-  
-  inflightRequests.set(requestKey, requestPromise);
-  
-  try {
-    const organizationName = await requestPromise;
-    organizationCache.set(organizationId, { name: organizationName, timestamp: Date.now() });
-    return organizationName;
-  } finally {
-    inflightRequests.delete(requestKey);
-  }
+  });
 }
 
-// PERFORMANCE: Cached conversation history with request deduplication
+// ULTRA-FAST: Three-layer cached conversation history (LRU → Redis → Database)
 async function getConversationHistoryCached(phoneNumber, organizationId) {
   const cacheKey = createOrgMemoryKey(organizationId, phoneNumber);
-  const cached = conversationHistoryCache.get(cacheKey);
-  
-  if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
-    console.log(`⚡ Using cached conversation history for ${phoneNumber} (${cached.messages.length} messages)`);
-    return cached.messages;
+
+  // Use three-layer cache system with automatic fallback
+  const cachedMessages = await cacheManager.get('history', cacheKey, async () => {
+    console.log(`🔍 L3 FALLBACK: Loading conversation history from database for ${phoneNumber}`);
+    return await getConversationHistory(phoneNumber, organizationId);
+  });
+
+  if (cachedMessages && Array.isArray(cachedMessages)) {
+    return cachedMessages;
   }
-  
-  // PERFORMANCE: Check if request is already in flight
-  const requestKey = `history_${cacheKey}`;
-  if (inflightRequests.has(requestKey)) {
-    console.log(`⚡ DEDUPLICATION: Reusing in-flight conversation history request for ${phoneNumber}`);
-    return await inflightRequests.get(requestKey);
-  }
-  
-  console.log(`🔍 STARTING NEW: Memory-first query for conversation history: ${phoneNumber} (cache key: ${requestKey})`);
-  
-  // Start the request and store it - Use memory-first approach
-  const requestPromise = getConversationHistory(phoneNumber, organizationId);
-  inflightRequests.set(requestKey, requestPromise);
-  
-  try {
-    const messages = await requestPromise;
-    conversationHistoryCache.set(cacheKey, { messages, timestamp: Date.now() });
-    return messages;
-  } finally {
-    inflightRequests.delete(requestKey);
-  }
+
+  // Fallback to empty array if no messages found
+  return [];
 }
 
-// PERFORMANCE: Cached conversation summary with request deduplication
+// ULTRA-FAST: Three-layer cached conversation summary (LRU → Redis → Database)
 async function getConversationSummaryCached(phoneNumber, organizationId) {
   const cacheKey = createOrgMemoryKey(organizationId, phoneNumber);
-  const cached = conversationSummaryCache.get(cacheKey);
-  
-  if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
-    console.log(`⚡ Using cached conversation summary for ${phoneNumber}`);
-    return cached.summary;
-  }
-  
-  // PERFORMANCE: Check if request is already in flight
-  const requestKey = `summary_${cacheKey}`;
-  if (inflightRequests.has(requestKey)) {
-    console.log(`⚡ Deduplicating conversation summary request for ${phoneNumber}`);
-    return await inflightRequests.get(requestKey);
-  }
-  
-  // Start the request and store it - Use memory-first approach
-  const requestPromise = getConversationSummary(phoneNumber, organizationId);
-  inflightRequests.set(requestKey, requestPromise);
-  
-  try {
-    const summary = await requestPromise;
-    conversationSummaryCache.set(cacheKey, { summary, timestamp: Date.now() });
-    return summary;
-  } finally {
-    inflightRequests.delete(requestKey);
-  }
+
+  // Use three-layer cache system with automatic fallback
+  return await cacheManager.get('summary', cacheKey, async () => {
+    console.log(`🔍 L3 FALLBACK: Loading conversation summary from database for ${phoneNumber}`);
+    return await getConversationSummary(phoneNumber, organizationId);
+  });
 }
 
 // PERFORMANCE: Parallel data loading for conversation initiation (OPTIMIZED: All cached versions)
@@ -5350,13 +5267,54 @@ app.post('/api/test/conversation', (req, res) => {
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
-  res.status(200).json({ 
+  res.status(200).json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
     activeSseConnections: sseConnections.size,
     activeWsConversations: activeConversations.size,
     storedConversations: conversationMetadata.size
   });
+});
+
+// Cache performance monitoring endpoint
+app.get('/api/cache/health', async (req, res) => {
+  try {
+    const cacheHealth = await cacheManager.healthCheck();
+    const cacheStats = cacheManager.getStats();
+
+    res.status(200).json({
+      status: cacheHealth.overall,
+      timestamp: new Date().toISOString(),
+      layers: cacheHealth,
+      performance: cacheStats.metrics,
+      lruStats: cacheStats.lru,
+      redisStats: cacheStats.redis
+    });
+  } catch (error) {
+    console.error('❌ Cache health check failed:', error);
+    res.status(500).json({
+      status: 'error',
+      timestamp: new Date().toISOString(),
+      error: error.message
+    });
+  }
+});
+
+// Cache metrics endpoint for detailed analysis
+app.get('/api/cache/metrics', (req, res) => {
+  try {
+    const stats = cacheManager.getStats();
+    res.status(200).json({
+      timestamp: new Date().toISOString(),
+      ...stats
+    });
+  } catch (error) {
+    console.error('❌ Cache metrics failed:', error);
+    res.status(500).json({
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 // PERFORMANCE: API request deduplication cache
