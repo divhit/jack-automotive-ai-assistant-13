@@ -3744,13 +3744,13 @@ app.post('/api/webhooks/elevenlabs/conversation-events', async (req, res) => {
             timestamp: endTime
           });
           
-          // Trigger conversation analysis and lead updates
+          // PERFORMANCE: Move expensive operations to background (fire-and-forget)
           if (phoneNumber && metadata?.organizationId) {
-            try {
-              await updateLeadFromConversationData(leadId, phoneNumber, metadata.organizationId);
-            } catch (error) {
-              console.error('⚠️ Error updating lead from conversation data:', error);
-            }
+            // Don't await - run in background to maintain <25ms webhook response
+            updateLeadFromConversationData(leadId, phoneNumber, metadata.organizationId)
+              .catch(error => {
+                console.error('⚠️ Background lead update error:', error.message);
+              });
           }
         }
         
@@ -3892,10 +3892,15 @@ app.post('/api/webhooks/elevenlabs/conversation-events', async (req, res) => {
         console.log('📋 Full event data:', JSON.stringify(eventData, null, 2));
     }
 
+    // PERFORMANCE: Log ultra-fast webhook response time
+    const responseTime = Date.now() - startTime;
+    console.log(`⚡ WEBHOOK RESPONSE: ${eventData.type} processed in ${responseTime}ms (target: <25ms)`);
+
     res.status(200).json({
       success: true,
       message: 'Conversation event processed successfully',
-      eventType: eventData.type
+      eventType: eventData.type,
+      responseTime: `${responseTime}ms`
     });
 
   } catch (error) {
