@@ -133,8 +133,11 @@ export const SubprimeAnalytics = ({ leads }: SubprimeAnalyticsProps) => {
   // Calculate response time distribution based on last touchpoint
   const now = new Date();
   const getHoursFromLastContact = (lead: SubprimeLead) => {
-    const lastContact = new Date(lead.lastTouchpoint);
-    return Math.floor((now.getTime() - lastContact.getTime()) / (1000 * 60 * 60));
+    const ts = lead.lastTouchpoint || lead.conversations.at(-1)?.timestamp;
+    if (!ts) return Number.POSITIVE_INFINITY;
+    const d = new Date(ts);
+    if (isNaN(d.getTime())) return Number.POSITIVE_INFINITY;
+    return Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60));
   };
 
   const replyLatencyData = [

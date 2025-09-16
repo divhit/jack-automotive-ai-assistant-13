@@ -1115,10 +1115,10 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
   };
 
   const formatMessageTime = (timestamp: string) => {
-    return new Date(timestamp).toLocaleTimeString([], { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
+    if (!timestamp) return '--:--';
+    const d = new Date(timestamp);
+    if (isNaN(d.getTime())) return '--:--';
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   const getSentimentIcon = (sentiment: string) => {

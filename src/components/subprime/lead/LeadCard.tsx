@@ -82,7 +82,17 @@ export const LeadCard = ({ lead, onViewDetails, onSelect, onDelete, isSelected }
             <TooltipTrigger className="flex items-center">
               <Clock className="inline h-3 w-3 mr-1" />
               <span>
-                {formatDistanceToNow(new Date(lead.lastTouchpoint), { addSuffix: true })}
+                {(() => {
+                  try {
+                    const ts = lead.lastTouchpoint || lead.conversations.at(-1)?.timestamp;
+                    if (!ts) return '—';
+                    const d = new Date(ts);
+                    if (isNaN(d.getTime())) return '—';
+                    return formatDistanceToNow(d, { addSuffix: true });
+                  } catch {
+                    return '—';
+                  }
+                })()}
               </span>
             </TooltipTrigger>
             <TooltipContent>

@@ -24,14 +24,12 @@ export const LeadProgress = ({ lead }: LeadProgressProps) => {
   };
 
   const getProgressTooltip = (lead: SubprimeLead) => {
-    const firstContactDate = lead.conversations.length > 0 
-      ? new Date(lead.conversations[0].timestamp)
-      : new Date(lead.lastTouchpoint);
-    
-    const daysInConversation = Math.floor(
-      (new Date().getTime() - firstContactDate.getTime()) / (1000 * 60 * 60 * 24)
-    );
-    
+    const ts = lead.conversations.length > 0 ? lead.conversations[0].timestamp : lead.lastTouchpoint;
+    const d = ts ? new Date(ts) : null;
+    const valid = d && !isNaN(d.getTime());
+    const daysInConversation = valid
+      ? Math.floor((Date.now() - d!.getTime()) / (1000 * 60 * 60 * 24))
+      : 0;
     return `In conversation for ${daysInConversation} days\n${lead.conversations.length} messages exchanged\n${lead.conversations.filter(c => c.type === "call").length} calls made`;
   };
 
