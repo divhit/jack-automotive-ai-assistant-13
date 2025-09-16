@@ -907,33 +907,42 @@ async function getConversationSummaryCached(phoneNumber, organizationId) {
   });
 }
 
-// PERFORMANCE: Parallel data loading for conversation initiation (OPTIMIZED: All cached versions)
+// SMART PARALLEL: Data-dependency aware parallel loading with shared computation
 async function loadConversationDataParallel(caller_id, organizationId, activeLead) {
-  console.log('⚡ Loading conversation data in parallel with aggressive caching...');
-  
+  console.log('⚡ Loading conversation data in parallel with smart dependency management...');
+
   const startTime = Date.now();
-  
-  // ULTRA PERFORMANCE: True parallel execution of all operations
-  const [
-    summary,
-    messages,
-    organizationName,
-    conversationContext,
-    comprehensiveSummary
-  ] = await Promise.all([
-    getConversationSummaryCached(caller_id, organizationId),  // ⚡ CACHED
-    getConversationHistoryCached(caller_id, organizationId), // ⚡ CACHED  
-    getOrganizationNameCached(organizationId),
-    buildConversationContextCached(caller_id, organizationId),
-    generateComprehensiveSummaryCached(caller_id, organizationId)
+
+  // PHASE 1: Load base data that other operations depend on (parallel)
+  const [summary, messages, organizationName] = await Promise.all([
+    getConversationSummaryCached(caller_id, organizationId),  // ⚡ CACHED - Base dependency
+    getConversationHistoryCached(caller_id, organizationId), // ⚡ CACHED - Base dependency
+    getOrganizationNameCached(organizationId)                // ⚡ CACHED - Independent
   ]);
-  
-  // Synchronous operations (memory-based, no await needed)
+
+  // PHASE 2: Compute derived data using already-loaded base data (avoid duplicate DB calls)
+  const [conversationContext, comprehensiveSummary] = await Promise.all([
+    // Use cached version or compute from already-loaded data if cache miss
+    cacheManager.get('context', createOrgMemoryKey(organizationId, caller_id), async () => {
+      console.log(`🔍 L3 FALLBACK: Building conversation context from scratch for ${caller_id}`);
+      // Use already-loaded messages instead of calling getConversationHistoryCached again
+      return buildConversationContextFromData(messages, summary, caller_id, organizationId);
+    }),
+
+    // Use cached version or compute from already-loaded data if cache miss
+    cacheManager.get('comprehensive', createOrgMemoryKey(organizationId, caller_id), async () => {
+      console.log(`🔍 L3 FALLBACK: Generating comprehensive summary from scratch for ${caller_id}`);
+      // Use already-loaded messages and summary instead of calling cached functions again
+      return generateComprehensiveSummaryFromData(messages, summary, organizationId);
+    })
+  ]);
+
+  // PHASE 3: Synchronous operations (memory-based, no await needed)
   const leadData = activeLead ? getLeadData(activeLead) : null;
-  
+
   const loadTime = Date.now() - startTime;
-  console.log(`⚡ OPTIMIZED: Parallel data loading completed in ${loadTime}ms (using cached versions)`);
-  
+  console.log(`⚡ SMART PARALLEL: Data loading completed in ${loadTime}ms (dependency-aware, zero duplicate DB calls)`);
+
   return {
     conversationContext,
     summary,
@@ -7455,6 +7464,75 @@ if (process.env.NODE_ENV === 'production') {
   }
 }
 
+// CACHE WARMING: Pre-load critical data for instant response times
+async function warmCacheData(organizations) {
+  if (!client || !supabasePersistence.isConnected) {
+    console.log('⚠️ Skipping cache warming - database not available');
+    return;
+  }
+
+  console.log('🔥 Starting cache warming process...');
+  const startTime = Date.now();
+
+  try {
+    // PHASE 1: Warm organization cache (most critical)
+    const orgData = {};
+    for (const org of organizations) {
+      // Get organization name from database
+      const { data: orgInfo } = await client
+        .from('organizations')
+        .select('name')
+        .eq('id', org.id)
+        .single();
+
+      if (orgInfo) {
+        orgData[org.id] = orgInfo.name;
+      }
+    }
+
+    // Pre-warm organization cache with batch operation
+    console.log(`🔥 Pre-warming organization cache with ${Object.keys(orgData).length} organizations...`);
+    await cacheManager.preWarm('organization', orgData);
+
+    // PHASE 2: Warm frequently accessed conversation data for active phone numbers
+    let warmedConversations = 0;
+    for (const org of organizations) {
+      try {
+        // Get recent active phone numbers (last 7 days)
+        const { data: recentCalls } = await client
+          .from('conversation_messages')
+          .select('phone_number')
+          .eq('organization_id', org.id)
+          .gte('timestamp', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+          .order('timestamp', { ascending: false })
+          .limit(10); // Top 10 most active numbers per org
+
+        if (recentCalls && recentCalls.length > 0) {
+          const uniquePhones = [...new Set(recentCalls.map(c => c.phone_number))];
+
+          for (const phone of uniquePhones.slice(0, 5)) { // Limit to top 5 per org to avoid overload
+            // Pre-warm conversation history and summary for this phone
+            await Promise.allSettled([
+              getConversationHistoryCached(phone, org.id),
+              getConversationSummaryCached(phone, org.id)
+            ]);
+            warmedConversations++;
+          }
+        }
+      } catch (orgError) {
+        console.warn(`⚠️ Failed to warm conversation cache for org ${org.id}:`, orgError.message);
+      }
+    }
+
+    const warmingTime = Date.now() - startTime;
+    console.log(`✅ Cache warming complete: ${Object.keys(orgData).length} organizations, ${warmedConversations} conversations (${warmingTime}ms)`);
+    console.log(`✅ Organization cache pre-warmed with ${Object.keys(orgData).length} organizations for <5ms lookups`);
+
+  } catch (error) {
+    console.error('❌ Cache warming failed:', error.message);
+  }
+}
+
 // --- SERVER STARTUP ---
 
 try {
@@ -7476,6 +7554,9 @@ try {
           for (const org of orgs) {
             await loadExistingLeadsIntoMemory(org.id);
           }
+
+          // 🔥 CACHE WARMING: Pre-warm critical cache data for <5ms response times
+          await warmCacheData(orgs);
         }
       } catch (error) {
         console.log('⚠️ Failed to load organizational leads:', error.message);

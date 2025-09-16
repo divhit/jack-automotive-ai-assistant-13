@@ -44,9 +44,9 @@ class RedisCache {
       const redisConfig = {
         // Connection timeout for ultra-fast fallback
         connectTimeout: 2000,
-        commandTimeout: 50, // 50ms timeout for operations
+        commandTimeout: 200, // 200ms timeout for operations (increased from 50ms - was too aggressive)
         lazyConnect: true, // Don't connect immediately
-        maxRetriesPerRequest: 2,
+        maxRetriesPerRequest: 3, // Increased retries for better reliability
         retryDelayOnFailover: 100,
 
         // Retry strategy with exponential backoff

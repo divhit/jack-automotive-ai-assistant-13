@@ -141,26 +141,26 @@ class CacheManager {
   constructor() {
     // Different cache configurations optimized for different data patterns
     this.caches = {
-      // Context cache: High-value, medium TTL
-      context: new LRUCache(50, 300000),      // 50 items, 5 min TTL
+      // Context cache: High-value, medium TTL (increased size for better hit rate)
+      context: new LRUCache(200, 300000),      // 200 items, 5 min TTL (increased from 50)
 
-      // History cache: Frequent access, short TTL
-      history: new LRUCache(100, 120000),     // 100 items, 2 min TTL
+      // History cache: Frequent access, short TTL (increased size for better performance)
+      history: new LRUCache(500, 120000),     // 500 items, 2 min TTL (increased from 100)
 
-      // Summary cache: Large data, long TTL
-      summary: new LRUCache(50, 600000),      // 50 items, 10 min TTL
+      // Summary cache: Large data, long TTL (increased size for better hit rate)
+      summary: new LRUCache(200, 600000),      // 200 items, 10 min TTL (increased from 50)
 
-      // Lead cache: Critical data, medium TTL
-      lead: new LRUCache(200, 300000),        // 200 items, 5 min TTL
+      // Lead cache: Critical data, medium TTL (increased size for heavy usage)
+      lead: new LRUCache(1000, 300000),        // 1000 items, 5 min TTL (increased from 200)
 
-      // Organization cache: Small, stable data, long TTL
-      organization: new LRUCache(20, 3600000), // 20 items, 1 hour TTL
+      // Organization cache: CRITICAL - increased from 20 to 500 items for <5ms lookups
+      organization: new LRUCache(500, 3600000), // 500 items, 1 hour TTL (increased from 20)
 
-      // Session cache: Active conversations, medium TTL
-      session: new LRUCache(30, 180000),      // 30 items, 3 min TTL
+      // Session cache: Active conversations, medium TTL (increased for concurrent users)
+      session: new LRUCache(200, 180000),      // 200 items, 3 min TTL (increased from 30)
 
-      // Comprehensive summary cache: Large data, long TTL
-      comprehensive: new LRUCache(30, 600000)  // 30 items, 10 min TTL
+      // Comprehensive summary cache: Large data, long TTL (increased for better performance)
+      comprehensive: new LRUCache(100, 600000)  // 100 items, 10 min TTL (increased from 30)
     };
 
     // Periodic stats logging
