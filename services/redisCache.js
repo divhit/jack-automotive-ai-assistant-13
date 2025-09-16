@@ -38,7 +38,7 @@ class RedisCache {
         return;
       }
 
-      console.log('🔄 Initializing Redis connection...');
+      console.log('🔄 Initializing Redis connection with new configuration...');
 
       // Configure Redis connection
       const redisConfig = {
