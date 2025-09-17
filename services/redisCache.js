@@ -43,15 +43,15 @@ class RedisCache {
       // Configure Redis connection
       const redisConfig = {
         // Connection timeout for ultra-fast fallback
-        connectTimeout: 2000,
-        commandTimeout: 200, // 200ms timeout for operations (increased from 50ms - was too aggressive)
+        connectTimeout: 5000, // Increased for production Redis on Render
+        commandTimeout: 1000, // Increased to 1 second for production reliability
         lazyConnect: true, // Don't connect immediately
-        maxRetriesPerRequest: 3, // Increased retries for better reliability
-        retryDelayOnFailover: 100,
+        maxRetriesPerRequest: 5, // More retries for production stability
+        retryDelayOnFailover: 200,
 
         // Retry strategy with exponential backoff
         retryStrategy: (times) => {
-          const delay = Math.min(times * 50, 500);
+          const delay = Math.min(times * 100, 2000); // Increased delay for production
           console.log(`🔄 Redis retry attempt ${times}, delay: ${delay}ms`);
           return delay;
         },
