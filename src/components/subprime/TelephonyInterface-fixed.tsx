@@ -1555,17 +1555,28 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
 
   // Analytics helper functions
   const calculateContactMethodPercentage = (method: string) => {
-    const totalContacts = analyticsData.contactAttempts || 0;
-    if (totalContacts === 0) return 0;
+    const totalSMS = leadData?.total_sms_messages || 0;
+    const totalVoice = leadData?.total_voice_calls || 0;
+    const totalContacts = totalSMS + totalVoice;
 
-    // Sample calculation based on method preferences stored in best_contact_times array
-    const contactTimes = leadData?.best_contact_times || [];
+    if (totalContacts === 0) {
+      // Return default percentages if no contact history
+      switch (method) {
+        case 'phone': return 50;
+        case 'sms': return 40;
+        case 'email': return 10;
+        default: return 0;
+      }
+    }
+
+    // Calculate actual percentages based on real contact history
     if (method === 'phone') {
-      return Math.round((contactTimes.filter((time: string) => time.includes('call')).length / Math.max(contactTimes.length, 1)) * 100) || 60;
+      return Math.round((totalVoice / totalContacts) * 100);
     } else if (method === 'sms') {
-      return Math.round((contactTimes.filter((time: string) => time.includes('text')).length / Math.max(contactTimes.length, 1)) * 100) || 30;
+      return Math.round((totalSMS / totalContacts) * 100);
     } else if (method === 'email') {
-      return Math.round((contactTimes.filter((time: string) => time.includes('email')).length / Math.max(contactTimes.length, 1)) * 100) || 10;
+      // Email tracking not implemented yet, return small percentage
+      return Math.max(0, 100 - Math.round(((totalVoice + totalSMS) / totalContacts) * 100));
     }
     return 0;
   };
@@ -2081,7 +2092,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
                     </span>
                     <span className="font-medium">{calculateContactMethodPercentage('email')}%</span>
                   </div>
-                  <div className="text-xs text-gray-500 mt-2">Based on {analyticsData.contactAttempts || 0} total contacts</div>
+                  <div className="text-xs text-gray-500 mt-2">Based on {(leadData?.total_sms_messages || 0) + (leadData?.total_voice_calls || 0)} total contacts</div>
                 </div>
               </div>
               
