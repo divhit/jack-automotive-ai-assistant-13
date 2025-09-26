@@ -806,9 +806,29 @@ class SupabasePersistenceService {
   // DELETE OPERATIONS
   async deleteLead(leadId) {
     if (!this.isEnabled || !this.isConnected) return;
-    
+
     try {
-      // First delete all conversations for this lead
+      // First, get all conversation IDs for this lead
+      const { data: conversations, error: fetchError } = await this.supabase
+        .from('conversations')
+        .select('id')
+        .eq('lead_id', leadId);
+
+      if (fetchError) throw fetchError;
+
+      // Delete conversation_messages for all conversations (must be done first due to foreign key)
+      if (conversations && conversations.length > 0) {
+        const conversationIds = conversations.map(c => c.id);
+        const { error: messagesError } = await this.supabase
+          .from('conversation_messages')
+          .delete()
+          .in('conversation_id', conversationIds);
+
+        if (messagesError) throw messagesError;
+        console.log(`🗑️ Deleted conversation_messages for lead ${leadId}`);
+      }
+
+      // Then delete all conversations for this lead
       const { error: conversationError } = await this.supabase
         .from('conversations')
         .delete()
@@ -816,14 +836,14 @@ class SupabasePersistenceService {
 
       if (conversationError) throw conversationError;
 
-      // Then delete the lead
+      // Finally delete the lead
       const { error: leadError } = await this.supabase
         .from('leads')
         .delete()
         .eq('id', leadId);
 
       if (leadError) throw leadError;
-      
+
       console.log(`🗑️ Lead ${leadId} and all related data deleted from Supabase`);
     } catch (error) {
       console.error(`❌ Failed to delete lead ${leadId}:`, error);

@@ -486,40 +486,58 @@ async function getOrganizationIdFromPhone(phoneNumber) {
 }
 
 // PERFORMANCE: Direct database query for conversation history (no cache manipulation)
-async function getConversationHistoryDirect(phoneNumber, organizationId) {
+// OPTIMIZED: Load only recent messages to reduce latency (configurable limit)
+async function getConversationHistoryDirect(phoneNumber, organizationId, messageLimit = 50) {
   const normalized = normalizePhoneNumber(phoneNumber);
-  
+
   if (!organizationId) {
     console.error(`🚨 SECURITY: getConversationHistoryDirect called without organizationId for ${phoneNumber}`);
     return [];
   }
-  
+
   try {
     if (supabasePersistence.isEnabled && supabasePersistence.isConnected) {
-      // DIRECT DATABASE QUERY - NO CACHE MANIPULATION
+      // OPTIMIZED: Query only recent messages to reduce payload size
+      // For context injection, we only need recent conversation history
       const client = supabasePersistence.supabase;
+
+      // First get total count for logging
+      const { count } = await client
+        .from('conversations')
+        .select('*', { count: 'exact', head: true })
+        .eq('phone_number_normalized', normalized)
+        .eq('organization_id', organizationId);
+
+      // Then get only recent messages (most recent N messages)
       const { data, error } = await client
         .from('conversations')
         .select('*')
         .eq('phone_number_normalized', normalized)
         .eq('organization_id', organizationId)
-        .order('timestamp', { ascending: true })
-        .order('created_at', { ascending: true })
-        .order('id', { ascending: true });
+        .order('timestamp', { ascending: false })
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .limit(messageLimit);
       
       if (error) {
         console.error('🔥 Database query failed:', error);
         return [];
       }
-      
-      const formattedHistory = data.map(msg => ({
+
+      // Reverse to get chronological order (oldest to newest)
+      const chronologicalData = data.reverse();
+
+      const formattedHistory = chronologicalData.map(msg => ({
         content: msg.content,
         sentBy: msg.sent_by,
         timestamp: msg.timestamp,
         type: msg.type || 'text'
       }));
-      
-      console.log(`🔍 DIRECT DB QUERY: Retrieved ${data.length} messages from database`);
+
+      console.log(`🔍 OPTIMIZED DB QUERY: Retrieved ${data.length} recent messages (of ${count} total) from database for ${phoneNumber}`);
+      if (count > messageLimit) {
+        console.log(`⚡ LATENCY OPTIMIZATION: Truncated ${count - messageLimit} older messages to reduce payload size`);
+      }
       return formattedHistory;
     }
   } catch (error) {
@@ -529,24 +547,30 @@ async function getConversationHistoryDirect(phoneNumber, organizationId) {
   return [];
 }
 
-async function getConversationHistory(phoneNumber, organizationId = null) {
+async function getConversationHistory(phoneNumber, organizationId = null, messageLimit = 50) {
   const normalized = normalizePhoneNumber(phoneNumber);
-  
+
   // SECURITY: organizationId is now required for cross-organization data protection
   if (!organizationId) {
     console.error(`🚨 SECURITY: getConversationHistory called without organizationId for ${phoneNumber}`);
     return []; // Return empty array instead of falling back to global data
   }
-  
+
   // PERFORMANCE: Use memory-first approach during calls
   const orgMemoryKey = createOrgMemoryKey(organizationId, phoneNumber);
   const orgHistory = conversationContexts.get(orgMemoryKey) || [];
-  
+
+  // OPTIMIZED: If memory has data, truncate to recent messages for context injection
+  if (orgHistory.length > 0 && orgHistory.length > messageLimit) {
+    console.log(`⚡ LATENCY OPTIMIZATION: Truncating ${orgHistory.length} memory messages to ${messageLimit} recent messages`);
+    return orgHistory.slice(-messageLimit);
+  }
+
   // Only use database if memory is completely empty
   if (orgHistory.length === 0 && supabasePersistence.isEnabled && supabasePersistence.isConnected) {
     try {
       console.log(`📋 Memory empty - loading from database for ${phoneNumber} (org: ${organizationId})`);
-      const dbMessages = await getConversationHistoryDirect(phoneNumber, organizationId);
+      const dbMessages = await getConversationHistoryDirect(phoneNumber, organizationId, messageLimit);
       
       // CRITICAL FIX: Store database results in memory to preserve them for subsequent calls
       if (dbMessages.length > 0) {
@@ -723,60 +747,87 @@ function storeConversationSummary(phoneNumber, summary, organizationId = null) {
 }
 
 // PERFORMANCE: Build conversation context from already-loaded data (no cache calls)
+// OPTIMIZED: Smart truncation based on conversation volume
 function buildConversationContextFromData(messages, summary, phoneNumber, organizationId) {
   if (messages.length === 0 && !summary) {
     return '';
   }
-  
+
   const voiceMessages = messages.filter(msg => msg.type === 'voice');
   const smsMessages = messages.filter(msg => msg.type === 'text' || msg.type === 'sms');
   const humanAgentMessages = messages.filter(msg => msg.sentBy === 'human_agent');
-  
+
   let contextText = `RECENT CONVERSATION HISTORY for customer ${phoneNumber}:\n\n`;
-  contextText += `MULTI-CHANNEL CONVERSATION:\n- Total messages: ${messages.length} (${voiceMessages.length} AI voice, 0 manual call, ${smsMessages.length} SMS)\n\n`;
-  
-  // Use last 6 messages for context
-  const recentMessages = messages.slice(-6);
+
+  // OPTIMIZED: Show conversation overview with truncation notice if applicable
+  const totalHistoricalMessages = messages.length;
+  contextText += `MULTI-CHANNEL CONVERSATION:\n- Recent messages shown: ${messages.length} (${voiceMessages.length} AI voice, 0 manual call, ${smsMessages.length} SMS)\n`;
+  if (totalHistoricalMessages > 50) {
+    contextText += `- Note: This is a subset of ${totalHistoricalMessages}+ total historical messages\n`;
+  }
+  contextText += '\n';
+
+  // OPTIMIZED: Use last 10-12 messages for better context (increased from 6)
+  // This gives more conversation flow while keeping payload reasonable
+  const contextMessageLimit = Math.min(12, messages.length);
+  const recentMessages = messages.slice(-contextMessageLimit);
+
   if (recentMessages.length > 0) {
     contextText += `RECENT MESSAGES (last ${recentMessages.length} messages in chronological order):\n`;
     contextText += recentMessages.map(msg => {
-      const speaker = msg.sentBy === 'user' ? 'Customer' : 
+      const speaker = msg.sentBy === 'user' ? 'Customer' :
                      msg.sentBy === 'human_agent' ? 'Human Agent' : 'Agent';
       const channel = msg.type === 'voice' ? ' (AI Voice)' : ' (SMS)';
-      return `${speaker}${channel}: ${msg.content}`;
+      // Truncate very long messages to keep payload reasonable
+      const content = msg.content.length > 200 ? msg.content.substring(0, 200) + '...' : msg.content;
+      return `${speaker}${channel}: ${content}`;
     }).join('\n') + '\n\n';
   }
-  
+
   return contextText;
 }
 
 // PERFORMANCE: Generate comprehensive summary from already-loaded data (no cache calls)
+// OPTIMIZED: Smart truncation to reduce payload size
 function generateComprehensiveSummaryFromData(messages, summary, organizationId) {
   if (messages.length === 0) return null;
-  
+
   const voiceMessages = messages.filter(msg => msg.type === 'voice');
   const smsMessages = messages.filter(msg => msg.type === 'text' || msg.type === 'sms');
-  
-  // If we have existing ElevenLabs summary and no SMS, use it
+
+  // If we have existing ElevenLabs summary and no SMS, use it (with truncation)
   if (summary?.summary && smsMessages.length === 0) {
+    // OPTIMIZED: Truncate very long summaries to reduce payload
+    const maxSummaryLength = 5000; // 5KB limit for summary
+    if (summary.summary.length > maxSummaryLength) {
+      console.log(`⚡ SUMMARY TRUNCATION: Truncating ${summary.summary.length} char summary to ${maxSummaryLength} chars`);
+      return summary.summary.substring(0, maxSummaryLength) + '... [Summary truncated for performance]';
+    }
     return summary.summary;
   }
-  
+
   // Build combined summary for voice + SMS
   let combinedSummary = '';
-  
+
   if (voiceMessages.length > 0 && summary?.summary) {
-    combinedSummary += `VOICE CALL SUMMARY: ${summary.summary}\n\n`;
+    // OPTIMIZED: Truncate voice summary to reasonable length
+    const voiceSummary = summary.summary.length > 3000
+      ? summary.summary.substring(0, 3000) + '... [Summary truncated]'
+      : summary.summary;
+    combinedSummary += `VOICE CALL SUMMARY: ${voiceSummary}\n\n`;
   }
-  
+
   if (smsMessages.length > 0) {
+    // OPTIMIZED: Show last 3 SMS messages instead of all
     const recentSMS = smsMessages.slice(-3);
-    combinedSummary += `SMS CONVERSATION: Recent ${smsMessages.length} SMS messages. `;
+    combinedSummary += `SMS CONVERSATION: ${smsMessages.length} total SMS messages (showing ${recentSMS.length} most recent). `;
     if (recentSMS.length > 0) {
-      combinedSummary += `Latest: "${recentSMS[recentSMS.length - 1].content.substring(0, 100)}"`;
+      const lastMsg = recentSMS[recentSMS.length - 1].content;
+      const truncatedMsg = lastMsg.length > 150 ? lastMsg.substring(0, 150) + '...' : lastMsg;
+      combinedSummary += `Latest: "${truncatedMsg}"`;
     }
   }
-  
+
   return combinedSummary || summary?.summary || null;
 }
 
@@ -879,16 +930,22 @@ async function getOrganizationNameCached(organizationId) {
 }
 
 // ULTRA-FAST: Three-layer cached conversation history (LRU → Redis → Database)
-async function getConversationHistoryCached(phoneNumber, organizationId) {
+// OPTIMIZED: Configurable message limit to reduce latency
+async function getConversationHistoryCached(phoneNumber, organizationId, messageLimit = 50) {
   const cacheKey = createOrgMemoryKey(organizationId, phoneNumber);
 
   // Use three-layer cache system with automatic fallback
   const cachedMessages = await cacheManager.get('history', cacheKey, async () => {
     console.log(`🔍 L3 FALLBACK: Loading conversation history from database for ${phoneNumber}`);
-    return await getConversationHistory(phoneNumber, organizationId);
+    return await getConversationHistory(phoneNumber, organizationId, messageLimit);
   });
 
   if (cachedMessages && Array.isArray(cachedMessages)) {
+    // OPTIMIZED: Even if cached, truncate to messageLimit for context injection
+    if (cachedMessages.length > messageLimit) {
+      console.log(`⚡ CACHE TRUNCATION: Limiting ${cachedMessages.length} cached messages to ${messageLimit} recent messages`);
+      return cachedMessages.slice(-messageLimit);
+    }
     return cachedMessages;
   }
 
@@ -914,9 +971,12 @@ async function loadConversationDataParallel(caller_id, organizationId, activeLea
   const startTime = Date.now();
 
   // PHASE 1: Load base data that other operations depend on (parallel)
+  // OPTIMIZED: Limit message history to last 50 messages for outbound calls
+  const MESSAGE_LIMIT_FOR_OUTBOUND = 50; // Configurable limit for latency optimization
+
   const [summary, messages, organizationName] = await Promise.all([
     getConversationSummaryCached(caller_id, organizationId),  // ⚡ CACHED - Base dependency
-    getConversationHistoryCached(caller_id, organizationId), // ⚡ CACHED - Base dependency
+    getConversationHistoryCached(caller_id, organizationId, MESSAGE_LIMIT_FOR_OUTBOUND), // ⚡ CACHED + OPTIMIZED
     getOrganizationNameCached(organizationId)                // ⚡ CACHED - Independent
   ]);
 
@@ -5660,17 +5720,48 @@ app.post('/api/subprime/create-lead', validateOrganizationAccess, async (req, re
     // PERFORMANCE: Check for existing lead with same phone number in organization
     const normalizedPhone = normalizePhoneNumber(leadData.phoneNumber);
     for (const [existingId, existingLead] of dynamicLeads.entries()) {
-      if (existingLead.organizationId === leadData.organizationId && 
+      if (existingLead.organizationId === leadData.organizationId &&
           normalizePhoneNumber(existingLead.phoneNumber) === normalizedPhone) {
-        console.log(`⚡ Lead with phone ${leadData.phoneNumber} already exists (${existingId}) - updating instead of creating duplicate`);
-        
-        // Update existing lead instead of creating duplicate
-        const updatedLead = { ...existingLead, ...leadData, id: existingId };
-        dynamicLeads.set(existingId, updatedLead);
-        
+        console.log(`⚡ Lead with phone ${leadData.phoneNumber} already exists (${existingId}) - replacing with fresh lead data`);
+
+        // CRITICAL FIX: Replace existing lead completely instead of merging
+        // This ensures old data collection fields (marital status, DOB, income, etc.) are cleared
+        // when a lead is deleted and recreated with same phone number
+        const freshLead = {
+          id: existingId, // Keep existing ID for continuity
+          customerName: leadData.customerName,
+          phoneNumber: leadData.phoneNumber,
+          email: leadData.email || null,
+          chaseStatus: leadData.chaseStatus || "Auto Chase Running",
+          organizationId: leadData.organizationId,
+          fundingReadiness: leadData.fundingReadiness || "Not Ready",
+          fundingReadinessReason: leadData.fundingReadinessReason || null,
+          sentiment: leadData.sentiment || "Neutral",
+          creditProfile: leadData.creditProfile || null,
+          vehiclePreference: leadData.vehiclePreference || null,
+          vehicleInterest: leadData.vehicleInterest || null,
+          assignedAgent: leadData.assignedAgent || null,
+          assignedSpecialist: leadData.assignedSpecialist || null,
+          lastTouchpoint: leadData.lastTouchpoint || new Date().toISOString(),
+          conversations: leadData.conversations || [],
+          nextAction: leadData.nextAction || null,
+          scriptProgress: leadData.scriptProgress || {
+            currentStep: "contacted",
+            completedSteps: ["contacted"]
+          }
+          // NOTE: All data collection fields intentionally NOT included - start fresh
+        };
+
+        dynamicLeads.set(existingId, freshLead);
+
+        // Also update in database to clear old data collection fields
+        supabasePersistence.persistLead(freshLead).catch(error => {
+          console.log(`🗄️ Database update failed (non-blocking):`, error.message);
+        });
+
         return res.json({
           success: true,
-          message: 'Lead updated (phone number already exists)',
+          message: 'Lead replaced with fresh data (old data collection fields cleared)',
           leadId: existingId,
           organizationId: leadData.organizationId
         });
