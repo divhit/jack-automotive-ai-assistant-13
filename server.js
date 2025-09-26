@@ -727,12 +727,12 @@ function storeConversationSummary(phoneNumber, summary, organizationId = null) {
   console.log(`📋 Stored conversation summary for ${normalized} (org: ${organizationId}):`, summary.substring(0, 100) + '...');
 
   // CRITICAL FIX: Persist summary to database immediately after post-call
-  supabasePersistence.persistConversationSummary(phoneNumber, summary, { organizationId })
+  supabasePersistence.persistConversationSummary(phoneNumber, summary, new Date().toISOString(), { organizationId })
     .then(() => {
       console.log(`💾 Summary persisted to database for ${normalized}`);
     })
     .catch(error => {
-      console.error(`❌ Failed to persist summary to database:`, error.message);
+      console.error(`❌ Failed to persist summary to database:`, error);
     });
 }
 
@@ -4228,7 +4228,7 @@ app.post('/api/webhooks/elevenlabs/post-call', async (req, res) => {
 
       // CRITICAL FIX: Persist voice messages to database after post-call
       console.log(`💾 Persisting ${transcript.length} voice messages to database for ${phoneNumber}`);
-      transcript.forEach(async (message, index) => {
+      const persistencePromises = transcript.map(async (message, index) => {
         if (message.role && message.message) {
           const messageTimestamp = message.timestamp ||
             new Date(baseTimestamp.getTime() + (index * 100)).toISOString();
@@ -4247,6 +4247,14 @@ app.post('/api/webhooks/elevenlabs/post-call', async (req, res) => {
           }
         }
       });
+
+      // Wait for all messages to persist, then invalidate cache
+      await Promise.all(persistencePromises);
+
+      // CRITICAL: Invalidate L1/L2 cache so next request loads from database
+      const normalizedPhone = normalizePhoneNumber(phoneNumber);
+      await cacheManager.invalidate('history', organizationId, normalizedPhone);
+      console.log(`♻️ Invalidated history cache after persisting ${transcript.length} messages`);
 
       // URGENT FIX: Broadcast conversation history update after storing transcript
       if (leadId) {
