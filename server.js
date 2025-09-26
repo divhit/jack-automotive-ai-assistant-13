@@ -6301,15 +6301,22 @@ app.get('/api/analytics/lead/:leadId', async (req, res) => {
 app.get('/api/analytics/leads', async (req, res) => {
   try {
     const { limit = 100, organization_id } = req.query;
-    
+
     if (!organization_id) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        error: 'organization_id is required for analytics data' 
+        error: 'organization_id is required for analytics data'
       });
     }
-    
-    const analyticsData = await supabasePersistence.getAllLeadsWithAnalytics(parseInt(limit), organization_id);
+
+    // PERFORMANCE: Cache analytics data for 15 seconds to prevent repeated DB queries
+    const analyticsData = await cacheManager.get(
+      'lead',
+      `analytics:${organization_id}`,
+      async () => {
+        return await supabasePersistence.getAllLeadsWithAnalytics(parseInt(limit), organization_id);
+      }
+    );
     
     if (analyticsData && analyticsData.length > 0) {
       res.json({
