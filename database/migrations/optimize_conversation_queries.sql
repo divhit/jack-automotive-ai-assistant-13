@@ -2,13 +2,16 @@
 -- This migration creates a covering index for the most frequent query pattern
 -- Expected improvement: 200-300ms → 15-25ms (90%+ reduction)
 
+-- NOTE: CONCURRENTLY cannot be used in migrations - run without it
+-- The index creation will briefly lock the table but completes quickly
+
 -- Drop existing potentially conflicting indexes if they exist
 DROP INDEX IF EXISTS idx_conversations_org_phone_time_optimized;
 
 -- Create covering index optimized for conversation history lookups
 -- This index covers the entire query: filter + sort + return columns
 -- Postgres can satisfy the query entirely from the index without touching the main table
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_conversations_org_phone_time_optimized
+CREATE INDEX IF NOT EXISTS idx_conversations_org_phone_time_optimized
 ON conversations(organization_id, phone_number_normalized, timestamp DESC)
 INCLUDE (id, content, sent_by, type);
 
