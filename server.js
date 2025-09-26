@@ -725,12 +725,15 @@ function storeConversationSummary(phoneNumber, summary, organizationId = null) {
   const orgMemoryKey = createOrgMemoryKey(organizationId, phoneNumber);
   conversationSummaries.set(orgMemoryKey, summaryData);
   console.log(`📋 Stored conversation summary for ${normalized} (org: ${organizationId}):`, summary.substring(0, 100) + '...');
-  
-  // PERFORMANCE: Queue summary persistence for batch processing (eliminates immediate DB write latency)
-  console.log(`⚡ Summary queued for batch persistence (no immediate DB write)`);
-  
-  // Only persist summaries immediately for critical SMS/human intervention scenarios  
-  // All other summaries will be batched and persisted at conversation end
+
+  // CRITICAL FIX: Persist summary to database immediately after post-call
+  supabasePersistence.persistConversationSummary(phoneNumber, summary, { organizationId })
+    .then(() => {
+      console.log(`💾 Summary persisted to database for ${normalized}`);
+    })
+    .catch(error => {
+      console.error(`❌ Failed to persist summary to database:`, error.message);
+    });
 }
 
 // PERFORMANCE: Build conversation context from already-loaded data (no cache calls)
@@ -4204,24 +4207,47 @@ app.post('/api/webhooks/elevenlabs/post-call', async (req, res) => {
         new Date(eventData.event_timestamp * 1000) : 
         new Date();
       
+      // First add all messages to memory
       transcript.forEach((message, index) => {
         if (message.role && message.message) {
           // Use custom timestamp with microsecond offsets to ensure proper chronological ordering
-          const messageTimestamp = message.timestamp || 
+          const messageTimestamp = message.timestamp ||
             new Date(baseTimestamp.getTime() + (index * 100)).toISOString(); // 100ms offset per message
-          
+
           addToConversationHistoryWithTimestamp(
-            phoneNumber, 
-            message.message, 
-            message.role, 
-            'voice', 
-            organizationId, 
+            phoneNumber,
+            message.message,
+            message.role,
+            'voice',
+            organizationId,
             messageTimestamp,
             index // sequence offset
           );
         }
       });
-      
+
+      // CRITICAL FIX: Persist voice messages to database after post-call
+      console.log(`💾 Persisting ${transcript.length} voice messages to database for ${phoneNumber}`);
+      transcript.forEach(async (message, index) => {
+        if (message.role && message.message) {
+          const messageTimestamp = message.timestamp ||
+            new Date(baseTimestamp.getTime() + (index * 100)).toISOString();
+
+          try {
+            await supabasePersistence.persistConversationMessageWithTimestamp(
+              phoneNumber,
+              message.message,
+              message.role,
+              'voice',
+              messageTimestamp,
+              { organizationId }
+            );
+          } catch (error) {
+            console.error(`❌ Failed to persist voice message ${index}:`, error.message);
+          }
+        }
+      });
+
       // URGENT FIX: Broadcast conversation history update after storing transcript
       if (leadId) {
         broadcastConversationUpdate({
@@ -5609,7 +5635,7 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', async (req, res) =>
 
     console.log('✅ Returning conversation initiation data:', {
       caller_id,
-      contextLength: conversationContext.length,
+      contextLength: conversationContext?.length || 0,
       summaryLength: summary?.summary?.length || 0,
       messageCount: messages.length,
       organizationId
