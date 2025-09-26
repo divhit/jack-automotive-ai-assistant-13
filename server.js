@@ -1698,28 +1698,36 @@ async function buildConversationContext(phoneNumber, organizationId = null) {
 // Smart context truncation function
 function createSmartContextSummary(fullContext, history, summaryData) {
   const CONTEXT_LIMIT = 100000; // 100K character limit
-  
+
+  // Handle null/undefined/empty context (new conversations with no history)
+  if (!fullContext || fullContext.length === 0) {
+    return ''; // Return empty string for new conversations
+  }
+
   if (fullContext.length <= CONTEXT_LIMIT) {
     return fullContext; // Within limit, return full context
   }
   
   console.log(`📋 Context exceeds ${CONTEXT_LIMIT} chars (${fullContext.length}), creating smart summary`);
-  
+
   // Build condensed context with overview + last 3 messages (summary provided separately)
   let condensedContext = `RECENT CONVERSATION HISTORY (CONDENSED):\n\n`;
-  
+
+  // Handle null/undefined history array
+  const safeHistory = history || [];
+
   // Separate voice and SMS messages
-  const voiceMessages = history.filter(msg => msg.type === 'voice');
-  const smsMessages = history.filter(msg => msg.type === 'text' || msg.type === 'sms');
+  const voiceMessages = safeHistory.filter(msg => msg.type === 'voice');
+  const smsMessages = safeHistory.filter(msg => msg.type === 'text' || msg.type === 'sms');
   
   // Add overview of conversation volume
   condensedContext += `CONVERSATION OVERVIEW:\n`;
-  condensedContext += `- Total messages: ${history.length}\n`;
+  condensedContext += `- Total messages: ${safeHistory.length}\n`;
   condensedContext += `- Voice messages: ${voiceMessages.length}\n`;
   condensedContext += `- SMS messages: ${smsMessages.length}\n\n`;
-  
+
   // FIXED: Use chronological order for condensed context too
-  const recentMessages = history.slice(-6); // Last 6 messages chronologically
+  const recentMessages = safeHistory.slice(-6); // Last 6 messages chronologically
   const hasVoiceMessages = voiceMessages.length > 0;
   const hasSmsMessages = smsMessages.length > 0;
   
@@ -1752,9 +1760,9 @@ function createSmartContextSummary(fullContext, history, summaryData) {
     ).join('\n') + '\n\n';
   }
   
-  condensedContext += `CRITICAL INSTRUCTIONS: 
+  condensedContext += `CRITICAL INSTRUCTIONS:
 - Use the PREVIOUS SUMMARY (provided separately) for overall customer context and key details
-- This is a LONG conversation (${history.length} messages) - focus on recent context above
+- This is a LONG conversation (${safeHistory.length} messages) - focus on recent context above
 - If previous summary mentions specific vehicle models, budgets, or customer details, DO NOT ask for this information again
 - Continue naturally from the recent messages shown above
 - IMPORTANT: If you see "Human Agent" messages, this means a human agent was helping the customer recently
