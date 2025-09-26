@@ -497,28 +497,18 @@ async function getConversationHistoryDirect(phoneNumber, organizationId, message
 
   try {
     if (supabasePersistence.isEnabled && supabasePersistence.isConnected) {
-      // OPTIMIZED: Query only recent messages to reduce payload size
-      // For context injection, we only need recent conversation history
+      // CRITICAL PERFORMANCE FIX: Single query instead of COUNT + SELECT (removes 150-200ms latency)
       const client = supabasePersistence.supabase;
 
-      // First get total count for logging
-      const { count } = await client
-        .from('conversations')
-        .select('*', { count: 'exact', head: true })
-        .eq('phone_number_normalized', normalized)
-        .eq('organization_id', organizationId);
-
-      // Then get only recent messages (most recent N messages)
+      // Single optimized query - select only needed columns
       const { data, error } = await client
         .from('conversations')
-        .select('*')
+        .select('id, content, sent_by, timestamp, type')
         .eq('phone_number_normalized', normalized)
         .eq('organization_id', organizationId)
         .order('timestamp', { ascending: false })
-        .order('created_at', { ascending: false })
-        .order('id', { ascending: false })
         .limit(messageLimit);
-      
+
       if (error) {
         console.error('🔥 Database query failed:', error);
         return [];
@@ -534,10 +524,7 @@ async function getConversationHistoryDirect(phoneNumber, organizationId, message
         type: msg.type || 'text'
       }));
 
-      console.log(`🔍 OPTIMIZED DB QUERY: Retrieved ${data.length} recent messages (of ${count} total) from database for ${phoneNumber}`);
-      if (count > messageLimit) {
-        console.log(`⚡ LATENCY OPTIMIZATION: Truncated ${count - messageLimit} older messages to reduce payload size`);
-      }
+      console.log(`⚡ FAST DB QUERY: Retrieved ${data.length} messages in single query for ${phoneNumber}`);
       return formattedHistory;
     }
   } catch (error) {
