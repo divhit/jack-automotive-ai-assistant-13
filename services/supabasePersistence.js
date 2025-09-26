@@ -655,23 +655,21 @@ class SupabasePersistenceService {
         .eq('phone_number_normalized', normalizedPhone)
         .eq('organization_id', organizationId) // ALWAYS filter by organization
         .order('timestamp', { ascending: false })
-        .limit(1)
-        .single();
+        .limit(1);
 
-      if (error) {
-        if (error.code === 'PGRST116') {
-          // No summary found - this is normal
-          console.log(`📋 No conversation summary found for ${normalizedPhone} in organization ${organizationId}`);
-          return null;
-        }
-        throw error;
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
+        // No summary found - this is normal for new leads
+        console.log(`📋 No conversation summary found for ${normalizedPhone} in organization ${organizationId}`);
+        return null;
       }
-      
+
       console.log(`🔒 Loading conversation summary for phone ${normalizedPhone} in organization: ${organizationId}`);
-      
+
       return {
-        summary: data.summary,
-        timestamp: data.timestamp
+        summary: data[0].summary,
+        timestamp: data[0].timestamp
       };
       
     } catch (error) {
