@@ -12,46 +12,41 @@ class ThreeLayerCacheManager {
     this.redis = redisCache;
     this.metrics = cacheMetrics;
 
-    // REQUEST DEDUPLICATION: Prevent race conditions for identical cache requests
-    this.pendingRequests = new Map(); // key -> Promise
-    this.requestTimeouts = new Map(); // key -> timeout handle
-    this.REQUEST_TIMEOUT = 5000; // 5 second timeout for pending requests
-
-    // Configuration for different data types
+    // OPTIMIZED: Configuration following BICI pattern - shorter TTLs for fresher data
     this.config = {
       context: {
-        lruTTL: 300000,    // 5 minutes
-        redisTTL: 600,     // 10 minutes
-        priority: 'high'   // High priority data
+        lruTTL: 60000,     // 1 minute (down from 5min - frequently changing data)
+        redisTTL: 120,     // 2 minutes (down from 10min)
+        priority: 'high'
       },
       history: {
-        lruTTL: 120000,    // 2 minutes
-        redisTTL: 300,     // 5 minutes
+        lruTTL: 120000,    // 2 minutes (unchanged - good balance)
+        redisTTL: 300,     // 5 minutes (unchanged)
         priority: 'medium'
       },
       summary: {
-        lruTTL: 600000,    // 10 minutes
-        redisTTL: 1200,    // 20 minutes
+        lruTTL: 120000,    // 2 minutes (down from 10min - conversation summaries change)
+        redisTTL: 300,     // 5 minutes (down from 20min)
         priority: 'high'
       },
       lead: {
-        lruTTL: 300000,    // 5 minutes
-        redisTTL: 600,     // 10 minutes
+        lruTTL: 180000,    // 3 minutes (down from 5min - lead data updates frequently)
+        redisTTL: 360,     // 6 minutes (down from 10min)
         priority: 'high'
       },
       organization: {
-        lruTTL: 3600000,   // 1 hour
-        redisTTL: 7200,    // 2 hours
-        priority: 'high'   // CRITICAL FIX: Organizations need high priority for <5ms lookups
+        lruTTL: 3600000,   // 1 hour (unchanged - static data)
+        redisTTL: 7200,    // 2 hours (unchanged)
+        priority: 'high'
       },
       session: {
-        lruTTL: 180000,    // 3 minutes
-        redisTTL: 300,     // 5 minutes
+        lruTTL: 120000,    // 2 minutes (down from 3min - active sessions change)
+        redisTTL: 180,     // 3 minutes (down from 5min)
         priority: 'high'
       },
       comprehensive: {
-        lruTTL: 600000,    // 10 minutes
-        redisTTL: 1200,    // 20 minutes
+        lruTTL: 300000,    // 5 minutes (down from 10min - comprehensive summaries)
+        redisTTL: 600,     // 10 minutes (down from 20min)
         priority: 'medium'
       }
     };
@@ -59,13 +54,13 @@ class ThreeLayerCacheManager {
     console.log('✅ Three-Layer Cache Manager initialized');
   }
 
-  // Main get method with waterfall cache access and request deduplication
+  // OPTIMIZED: Simplified get method without request deduplication (BICI pattern)
   async get(dataType, key, fallbackFunction = null) {
     const startTime = Date.now();
     const fullKey = this.buildKey(dataType, key);
 
     try {
-      // QUICK L1 CHECK: Always check LRU first (no deduplication needed - synchronous)
+      // L1: Check LRU first (synchronous, <1ms)
       const lruData = this.lru.get(dataType, fullKey);
       if (lruData !== null) {
         const latency = Date.now() - startTime;
@@ -74,104 +69,49 @@ class ThreeLayerCacheManager {
         return lruData;
       }
 
-      // REQUEST DEDUPLICATION: Check if same request is already pending
-      if (this.pendingRequests.has(fullKey)) {
-        console.log(`🔄 DEDUP: Waiting for existing request for ${fullKey}`);
-        const pendingPromise = this.pendingRequests.get(fullKey);
-        const result = await pendingPromise;
-        const latency = Date.now() - startTime;
-        console.log(`🔄 DEDUP: Got result from pending request ${fullKey} (${latency}ms)`);
-        return result;
-      }
-
-      // Start new deduplicated request
-      const requestPromise = this._performCacheRequest(dataType, fullKey, fallbackFunction, startTime);
-
-      // Store the promise for deduplication
-      this.pendingRequests.set(fullKey, requestPromise);
-
-      // Set timeout to cleanup stale requests
-      const timeoutHandle = setTimeout(() => {
-        this.pendingRequests.delete(fullKey);
-        this.requestTimeouts.delete(fullKey);
-        console.warn(`⚠️ Request timeout cleanup for ${fullKey}`);
-      }, this.REQUEST_TIMEOUT);
-
-      this.requestTimeouts.set(fullKey, timeoutHandle);
-
-      try {
-        const result = await requestPromise;
-        return result;
-      } finally {
-        // Cleanup successful/failed request
-        this.pendingRequests.delete(fullKey);
-        if (this.requestTimeouts.has(fullKey)) {
-          clearTimeout(this.requestTimeouts.get(fullKey));
-          this.requestTimeouts.delete(fullKey);
-        }
-      }
-
-    } catch (error) {
-      const latency = Date.now() - startTime;
-      this.metrics.recordError('database', latency, 'get');
-      console.error(`❌ Cache get error for ${fullKey}:`, error.message);
-
-      // Try fallback function on error
-      if (fallbackFunction) {
-        try {
-          return await fallbackFunction();
-        } catch (fallbackError) {
-          console.error(`❌ Fallback function error:`, fallbackError.message);
-          return null;
-        }
-      }
-
-      return null;
-    }
-  }
-
-  // Internal method for actual cache request (used by deduplication)
-  async _performCacheRequest(dataType, fullKey, fallbackFunction, startTime) {
-    try {
-      // L2: Check Redis Cache (1-10ms)
+      // L2: Check Redis (fast async, 3-10ms)
       const redisData = await this.redis.get(fullKey);
       if (redisData !== null) {
         const latency = Date.now() - startTime;
         this.metrics.recordHit('redis', latency, 'get');
 
-        // Populate L1 cache
+        // Populate L1 cache for next time
         this.lru.set(dataType, fullKey, redisData, this.config[dataType]?.lruTTL);
 
         console.log(`🔄 L2 HIT: ${fullKey} (${latency}ms) → populated L1`);
         return redisData;
       }
 
-      // L3: Database/Function fallback (50-200ms)
+      // L3: Fallback to database (slowest, 50-150ms)
       if (fallbackFunction) {
         const dbData = await fallbackFunction();
-        if (dbData !== null && dbData !== undefined) {
+        if (dbData) {
           const latency = Date.now() - startTime;
-          this.metrics.recordHit('database', latency, 'get');
+          this.metrics.recordMiss('database', latency);
 
-          // Populate both L1 and L2 caches (fire-and-forget)
-          this.setAll(dataType, this.extractOriginalKey(fullKey), dbData);
+          // Cache the result (fire-and-forget)
+          this.set(dataType, key, dbData).catch(err =>
+            console.warn(`Cache set failed after DB fallback: ${err.message}`)
+          );
 
           console.log(`🗄️  L3 HIT: ${fullKey} (${latency}ms) → populated L1+L2`);
           return dbData;
         }
       }
 
-      // Complete miss
       const latency = Date.now() - startTime;
-      this.metrics.recordMiss('database', latency, 'get');
+      this.metrics.recordMiss('database', latency);
       console.log(`❌ MISS: ${fullKey} (${latency}ms)`);
       return null;
 
     } catch (error) {
-      console.error(`❌ Cache request error for ${fullKey}:`, error.message);
-      throw error; // Re-throw to be handled by main get method
+      const latency = Date.now() - startTime;
+      this.metrics.recordError('database', latency, 'get');
+      console.error(`❌ Cache get error for ${fullKey}:`, error.message);
+      return null;
     }
   }
+
 
   // Set data in all cache layers (write-through)
   async set(dataType, key, value) {
@@ -205,7 +145,7 @@ class ThreeLayerCacheManager {
     }
   }
 
-  // Set data in all layers and wait for completion
+  // OPTIMIZED: Set data with fire-and-forget Redis writes (BICI pattern)
   async setAll(dataType, key, value) {
     const startTime = Date.now();
     const fullKey = this.buildKey(dataType, key);
@@ -213,50 +153,36 @@ class ThreeLayerCacheManager {
     try {
       console.log(`🔄 SET ALL START: ${fullKey} (${typeof value}, ${JSON.stringify(value).length} chars)`);
 
-      // Set in both L1 and L2 in parallel
-      const [lruResult, redisResult] = await Promise.allSettled([
-        Promise.resolve(this.lru.set(dataType, fullKey, value, this.config[dataType]?.lruTTL)),
-        this.redis.set(fullKey, value, this.config[dataType]?.redisTTL)
-      ]);
+      // L1: Set immediately (synchronous)
+      this.lru.set(dataType, fullKey, value, this.config[dataType]?.lruTTL);
+
+      // Verify L1 cache actually has the data
+      const verification = this.lru.get(dataType, fullKey);
+      const lruSuccess = verification !== null;
+
+      if (lruSuccess) {
+        console.log(`✅ L1 VERIFIED: ${fullKey} successfully stored and retrievable`);
+      } else {
+        console.warn(`⚠️ L1 CACHE WRITE FAILED: ${fullKey} - data not found after set operation`);
+      }
+
+      // L2: Fire-and-forget Redis write (non-blocking)
+      this.redis.set(fullKey, value, this.config[dataType]?.redisTTL)
+        .then(() => {
+          console.log(`✅ L2 SUCCESS: ${fullKey} stored in Redis`);
+          this.metrics.recordHit('redis', Date.now() - startTime, 'set');
+        })
+        .catch(error => {
+          console.warn(`⚠️ L2 SET FAILED: ${fullKey} -`, error.message);
+          this.metrics.recordError('redis', Date.now() - startTime, 'set');
+        });
 
       const latency = Date.now() - startTime;
+      this.metrics.recordHit('lru', latency, 'set');
 
-      // ENHANCED DEBUG: Check what actually happened with each cache layer
-      let lruSuccess = false;
-      let redisSuccess = false;
+      console.log(`✅ SET ALL: ${fullKey} → L1:${lruSuccess ? '✅' : '❌'} L2:🔥 fire-and-forget (${latency}ms)`);
 
-      if (lruResult.status === 'fulfilled') {
-        this.metrics.recordHit('lru', latency, 'set');
-        lruSuccess = true;
-
-        // Verify L1 cache actually has the data
-        const verification = this.lru.get(dataType, fullKey);
-        if (verification === null) {
-          console.warn(`⚠️ L1 CACHE WRITE FAILED: ${fullKey} - data not found after set operation`);
-          lruSuccess = false;
-        } else {
-          console.log(`✅ L1 VERIFIED: ${fullKey} successfully stored and retrievable`);
-        }
-      } else {
-        this.metrics.recordError('lru', latency, 'set');
-        console.error(`❌ L1 SET FAILED: ${fullKey} -`, lruResult.reason);
-      }
-
-      if (redisResult.status === 'fulfilled' && redisResult.value === true) {
-        this.metrics.recordHit('redis', latency, 'set');
-        redisSuccess = true;
-        console.log(`✅ L2 SUCCESS: ${fullKey} stored in Redis`);
-      } else {
-        this.metrics.recordError('redis', latency, 'set');
-        console.warn(`⚠️ L2 SET FAILED: ${fullKey} -`, redisResult.reason || redisResult.value);
-      }
-
-      const statusIcon = (lruSuccess && redisSuccess) ? '✅' :
-                        (lruSuccess || redisSuccess) ? '⚠️' : '❌';
-
-      console.log(`${statusIcon} SET ALL: ${fullKey} → L1:${lruSuccess ? '✅' : '❌'} L2:${redisSuccess ? '✅' : '❌'} (${latency}ms)`);
-
-      return lruSuccess || redisSuccess; // Success if at least one layer worked
+      return lruSuccess; // Return immediately with L1 success
     } catch (error) {
       const latency = Date.now() - startTime;
       this.metrics.recordError('lru', latency, 'set');

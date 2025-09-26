@@ -40,18 +40,24 @@ class RedisCache {
 
       console.log('🔄 Initializing Redis connection with new configuration...');
 
-      // Configure Redis connection
+      // OPTIMIZED: Redis connection following BICI pattern
       const redisConfig = {
-        // Connection timeout for ultra-fast fallback
-        connectTimeout: 5000, // Increased for production Redis on Render
-        commandTimeout: 1000, // Increased to 1 second for production reliability
-        lazyConnect: true, // Don't connect immediately
-        maxRetriesPerRequest: 5, // More retries for production stability
+        // Connection timeouts
+        connectTimeout: 10000,    // 10s for initial connection (up from 5s)
+        commandTimeout: 5000,     // 5s for commands (up from 1s for reliability)
+        lazyConnect: true,        // Don't connect immediately
+        keepAlive: 30000,         // 30s keepalive to prevent connection drops
+        maxRetriesPerRequest: 3,  // Reduced from 5 (fail faster)
         retryDelayOnFailover: 200,
+        enableReadyCheck: true,   // Ensure Redis is ready before operations
 
         // Retry strategy with exponential backoff
         retryStrategy: (times) => {
-          const delay = Math.min(times * 100, 2000); // Increased delay for production
+          if (times > 3) {
+            console.warn(`🔴 Redis retry limit reached (${times} attempts)`);
+            return null; // Stop retrying after 3 attempts
+          }
+          const delay = Math.min(times * 2000, 10000); // 2s, 4s, 6s...
           console.log(`🔄 Redis retry attempt ${times}, delay: ${delay}ms`);
           return delay;
         },
