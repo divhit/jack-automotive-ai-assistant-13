@@ -5546,7 +5546,7 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', async (req, res) =>
       console.log(`⚡ Cached conversation session data for ${call_sid} (eliminates redundant lookups)`);
     }
     
-    console.log(`🧪 DEBUG: conversationContext length: ${conversationContext.length}`);
+    console.log(`🧪 DEBUG: conversationContext length: ${conversationContext?.length || 0}`);
     console.log(`🧪 DEBUG: activeLead:`, activeLead);
     console.log(`🧪 DEBUG: leadData:`, leadData);
     
