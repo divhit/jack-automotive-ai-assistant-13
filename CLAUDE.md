@@ -15,12 +15,17 @@ Jack Automotive AI Assistant is a comprehensive dealership management system for
 - `npm run lint` - Run ESLint for code quality checks
 - `npm run preview` - Preview production build locally
 - `npm run server` - Start Express backend server
-- `npm run dev:full` - Run both frontend and backend concurrently
+- `npm run dev:full` - Run both frontend and backend concurrently (RECOMMENDED for full-stack development)
 - `npm run test:supabase` - Test Supabase persistence layer
+- `npm run setup:crm` - Install Supabase dependencies and display setup instructions
 
 ### Build and Deploy
 - `npm run build:fallback` - Fallback build script using build-fallback.mjs
 - `npm start` - Start production server (alias for `npm run server`)
+
+### System Requirements
+- Node.js >= 18.0.0
+- npm >= 8.0.0
 
 ## Architecture Overview
 
@@ -126,14 +131,26 @@ Required environment variables:
 #### Subprime Lead Management (Primary Feature)
 The most complex feature with sophisticated lead tracking, automated chase sequences, sentiment analysis, and specialist assignment. Located in `src/components/subprime/` and `src/pages/SubprimeDashboard.tsx`.
 
+**Critical Components:**
+- `TelephonyInterface-fixed.tsx` - Main conversation interface with Profile/Analytics/Settings tabs
+- `SubprimeAnalytics.tsx` - Performance metrics and analytics dashboard
+- `SubprimeLeadsList.tsx` - Lead management table with filtering
+- `ConversationInterface.tsx` - ElevenLabs AI voice/text conversation component
+
 #### Real-time Conversations
 SMS conversations with real-time updates via WebSocket and Supabase subscriptions. Handles conversation history, message threading, and lead association.
+
+**Important Note:** CustomerConversations page (`/conversations`) currently uses static mock data from `src/data/conversations/customerConversations.ts` and is NOT connected to real-time Supabase data.
 
 #### AI Voice Integration
 ElevenLabs AI agents with dynamic conversation variables, inbound call handling, and post-call analytics. Configuration managed through organization-specific phone number assignments.
 
+**Key Service:** `src/services/elevenLabsService.ts` handles conversation management and `src/services/twilioService.ts` manages SMS/voice integration.
+
 #### Multi-tenant Security
 Organization-based data isolation with RLS policies, secure user authentication, and proper data access controls throughout the application.
+
+**Security Pattern:** All API calls require organization context headers to prevent cross-organization data leakage.
 
 ## Common Development Tasks
 
@@ -154,8 +171,21 @@ Organization-based data isolation with RLS policies, secure user authentication,
 - Test Twilio integration with webhook endpoints
 - Verify ElevenLabs agent configuration with test calls
 
+### Working with Real-time Data
+- Check if components use real Supabase data vs mock data in `src/data/`
+- Look for `useQuery`, `supabase.from()`, or real-time subscriptions
+- Mock data files are in `src/data/` organized by feature
+- Real-time subscriptions use `supabase.channel()` pattern
+
 ### Debugging
 - Check browser console for frontend errors
 - Monitor Express server logs for backend issues
 - Use Supabase dashboard for database queries and real-time monitoring
 - Review Twilio console for SMS delivery status
+- For analytics issues, verify database field mappings match component calculations
+
+### Backend Development
+- Express server in `server.js` handles API routes, WebSocket, and Twilio webhooks
+- Multi-tenant security enforced via organization headers
+- Cache management system in `services/cacheManager.js`
+- Supabase persistence layer in `services/supabasePersistence.js`

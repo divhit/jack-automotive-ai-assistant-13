@@ -5986,6 +5986,10 @@ app.delete('/api/subprime/delete-lead', async (req, res) => {
 
     console.log('🗑️ Deleting lead:', leadId, 'for org:', organizationId);
 
+    // Get lead data before deletion to retrieve organization ID
+    const leadToDelete = dynamicLeads.get(leadId);
+    const leadOrganizationId = leadToDelete?.organizationId || organizationId;
+
     // Try to delete from database first
     try {
       await supabasePersistence.deleteLead(leadId);
@@ -6003,25 +6007,60 @@ app.delete('/api/subprime/delete-lead', async (req, res) => {
     // Also remove from phone mappings if exists
     const phoneToRemove = Array.from(phoneToLeadMapping.entries())
       .find(([phone, storedLeadId]) => storedLeadId === leadId)?.[0];
-    
+
     if (phoneToRemove) {
       phoneToLeadMapping.delete(phoneToRemove);
       console.log('✅ Removed phone mapping for lead:', leadId);
-      
+
       // CRITICAL FIX: Clear conversation caches for this phone number
       // This prevents stale conversation summaries (like Mercedes data) from being retrieved
       const normalizedPhone = normalizePhoneNumber(phoneToRemove);
-      
+
+      // Clear legacy non-org-scoped memory keys
       if (conversationContexts.has(normalizedPhone)) {
         conversationContexts.delete(normalizedPhone);
         console.log('✅ Cleared conversation context cache for:', normalizedPhone);
       }
-      
+
       if (conversationSummaries.has(normalizedPhone)) {
         conversationSummaries.delete(normalizedPhone);
         console.log('✅ Cleared conversation summary cache for:', normalizedPhone);
       }
-      
+
+      // CRITICAL FIX: Clear organization-scoped caches (the actual keys being used!)
+      if (leadOrganizationId) {
+        const orgMemoryKey = createOrgMemoryKey(leadOrganizationId, normalizedPhone);
+
+        // Clear org-scoped memory maps
+        if (conversationContexts.has(orgMemoryKey)) {
+          conversationContexts.delete(orgMemoryKey);
+          console.log('✅ Cleared org-scoped conversation context:', orgMemoryKey);
+        }
+
+        if (conversationSummaries.has(orgMemoryKey)) {
+          conversationSummaries.delete(orgMemoryKey);
+          console.log('✅ Cleared org-scoped conversation summary:', orgMemoryKey);
+        }
+
+        if (comprehensiveSummaryCache.has(orgMemoryKey)) {
+          comprehensiveSummaryCache.delete(orgMemoryKey);
+          console.log('✅ Cleared org-scoped comprehensive summary:', orgMemoryKey);
+        }
+
+        // CRITICAL FIX: Clear three-layer cache system (LRU + Redis + Supabase)
+        // This is the ROOT CAUSE of the bug - old conversation history was persisting in L1/L2 caches
+        Promise.allSettled([
+          cacheManager.delete('context', orgMemoryKey),
+          cacheManager.delete('summary', orgMemoryKey),
+          cacheManager.delete('history', orgMemoryKey),
+          cacheManager.delete('comprehensive', orgMemoryKey)
+        ]).then(() => {
+          console.log('✅ Cleared three-layer cache (LRU+Redis+DB) for:', orgMemoryKey);
+        }).catch(err => {
+          console.warn('⚠️ Three-layer cache clear had some errors (non-blocking):', err.message);
+        });
+      }
+
       // Also close any active WebSocket connections for this phone
       if (activeConversations.has(normalizedPhone)) {
         const ws = activeConversations.get(normalizedPhone);
