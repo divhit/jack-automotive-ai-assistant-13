@@ -4253,7 +4253,7 @@ app.post('/api/webhooks/elevenlabs/post-call', async (req, res) => {
 
       // CRITICAL: Invalidate L1/L2 cache so next request loads from database
       const normalizedPhone = normalizePhoneNumber(phoneNumber);
-      await cacheManager.invalidate('history', organizationId, normalizedPhone);
+      await cacheManager.delete('history', `${organizationId}:${normalizedPhone}`);
       console.log(`♻️ Invalidated history cache after persisting ${transcript.length} messages`);
 
       // URGENT FIX: Broadcast conversation history update after storing transcript
