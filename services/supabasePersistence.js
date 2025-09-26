@@ -808,7 +808,19 @@ class SupabasePersistenceService {
     if (!this.isEnabled || !this.isConnected) return;
 
     try {
-      // First, get all conversation IDs for this lead
+      // First, get lead details (phone number and organization) before deletion
+      const { data: leadData, error: leadFetchError } = await this.supabase
+        .from('leads')
+        .select('phone_number_normalized, organization_id')
+        .eq('id', leadId)
+        .single();
+
+      if (leadFetchError) throw leadFetchError;
+
+      const phoneNumber = leadData?.phone_number_normalized;
+      const organizationId = leadData?.organization_id;
+
+      // Get all conversation IDs for this lead
       const { data: conversations, error: fetchError } = await this.supabase
         .from('conversations')
         .select('id')
@@ -816,7 +828,7 @@ class SupabasePersistenceService {
 
       if (fetchError) throw fetchError;
 
-      // Delete conversation_messages for all conversations (must be done first due to foreign key)
+      // Delete conversation_messages for all conversations (if table exists - may be unused)
       if (conversations && conversations.length > 0) {
         const conversationIds = conversations.map(c => c.id);
         const { error: messagesError } = await this.supabase
@@ -824,11 +836,28 @@ class SupabasePersistenceService {
           .delete()
           .in('conversation_id', conversationIds);
 
-        if (messagesError) throw messagesError;
-        console.log(`🗑️ Deleted conversation_messages for lead ${leadId}`);
+        if (messagesError && !messagesError.message?.includes('does not exist')) {
+          throw messagesError;
+        }
+        if (!messagesError) {
+          console.log(`🗑️ Deleted conversation_messages for lead ${leadId}`);
+        }
       }
 
-      // Then delete all conversations for this lead
+      // CRITICAL FIX: Delete ALL conversations by phone number AND organization, not just lead_id
+      // This ensures orphaned conversations from previous leads with same phone are also deleted
+      if (phoneNumber && organizationId) {
+        const { error: phoneConversationError, count } = await this.supabase
+          .from('conversations')
+          .delete({ count: 'exact' })
+          .eq('phone_number_normalized', phoneNumber)
+          .eq('organization_id', organizationId);
+
+        if (phoneConversationError) throw phoneConversationError;
+        console.log(`🗑️ Deleted ${count || 0} conversations for phone ${phoneNumber} in org ${organizationId}`);
+      }
+
+      // Also delete by lead_id in case phone number lookup missed any
       const { error: conversationError } = await this.supabase
         .from('conversations')
         .delete()
@@ -844,7 +873,7 @@ class SupabasePersistenceService {
 
       if (leadError) throw leadError;
 
-      console.log(`🗑️ Lead ${leadId} and all related data deleted from Supabase`);
+      console.log(`🗑️ Lead ${leadId} and ALL related conversation history deleted from Supabase`);
     } catch (error) {
       console.error(`❌ Failed to delete lead ${leadId}:`, error);
       throw error; // Rethrow so API can handle error response
