@@ -4393,11 +4393,11 @@ app.post('/api/webhooks/elevenlabs/post-call', async (req, res) => {
         transcript,
         timestamp: new Date().toISOString()
       };
-      
+
       // DIFFERENTIAL CACHE UPDATE: Append new messages instead of invalidating entire cache
       if (phoneNumber && organizationId && transcript && transcript.length > 0) {
         const memoryKey = createOrgMemoryKey(organizationId, phoneNumber);
-        
+
         // CACHE FIX: Check the correct memory cache where messages are actually stored
         const existingMemoryMessages = conversationContexts.get(memoryKey) || [];
         if (existingMemoryMessages.length > 0) {
@@ -4416,14 +4416,24 @@ app.post('/api/webhooks/elevenlabs/post-call', async (req, res) => {
       } else if (phoneNumber && organizationId) {
         console.log(`⚡ Keeping all caches - no new transcript data`);
       }
-      
+
       console.log('📞 Broadcasting post-call update:', {
         leadId,
         hasTranscript: !!transcript,
         summaryLength: summary ? summary.length : 0
       });
-      
+
       broadcastConversationUpdate(updateData);
+
+      // CRITICAL FIX: Also broadcast call_ended event to automatically reset UI
+      broadcastConversationUpdate({
+        type: 'call_ended',
+        conversationId,
+        leadId,
+        phoneNumber,
+        duration,
+        timestamp: new Date().toISOString()
+      });
     } else {
       console.warn('⚠️ No lead ID found for post-call webhook - cannot broadcast to frontend');
     }
