@@ -1124,22 +1124,59 @@ function generateGreetingContext(leadData, isOutbound = false, previousSummary =
     };
   }
   
-  // Inbound call greetings
-  const inboundVariation = Math.random() > 0.5 ? "What can I help you with" : "How can I help you";
-  
+  // Inbound call greetings - differentiate between first-time and returning
+  const isReturning = previousSummary && !previousSummary.includes("First conversation");
+
+  let firstMessageDynamic;
+  let callType;
+
+  if (isReturning) {
+    // Returning customer - personalized greeting with context
+    callType = "inbound_returning";
+
+    if (hasName) {
+      // Extract key context for personalized greeting
+      const summaryText = previousSummary?.toLowerCase() || '';
+      let contextPhrase = "";
+
+      if (summaryText.includes('subaru') || summaryText.includes('forester')) {
+        contextPhrase = " I see you're interested in a Subaru Forester.";
+      } else if (summaryText.includes('suv')) {
+        contextPhrase = " I see you're looking for an SUV.";
+      } else if (summaryText.includes('financing')) {
+        contextPhrase = " Let's continue with your financing options.";
+      } else if (summaryText.includes('trade')) {
+        contextPhrase = " Let's talk about your trade-in.";
+      }
+
+      firstMessageDynamic = `Hey ${customerName}! ${getTimeBasedGreeting()} Thanks for calling back.${contextPhrase} What can I help you with today?`;
+    } else {
+      firstMessageDynamic = `Hey! ${getTimeBasedGreeting()} Thanks for calling back. What can I help you with today?`;
+    }
+  } else {
+    // First-time caller - warm but professional greeting
+    callType = "inbound_new";
+    const helpVariation = Math.random() > 0.5 ? "What can I help you with" : "How can I help you";
+
+    if (hasName) {
+      firstMessageDynamic = `Hey ${customerName}! ${getTimeBasedGreeting()} ${helpVariation} today?`;
+    } else {
+      firstMessageDynamic = `Hey there! ${getTimeBasedGreeting()} ${helpVariation} today?`;
+    }
+  }
+
   return {
     time_greeting: getTimeBasedGreeting(),
     day_context: getDayContext(),
     customer_greeting: getCustomerGreeting(customerName, leadData?.lastTouchpoint),
     customer_name: customerName,
     greeting_opener: hasName ? `Hey ${customerName}!` : "Hey there!",
-    greeting_variation: inboundVariation,
+    greeting_variation: isReturning ? "continuing_conversation" : "new_conversation",
     is_outbound: "false",
-    call_type: "inbound",
-    // ElevenLabs-optimized first message components
-    first_message_dynamic: hasName ? 
-      `Hey ${customerName}! ${getTimeBasedGreeting()} ${inboundVariation}?` :
-      `Hey there! ${getTimeBasedGreeting()} ${inboundVariation}?`
+    is_returning_customer: isReturning ? "true" : "false",
+    call_type: callType,
+    // ElevenLabs-optimized first message
+    first_message_dynamic: firstMessageDynamic
   };
 }
 
