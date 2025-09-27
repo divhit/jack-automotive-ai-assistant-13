@@ -1106,21 +1106,47 @@ function generateGreetingContext(leadData, isOutbound = false, previousSummary =
       }
     }
     
+    // Outbound-specific time greeting (no "thanks for calling")
+    const getOutboundTimeGreeting = () => {
+      const now = new Date();
+      const pacificTime = new Date(now.toLocaleString("en-US", { timeZone: "America/Los_Angeles" }));
+      const hour = pacificTime.getHours();
+
+      if (hour < 12) return "Good morning!";
+      if (hour < 17) return "Good afternoon!";
+      return "Good evening!";
+    };
+
+    const outboundTimeGreeting = getOutboundTimeGreeting();
+    const dayContext = getDayContext();
+
+    // Build natural outbound first message
+    let firstMessageDynamic;
+    if (hasName && previousSummary) {
+      const callReason = extractCallReason(previousSummary);
+      firstMessageDynamic = dayContext ?
+        `Hey ${customerName}! ${dayContext} I'm calling about ${callReason}` :
+        `Hey ${customerName}! ${outboundTimeGreeting} I'm calling about ${callReason}`;
+    } else if (hasName) {
+      firstMessageDynamic = dayContext ?
+        `Hey ${customerName}! ${dayContext} ${variation}` :
+        `Hey ${customerName}! ${outboundTimeGreeting} ${variation}`;
+    } else {
+      firstMessageDynamic = dayContext ?
+        `Hey! ${dayContext} ${variation}` :
+        `Hey! ${outboundTimeGreeting} ${variation}`;
+    }
+
     return {
-      time_greeting: getTimeBasedGreeting(),
-      day_context: getDayContext(),
+      time_greeting: outboundTimeGreeting,
+      day_context: dayContext,
       customer_greeting: getCustomerGreeting(customerName, leadData?.lastTouchpoint),
       customer_name: customerName,
       greeting_opener: hasName ? `Hey ${customerName}!` : "Hey!",
       greeting_variation: variation,
       is_outbound: "true",
       call_type: "outbound_followup",
-      // ElevenLabs-optimized first message components
-      first_message_dynamic: hasName && previousSummary ? 
-        `Hey ${customerName}! ${getTimeBasedGreeting()} I'm calling about ${extractCallReason(previousSummary)}` :
-        hasName ? 
-        `Hey ${customerName}! ${getTimeBasedGreeting()} ${variation}` :
-        `Hey! ${getTimeBasedGreeting()} ${variation}`
+      first_message_dynamic: firstMessageDynamic
     };
   }
   
