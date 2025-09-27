@@ -1126,6 +1126,8 @@ function generateGreetingContext(leadData, isOutbound = false, previousSummary =
   
   // Inbound call greetings - differentiate between first-time and returning
   const isReturning = previousSummary && !previousSummary.includes("First conversation");
+  const timeGreeting = getTimeBasedGreeting();
+  const dayGreeting = getDayContext();
 
   let firstMessageDynamic;
   let callType;
@@ -1140,34 +1142,44 @@ function generateGreetingContext(leadData, isOutbound = false, previousSummary =
       let contextPhrase = "";
 
       if (summaryText.includes('subaru') || summaryText.includes('forester')) {
-        contextPhrase = " I see you're interested in a Subaru Forester.";
-      } else if (summaryText.includes('suv')) {
-        contextPhrase = " I see you're looking for an SUV.";
-      } else if (summaryText.includes('financing')) {
-        contextPhrase = " Let's continue with your financing options.";
+        contextPhrase = "I see you're looking at that Subaru Forester.";
+      } else if (summaryText.includes('suv') || summaryText.includes('truck')) {
+        contextPhrase = "Let's continue where we left off with that SUV.";
+      } else if (summaryText.includes('financing') || summaryText.includes('credit')) {
+        contextPhrase = "Let's pick up where we left off with your financing.";
       } else if (summaryText.includes('trade')) {
-        contextPhrase = " Let's talk about your trade-in.";
+        contextPhrase = "Let's talk more about your trade-in.";
+      } else {
+        contextPhrase = "Thanks for getting back to me.";
       }
 
-      firstMessageDynamic = `Hey ${customerName}! ${getTimeBasedGreeting()} Thanks for calling back.${contextPhrase} What can I help you with today?`;
+      // Natural, varied greetings
+      firstMessageDynamic = dayGreeting ?
+        `Hey ${customerName}! ${dayGreeting} ${contextPhrase} What's on your mind?` :
+        `Hey ${customerName}! ${timeGreeting} ${contextPhrase} What can I help you with?`;
     } else {
-      firstMessageDynamic = `Hey! ${getTimeBasedGreeting()} Thanks for calling back. What can I help you with today?`;
+      firstMessageDynamic = dayGreeting ?
+        `Hey! ${dayGreeting} Thanks for calling back. What can I help you with?` :
+        `Hey! ${timeGreeting} How can I help you today?`;
     }
   } else {
     // First-time caller - warm but professional greeting
     callType = "inbound_new";
-    const helpVariation = Math.random() > 0.5 ? "What can I help you with" : "How can I help you";
 
     if (hasName) {
-      firstMessageDynamic = `Hey ${customerName}! ${getTimeBasedGreeting()} ${helpVariation} today?`;
+      firstMessageDynamic = dayGreeting ?
+        `Hey ${customerName}! ${dayGreeting} What can I help you with today?` :
+        `Hey ${customerName}! ${timeGreeting} How can I help you?`;
     } else {
-      firstMessageDynamic = `Hey there! ${getTimeBasedGreeting()} ${helpVariation} today?`;
+      firstMessageDynamic = dayGreeting ?
+        `Hey there! ${dayGreeting} What can I help you with?` :
+        `Hey there! ${timeGreeting} How can I help you today?`;
     }
   }
 
   return {
-    time_greeting: getTimeBasedGreeting(),
-    day_context: getDayContext(),
+    time_greeting: timeGreeting,
+    day_context: dayGreeting,
     customer_greeting: getCustomerGreeting(customerName, leadData?.lastTouchpoint),
     customer_name: customerName,
     greeting_opener: hasName ? `Hey ${customerName}!` : "Hey there!",
