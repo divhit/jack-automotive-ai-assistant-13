@@ -6275,6 +6275,13 @@ app.delete('/api/subprime/delete-lead', async (req, res) => {
       }
     }
 
+    // CRITICAL FIX: Invalidate leads cache after deletion to prevent stale data
+    // This ensures the deleted lead doesn't reappear when creating a new lead with same phone
+    if (leadOrganizationId) {
+      invalidateLeadsCache(leadOrganizationId);
+      console.log('✅ Invalidated leads cache for organization:', leadOrganizationId);
+    }
+
     res.json({
       success: true,
       message: 'Lead deleted successfully',
