@@ -2024,16 +2024,16 @@ function removeActiveLeadForPhone(phoneNumber, leadId) {
 const activeConversationTimeouts = new Map();
 const SMS_CONVERSATION_TIMEOUT = 60000; // 1 minute instead of 5+ minutes
 
-function startConversationWithTimeout(phoneNumber, initialMessage, organizationId = null) {
+function startConversationWithTimeout(phoneNumber, initialMessage, organizationId = null, channel = 'sms') {
   const normalized = normalizePhoneNumber(phoneNumber);
-  
+
   // Clear any existing timeout
   if (activeConversationTimeouts.has(normalized)) {
     clearTimeout(activeConversationTimeouts.get(normalized));
   }
-  
+
   // Start the conversation
-  startConversation(phoneNumber, initialMessage, organizationId);
+  startConversation(phoneNumber, initialMessage, organizationId, channel);
   
   // Set timeout to close idle connection after 1 minute
   const timeoutId = setTimeout(() => {
@@ -2053,7 +2053,7 @@ function startConversationWithTimeout(phoneNumber, initialMessage, organizationI
 // Track SMS response counts to ignore first response for returning users
 const smsResponseCounters = new Map();
 
-function startConversation(phoneNumber, initialMessage, organizationId = null) {
+function startConversation(phoneNumber, initialMessage, organizationId = null, channel = 'sms') {
   const agentId = process.env.ELEVENLABS_AGENT_ID;
   const apiKey = process.env.ELEVENLABS_API_KEY;
   const normalized = normalizePhoneNumber(phoneNumber);
@@ -2066,8 +2066,9 @@ function startConversation(phoneNumber, initialMessage, organizationId = null) {
   // Initialize SMS response counter for this conversation
   smsResponseCounters.set(normalized, 0);
 
-  // Declare leadStatus in outer scope to be accessible in message handler
+  // Declare leadStatus and channel in outer scope to be accessible in message handler
   let leadStatus = "New Inquiry"; // Default
+  const conversationChannel = channel; // Store channel for use in handlers
 
   const wsUrl = `wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${agentId}`;
   const ws = new WebSocket(wsUrl, {
@@ -2186,7 +2187,7 @@ function startConversation(phoneNumber, initialMessage, organizationId = null) {
         conversation_context: conversationContext,
         phone_number: phoneNumber,
         customer_phone: phoneNumber, // For webhook identification
-        channel: 'sms',
+        channel: conversationChannel, // Use actual channel (sms or voice)
         lead_id: leadId,
         organization_id: resolvedOrganizationId, // Include organization context
         // ADDED: Include metadata about context preservation
@@ -2207,15 +2208,25 @@ function startConversation(phoneNumber, initialMessage, organizationId = null) {
       console.log(`📨 [${phoneNumber}] Received message type:`, response.type);
 
       if (response.type === 'conversation_initiation_metadata') {
-        console.log(`✅ [${phoneNumber}] Conversation initiated with first_message_dynamic override`);
+        console.log(`✅ [${phoneNumber}] Conversation initiated on ${conversationChannel} channel`);
 
-        // CRITICAL FIX: DO NOT send user message for SMS when using first_message_dynamic
-        // The first_message_dynamic already makes the agent speak first with a contextual greeting
-        // that acknowledges the customer's message. Sending the user's message would cause
-        // the agent to respond twice (once with first_message_dynamic, once to the user message).
-        //
-        // For voice calls, this might be different, but for SMS the first_message_dynamic handles it all.
-        console.log(`🔕 [${phoneNumber}] Skipping user message send - first_message_dynamic handles greeting`);
+        // CHANNEL-SPECIFIC BEHAVIOR:
+        // SMS: Agent should RESPOND to user's actual message, so we send it
+        // Voice: Agent speaks first with first_message_dynamic, so we DON'T send user message
+
+        if (conversationChannel === 'sms') {
+          // For SMS: Send the user's message after short delay so agent can respond to it directly
+          setTimeout(() => {
+            console.log(`📱 [${phoneNumber}] Sending user's SMS message for agent to respond: "${initialMessage}"`);
+            ws.send(JSON.stringify({
+              type: 'user_message',
+              text: initialMessage
+            }));
+          }, 1500); // Short delay to ensure dynamic variables are processed
+        } else {
+          // For voice: Agent speaks first with first_message_dynamic greeting
+          console.log(`📞 [${phoneNumber}] Voice call - agent will speak first with first_message_dynamic`);
+        }
 
       } else if (response.type === 'agent_response') {
         const agentResponse = response.agent_response_event?.agent_response || '';
@@ -2864,10 +2875,10 @@ app.post('/api/webhooks/twilio/sms/incoming', async (req, res) => {
       
       if (existingHistory.length > 0) {
         console.log(`📞➡️📱 Found ${existingHistory.length} previous messages (voice/SMS history). Starting new SMS conversation with context.`);
-        startConversationWithTimeout(From, Body, organizationId);
+        startConversationWithTimeout(From, Body, organizationId, 'sms');
       } else {
         console.log('✨ No existing conversation or history. Creating a new one.');
-        startConversationWithTimeout(From, Body, organizationId);
+        startConversationWithTimeout(From, Body, organizationId, 'sms');
       }
     }
     
