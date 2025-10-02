@@ -6327,6 +6327,10 @@ app.delete('/api/subprime/clear-test-data', async (req, res) => {
     conversationSummaries.clear();
     console.log('✅ Cleared conversation contexts');
 
+    // CRITICAL FIX: Clear leads cache to prevent stale data
+    leadsCache.clear();
+    console.log('✅ Cleared leads cache');
+
     res.json({
       success: true,
       message: 'All test data cleared successfully',
