@@ -2174,13 +2174,27 @@ function startConversation(phoneNumber, initialMessage, organizationId = null, c
       greeting_opener: dynamicVars.greeting_opener,
       greeting_variation: dynamicVars.greeting_variation,
       is_outbound: dynamicVars.is_outbound,
-      call_type: dynamicVars.call_type,
-      first_message_dynamic: dynamicVars.first_message_dynamic
+      call_type: dynamicVars.call_type
     });
-    
-    // FIXED: Send with correct ElevenLabs structure - dynamic_variables at TOP LEVEL
-    // Per ElevenLabs docs: dynamic_variables must be at root level, not in client_data
-    ws.send(JSON.stringify({
+
+    // Build first message override for SMS to respond to user's message contextually
+    const firstMessageOverride = conversationChannel === 'sms'
+      ? dynamicVars.first_message_dynamic || `Hey ${customerName}! Thanks for reaching out. How can I help you?`
+      : null;
+
+    // Build conversation config override (for SMS first message)
+    const conversationConfigOverride = conversationChannel === 'sms' && firstMessageOverride ? {
+      agent: {
+        first_message: firstMessageOverride
+      }
+    } : undefined;
+
+    console.log(`📝 First message override for ${conversationChannel}:`, firstMessageOverride);
+
+    // FIXED: Send with correct ElevenLabs structure per documentation
+    // - dynamic_variables at TOP LEVEL for context injection
+    // - conversation_config_override for overriding first_message (SMS only)
+    const initiationMessage = {
       type: 'conversation_initiation_client_data',
       dynamic_variables: dynamicVars,
       client_data: {
@@ -2199,7 +2213,14 @@ function startConversation(phoneNumber, initialMessage, organizationId = null, c
           last_interaction: history.length > 0 ? history[history.length - 1].timestamp : null
         }
       }
-    }));
+    };
+
+    // Add conversation_config_override if it exists (for SMS first message override)
+    if (conversationConfigOverride) {
+      initiationMessage.conversation_config_override = conversationConfigOverride;
+    }
+
+    ws.send(JSON.stringify(initiationMessage));
   });
 
   ws.on('message', async (data) => {
@@ -2210,23 +2231,10 @@ function startConversation(phoneNumber, initialMessage, organizationId = null, c
       if (response.type === 'conversation_initiation_metadata') {
         console.log(`✅ [${phoneNumber}] Conversation initiated on ${conversationChannel} channel`);
 
-        // CHANNEL-SPECIFIC BEHAVIOR:
-        // SMS: Agent should RESPOND to user's actual message, so we send it
-        // Voice: Agent speaks first with first_message_dynamic, so we DON'T send user message
-
-        if (conversationChannel === 'sms') {
-          // For SMS: Send the user's message after short delay so agent can respond to it directly
-          setTimeout(() => {
-            console.log(`📱 [${phoneNumber}] Sending user's SMS message for agent to respond: "${initialMessage}"`);
-            ws.send(JSON.stringify({
-              type: 'user_message',
-              text: initialMessage
-            }));
-          }, 1500); // Short delay to ensure dynamic variables are processed
-        } else {
-          // For voice: Agent speaks first with first_message_dynamic greeting
-          console.log(`📞 [${phoneNumber}] Voice call - agent will speak first with first_message_dynamic`);
-        }
+        // USING conversation_config_override.agent.first_message PER ELEVENLABS DOCS
+        // The first_message override makes the agent speak first with a contextual response
+        // We do NOT send the user's message separately - the override handles everything
+        console.log(`🎯 [${phoneNumber}] Agent will speak first using first_message override`);
 
       } else if (response.type === 'agent_response') {
         const agentResponse = response.agent_response_event?.agent_response || '';
