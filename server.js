@@ -1102,17 +1102,16 @@ function getCustomerGreeting(customerName, lastVisit) {
 
 // Helper function: Get empathetic opening for initial subprime outreach
 function getSubprimeInitialOpening(customerName, dayContext, timeGreeting) {
-  const openings = [
-    `${customerName}, I know dealing with car financing can feel overwhelming, especially when credit's been a challenge. I'm here to help make this easier for you - no pressure, no judgment.`,
-    `${customerName}, I understand getting approved for a car loan can be tough when credit's not perfect. That's exactly why I'm reaching out - I work with folks in your situation every day.`,
-    `${customerName}, I get it - financing a vehicle when you've had credit challenges can be stressful. I wanted to personally reach out because I've helped a lot of people in similar situations.`,
-    `${customerName}, I know the car buying process can feel really stressful, especially when credit's been an issue. I'm here to walk you through this with real options that actually work.`
-  ];
-
-  const opening = openings[Math.floor(Math.random() * openings.length)];
   const greeting = dayContext || timeGreeting;
 
-  return `Hey ${opening}`;
+  const openings = [
+    `Hey ${customerName}! ${greeting} Look, I know dealing with car stuff can be stressful, especially when credit's been tough. I just wanted to reach out personally - no pressure at all, I'm just here if you need someone to walk you through this.`,
+    `Hey ${customerName}! ${greeting} I totally get it - getting a car when credit's not perfect can feel overwhelming. I wanted to personally connect with you because I help folks in your situation all the time, and honestly, there's usually a path forward.`,
+    `Hey ${customerName}! ${greeting} I know this whole financing thing can feel like a lot, especially if credit's been a challenge. I'm reaching out because I genuinely want to help - no sales pitch, just real talk about what options might work for you.`,
+    `Hey ${customerName}! ${greeting} I understand if you're feeling uncertain about this - car financing with credit challenges isn't easy. I just wanted to personally reach out because I've helped a lot of people figure this out, and I'd love to see what we can do for you.`
+  ];
+
+  return openings[Math.floor(Math.random() * openings.length)];
 }
 
 // Helper function: Get empathetic continuation for returning customers
@@ -1120,22 +1119,22 @@ function getSubprimeContinuation(customerName, summaryText, dayContext, timeGree
   const greeting = dayContext || timeGreeting;
 
   if (summaryText.includes('suv') || summaryText.includes('truck')) {
-    return `Hey ${customerName}! ${greeting} I wanted to follow up about that SUV we discussed. Have you had a chance to think it over?`;
+    return `Hey ${customerName}! ${greeting} Just wanted to circle back about that SUV we talked about. No rush at all - just checking in to see if you had any questions or wanted to chat more about it.`;
   }
   if (summaryText.includes('financing') || summaryText.includes('credit') || summaryText.includes('approval')) {
-    return `Hey ${customerName}! ${greeting} I've been looking into your financing options and wanted to share some good news with you.`;
+    return `Hey ${customerName}! ${greeting} So I've been digging into some options for you, and I actually found a couple things that might work. Wanted to run them by you when you have a minute.`;
   }
   if (summaryText.includes('trade')) {
-    return `Hey ${customerName}! ${greeting} I wanted to follow up on your trade-in - I think I can get you a better number than we discussed.`;
+    return `Hey ${customerName}! ${greeting} I was thinking about your trade-in situation - I might be able to do better than what we talked about before. Want to go over it?`;
   }
 
-  return `Hey ${customerName}! ${greeting} I wanted to check in with you and see where you're at with everything.`;
+  return `Hey ${customerName}! ${greeting} Just wanted to touch base and see how you're feeling about everything. No pressure - just here if you want to talk through anything.`;
 }
 
 // Helper function: Get empathetic inbound greeting for new subprime leads
 function getSubprimeInboundNew(customerName, dayContext, timeGreeting) {
   const greeting = dayContext || timeGreeting;
-  return `Hey ${customerName}! ${greeting} Thanks for calling. I know this whole process can feel overwhelming - I'm here to make it as simple as possible for you. What's on your mind?`;
+  return `Hey ${customerName}! ${greeting} Thanks for reaching out. I know this whole car thing can feel like a lot - I'm just here to help make it easier. What's going on?`;
 }
 
 // Helper function: Get empathetic inbound greeting for returning customers
@@ -1143,10 +1142,10 @@ function getSubprimeInboundReturning(customerName, summaryText, dayContext, time
   const greeting = dayContext || timeGreeting;
 
   if (summaryText.includes('financing') || summaryText.includes('credit')) {
-    return `Hey ${customerName}! ${greeting} Good to hear from you again. Let's pick up where we left off with your financing - I've got some updates for you.`;
+    return `Hey ${customerName}! ${greeting} Good to hear from you. So I've been looking at some things for your financing situation - got a few ideas I want to run by you.`;
   }
 
-  return `Hey ${customerName}! ${greeting} Thanks for getting back to me. What can I help you with?`;
+  return `Hey ${customerName}! ${greeting} Good to hear from you again. What's on your mind?`;
 }
 
 function generateGreetingContext(leadData, isOutbound = false, previousSummary = null) {
