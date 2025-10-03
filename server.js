@@ -1151,10 +1151,10 @@ function getSubprimeContinuation(customerName, organizationName, summaryText, da
   const context = extractBriefContext(summaryText);
 
   if (context) {
-    return `Hey ${customerName}! ${greeting} It's Jack calling from ${organizationName}. Just following up on ${context}. What's going on?`;
+    return `Hey ${customerName}! ${greeting} It's Jack calling from ${organizationName}. Just following up on ${context}. Have you had a chance to think about it?`;
   }
 
-  return `Hey ${customerName}! ${greeting} It's Jack calling from ${organizationName}. Just wanted to check in and see how things are going. What's on your mind?`;
+  return `Hey ${customerName}! ${greeting} It's Jack calling from ${organizationName}. Just wanted to check in - have you had any more thoughts since we last talked?`;
 }
 
 // Helper function: Get empathetic inbound greeting for new subprime leads

@@ -18,13 +18,13 @@
 
 ### OUTBOUND - Follow-up (Returning Customer)
 
-**Identifies Jack first, then simple follow-up:**
+**Identifies Jack first, then continues information gathering:**
 
-- **With Context:** `Hey {{customer_name}}! {{day_context}} It's Jack calling from {{organization_name}}. Just following up on [the Honda you were looking at / the SUV you were interested in / your trade-in / your financing / that truck we talked about]. What's going on?`
+- **With Context:** `Hey {{customer_name}}! {{day_context}} It's Jack calling from {{organization_name}}. Just following up on [the Honda you were looking at / the SUV you were interested in / your trade-in / your financing / that truck we talked about]. Have you had a chance to think about it?`
 
-- **Without Context:** `Hey {{customer_name}}! {{day_context}} It's Jack calling from {{organization_name}}. Just wanted to check in and see how things are going. What's on your mind?`
+- **Without Context:** `Hey {{customer_name}}! {{day_context}} It's Jack calling from {{organization_name}}. Just wanted to check in - have you had any more thoughts since we last talked?`
 
-**Note:** "It's Jack calling from..." identifies who's calling so customer isn't startled. Uses `extractBriefContext()` helper to pull real reference from conversation summary. Simple and human, not salesy.
+**Note:** "It's Jack calling from..." identifies who's calling. Questions continue the conversation forward: "Have you had a chance to think about it?" / "Have you had any more thoughts?" - keeps information gathering going.
 
 ---
 
