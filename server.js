@@ -1134,7 +1134,7 @@ function getSubprimeContinuation(customerName, summaryText, dayContext, timeGree
 // Helper function: Get empathetic inbound greeting for new subprime leads
 function getSubprimeInboundNew(customerName, dayContext, timeGreeting) {
   const greeting = dayContext || timeGreeting;
-  return `Hey ${customerName}! ${greeting} Thanks for reaching out. I know this whole car thing can feel like a lot - I'm just here to help make it easier. What's going on?`;
+  return `Hey ${customerName}! ${greeting} I know this whole car thing can feel like a lot - I'm just here to help make it easier. What's going on?`;
 }
 
 // Helper function: Get empathetic inbound greeting for returning customers
@@ -1222,7 +1222,7 @@ function generateGreetingContext(leadData, isOutbound = false, previousSummary =
       firstMessageDynamic = getSubprimeInboundNew(customerName, dayGreeting, timeGreeting);
     } else {
       const greeting = dayGreeting || timeGreeting;
-      firstMessageDynamic = `Hey there! ${greeting} Thanks for calling. I'm here to help make this process as simple as possible for you. What's on your mind?`;
+      firstMessageDynamic = `Hey there! ${greeting} I'm here to help make this process as simple as possible for you. What's on your mind?`;
     }
   }
 

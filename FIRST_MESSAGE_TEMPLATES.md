@@ -30,9 +30,11 @@
 
 ---
 
-### INBOUND - New Caller
+### INBOUND - New Caller (or SMS Initiated by Us)
 
-`Hey {{customer_name}}! {{day_context}} Thanks for reaching out. I know this whole car thing can feel like a lot - I'm just here to help make it easier. What's going on?`
+`Hey {{customer_name}}! {{day_context}} I know this whole car thing can feel like a lot - I'm just here to help make it easier. What's going on?`
+
+**Note:** Channel-agnostic - works whether customer calls in or we initiate SMS
 
 ---
 
