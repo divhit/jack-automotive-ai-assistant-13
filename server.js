@@ -1146,15 +1146,15 @@ function extractBriefContext(summaryText) {
 }
 
 // Helper function: Get empathetic continuation for returning customers (outbound follow-up)
-function getSubprimeContinuation(customerName, summaryText, dayContext, timeGreeting) {
+function getSubprimeContinuation(customerName, organizationName, summaryText, dayContext, timeGreeting) {
   const greeting = dayContext || timeGreeting;
   const context = extractBriefContext(summaryText);
 
   if (context) {
-    return `Hey ${customerName}! ${greeting} Just following up on ${context}. What's going on?`;
+    return `Hey ${customerName}! ${greeting} It's Jack calling from ${organizationName}. Just following up on ${context}. What's going on?`;
   }
 
-  return `Hey ${customerName}! ${greeting} Just wanted to check in and see how things are going. What's on your mind?`;
+  return `Hey ${customerName}! ${greeting} It's Jack calling from ${organizationName}. Just wanted to check in and see how things are going. What's on your mind?`;
 }
 
 // Helper function: Get empathetic inbound greeting for new subprime leads
@@ -1198,7 +1198,7 @@ function generateGreetingContext(leadData, isOutbound = false, previousSummary =
     if (hasName && previousSummary && !previousSummary.includes("First conversation")) {
       // Returning customer - empathetic continuation
       const summaryText = previousSummary.toLowerCase();
-      firstMessageDynamic = getSubprimeContinuation(customerName, summaryText, dayContext, outboundTimeGreeting);
+      firstMessageDynamic = getSubprimeContinuation(customerName, organizationName, summaryText, dayContext, outboundTimeGreeting);
     } else if (hasName) {
       // Initial outreach - empathetic subprime opening with intro
       firstMessageDynamic = getSubprimeInitialOpening(customerName, organizationName, dayContext, outboundTimeGreeting);
