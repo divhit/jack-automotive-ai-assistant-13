@@ -5990,75 +5990,50 @@ app.post('/api/subprime/create-lead', validateOrganizationAccess, async (req, re
     // Invalidate cache since we added a new lead
     invalidateLeadsCache(leadData.organizationId);
 
-    // Send initial SMS message asynchronously (non-blocking)
+    // ⭐ TRIGGER AGENT OUTREACH: Simulate incoming SMS to kickstart conversation
+    // Instead of manually sending SMS, we trigger the normal SMS flow by simulating
+    // an incoming message from the lead's phone. This starts an ElevenLabs conversation
+    // where the agent speaks first, and the response gets sent as SMS automatically.
     (async () => {
       try {
         if (leadRecord.phoneNumber && leadRecord.organizationId) {
-          // Check if Twilio is configured
-          const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
-          const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
+          console.log(`🤖 Triggering AI agent outreach to ${leadRecord.customerName} (${leadRecord.phoneNumber})`);
 
-          if (!twilioAccountSid || !twilioAuthToken) {
-            console.log(`⚠️ Twilio not configured - skipping initial SMS`);
+          // Get organization's phone number
+          const orgPhoneNumbers = await getOrganizationPhoneNumber(leadRecord.organizationId);
+          const orgPhone = orgPhoneNumbers?.sms || process.env.TWILIO_PHONE_NUMBER;
+
+          // Normalize lead's phone for system
+          const leadPhone = normalizePhoneForTwilio(leadRecord.phoneNumber);
+
+          // Simulate incoming SMS trigger message (internal only, not from Twilio)
+          // This triggers startConversation() which will make the agent respond
+          const simulatedMessage = "AGENT_INITIATE"; // Internal trigger, won't be sent to customer
+
+          // Check if conversation already active
+          const normalizedPhone = normalizePhoneNumber(leadPhone);
+          if (activeConversations.has(normalizedPhone)) {
+            console.log(`⚠️ Conversation already active for ${leadPhone} - skipping trigger`);
             return;
           }
 
-          console.log(`📱 Sending initial outreach to ${leadRecord.customerName} (${leadRecord.phoneNumber})`);
-
-          // Get organization name from cache
-          const organizationName = await getOrganizationNameCached(leadRecord.organizationId);
-
-          // Generate empathetic initial message
-          const initialMessage = generateInitialSubprimeMessage(
-            leadRecord.customerName,
-            organizationName
+          // Start new conversation with agent speaking first
+          // The agent's first_message will be used, and it will automatically be sent as SMS
+          console.log(`🚀 Starting conversation: ${leadPhone} → agent speaks first`);
+          startConversation(
+            leadPhone,              // phoneNumber
+            simulatedMessage,       // initialMessage (internal trigger)
+            leadRecord.organizationId,  // organizationId
+            'sms',                  // conversationChannel
+            leadRecord.id,          // leadId
+            "New Inquiry"           // leadStatus
           );
 
-          // Get organization's Twilio phone number
-          const orgPhoneNumbers = await getOrganizationPhoneNumber(leadRecord.organizationId);
-          const fromPhone = orgPhoneNumbers?.sms || process.env.TWILIO_PHONE_NUMBER;
-
-          // Convert display format to Twilio format
-          const toPhone = normalizePhoneForTwilio(leadRecord.phoneNumber);
-
-          // Create Twilio client and send SMS
-          const { default: twilio } = await import('twilio');
-          const twilioClient = twilio(twilioAccountSid, twilioAuthToken);
-
-          await twilioClient.messages.create({
-            body: initialMessage,
-            from: fromPhone,
-            to: toPhone
-          });
-
-          console.log(`✅ Initial SMS sent to ${toPhone} from ${fromPhone}`);
-
-          // ⭐ CRITICAL: Store in conversation history for context continuity
-          // This ensures ElevenLabs agent has full context when customer responds
-          addToConversationHistory(
-            toPhone,                      // phoneNumber (normalized format)
-            initialMessage,                // message content
-            'agent',                       // sentBy (agent sent this)
-            'text',                        // messageType (SMS)
-            leadRecord.organizationId      // organizationId for multi-tenant isolation
-          );
-
-          // Persist to Supabase for durability
-          await supabasePersistence.persistConversationMessage(
-            toPhone,              // phoneNumber
-            initialMessage,       // message
-            'agent',              // sentBy
-            'text',               // messageType
-            { organizationId: leadRecord.organizationId }  // metadata
-          ).catch(err => {
-            console.log(`⚠️ DB persistence warning (non-critical):`, err.message);
-          });
-
-          console.log(`💾 Initial message stored in conversation history for context continuity`);
+          console.log(`✅ Agent outreach triggered - conversation will start and SMS will be sent automatically`);
         }
       } catch (error) {
-        console.error(`⚠️ Failed to send initial message (non-blocking):`, error);
-        // Don't fail lead creation if message fails
+        console.error(`⚠️ Failed to trigger agent outreach (non-blocking):`, error);
+        // Don't fail lead creation if trigger fails
       }
     })();
 
