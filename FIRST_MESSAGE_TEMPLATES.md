@@ -18,15 +18,13 @@
 
 ### OUTBOUND - Follow-up (Returning Customer)
 
-**Context-aware, Conversational, Helpful:**
+**Simple, human, context-aware using helper function:**
 
-- **About SUV/Vehicle:** `Hey {{customer_name}}! {{day_context}} Just wanted to circle back about that SUV we talked about. No rush at all - just checking in to see if you had any questions or wanted to chat more about it.`
+- **With Context:** `Hey {{customer_name}}! {{day_context}} Just following up on [the Honda you were looking at / the SUV you were interested in / your trade-in / your financing / that truck we talked about]. What's going on?`
 
-- **About Financing:** `Hey {{customer_name}}! {{day_context}} So I've been digging into some options for you, and I actually found a couple things that might work. Wanted to run them by you when you have a minute.`
+- **Without Context:** `Hey {{customer_name}}! {{day_context}} Just wanted to check in and see how things are going. What's on your mind?`
 
-- **About Trade-in:** `Hey {{customer_name}}! {{day_context}} I was thinking about your trade-in situation - I might be able to do better than what we talked about before. Want to go over it?`
-
-- **General Check-in:** `Hey {{customer_name}}! {{day_context}} Just wanted to touch base and see how you're feeling about everything. No pressure - just here if you want to talk through anything.`
+**Note:** Uses `extractBriefContext()` helper to pull real reference from conversation summary - "the Honda you were looking at", "your trade-in", "your financing", etc. Simple and human, not salesy.
 
 ---
 

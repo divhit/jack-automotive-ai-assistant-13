@@ -1114,21 +1114,47 @@ function getSubprimeInitialOpening(customerName, organizationName, dayContext, t
   return openings[Math.floor(Math.random() * openings.length)];
 }
 
-// Helper function: Get empathetic continuation for returning customers
+// Helper function: Extract brief context from previous conversation for outbound follow-up
+function extractBriefContext(summaryText) {
+  if (!summaryText || summaryText.includes("First conversation")) {
+    return null;
+  }
+
+  // Extract a brief natural reference from the conversation
+  const text = summaryText.toLowerCase();
+
+  if (text.includes('honda') || text.includes('civic') || text.includes('accord')) {
+    return "the Honda you were looking at";
+  }
+  if (text.includes('toyota') || text.includes('camry') || text.includes('corolla')) {
+    return "that Toyota we discussed";
+  }
+  if (text.includes('suv') || text.includes('cr-v') || text.includes('rav4')) {
+    return "the SUV you were interested in";
+  }
+  if (text.includes('truck') || text.includes('f-150') || text.includes('silverado')) {
+    return "that truck we talked about";
+  }
+  if (text.includes('trade')) {
+    return "your trade-in";
+  }
+  if (text.includes('financing') || text.includes('approval') || text.includes('credit')) {
+    return "your financing";
+  }
+
+  return "our previous conversation";
+}
+
+// Helper function: Get empathetic continuation for returning customers (outbound follow-up)
 function getSubprimeContinuation(customerName, summaryText, dayContext, timeGreeting) {
   const greeting = dayContext || timeGreeting;
+  const context = extractBriefContext(summaryText);
 
-  if (summaryText.includes('suv') || summaryText.includes('truck')) {
-    return `Hey ${customerName}! ${greeting} Just wanted to circle back about that SUV we talked about. No rush at all - just checking in to see if you had any questions or wanted to chat more about it.`;
-  }
-  if (summaryText.includes('financing') || summaryText.includes('credit') || summaryText.includes('approval')) {
-    return `Hey ${customerName}! ${greeting} So I've been digging into some options for you, and I actually found a couple things that might work. Wanted to run them by you when you have a minute.`;
-  }
-  if (summaryText.includes('trade')) {
-    return `Hey ${customerName}! ${greeting} I was thinking about your trade-in situation - I might be able to do better than what we talked about before. Want to go over it?`;
+  if (context) {
+    return `Hey ${customerName}! ${greeting} Just following up on ${context}. What's going on?`;
   }
 
-  return `Hey ${customerName}! ${greeting} Just wanted to touch base and see how you're feeling about everything. No pressure - just here if you want to talk through anything.`;
+  return `Hey ${customerName}! ${greeting} Just wanted to check in and see how things are going. What's on your mind?`;
 }
 
 // Helper function: Get empathetic inbound greeting for new subprime leads
