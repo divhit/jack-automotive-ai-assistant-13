@@ -2208,28 +2208,22 @@ function startConversation(phoneNumber, initialMessage, organizationId = null, c
 
     // Build first message override for SMS
     // CRITICAL: Only use first_message for INITIAL outreach (when we send first SMS)
-    // For CONTINUING conversations (user replies), set to empty string so agent responds naturally
+    // For CONTINUING conversations (user replies), DON'T set first_message - we'll send user's message instead
     const isInitialOutreach = history.length <= 1; // Only our initial SMS exists
 
-    let firstMessageOverride = null;
-    if (conversationChannel === 'sms') {
-      if (isInitialOutreach) {
-        // Initial outreach - use dynamic greeting
-        firstMessageOverride = dynamicVars.first_message_dynamic || `Hey ${customerName}! Thanks for reaching out. How can I help you?`;
-      } else {
-        // Continuing conversation - blank first_message so agent responds to user's message
-        firstMessageOverride = "";
-      }
+    let conversationConfigOverride = undefined;
+    if (conversationChannel === 'sms' && isInitialOutreach) {
+      // Initial outreach only - agent speaks first
+      const firstMessageOverride = dynamicVars.first_message_dynamic || `Hey ${customerName}! Thanks for reaching out. How can I help you?`;
+      conversationConfigOverride = {
+        agent: {
+          first_message: firstMessageOverride
+        }
+      };
+      console.log(`📝 First message override for ${conversationChannel}:`, firstMessageOverride);
+    } else if (conversationChannel === 'sms') {
+      console.log(`📝 Continuing SMS conversation - will send user message after initiation`);
     }
-
-    // Build conversation config override (for SMS first message)
-    const conversationConfigOverride = conversationChannel === 'sms' && firstMessageOverride !== null ? {
-      agent: {
-        first_message: firstMessageOverride
-      }
-    } : undefined;
-
-    console.log(`📝 First message override for ${conversationChannel}:`, firstMessageOverride);
 
     // FIXED: Send with correct ElevenLabs structure per documentation
     // - dynamic_variables at TOP LEVEL for context injection
@@ -2271,10 +2265,15 @@ function startConversation(phoneNumber, initialMessage, organizationId = null, c
       if (response.type === 'conversation_initiation_metadata') {
         console.log(`✅ [${phoneNumber}] Conversation initiated on ${conversationChannel} channel`);
 
-        // USING conversation_config_override.agent.first_message PER ELEVENLABS DOCS
-        // The first_message override makes the agent speak first with a contextual response
-        // We do NOT send the user's message separately - the override handles everything
-        console.log(`🎯 [${phoneNumber}] Agent will speak first using first_message override`);
+        // For SMS: Check if this is initial outreach or continuing conversation
+        if (conversationChannel === 'sms' && initialMessage && !conversationConfigOverride) {
+          // Continuing conversation - send user's message to agent
+          console.log(`📤 [${phoneNumber}] Sending user message to agent: ${initialMessage.substring(0, 50)}...`);
+          ws.send(JSON.stringify({ type: 'user_message', text: initialMessage }));
+        } else if (conversationConfigOverride) {
+          // Initial outreach - agent speaks first with first_message override
+          console.log(`🎯 [${phoneNumber}] Agent will speak first using first_message override`);
+        }
 
       } else if (response.type === 'agent_response') {
         const agentResponse = response.agent_response_event?.agent_response || '';
