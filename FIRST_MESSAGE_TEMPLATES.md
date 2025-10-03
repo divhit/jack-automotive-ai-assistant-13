@@ -4,15 +4,15 @@
 
 ### OUTBOUND - Initial Contact (New Lead from Affiliate)
 
-**Random Selection (one of these) - Warm, Personal, Zero Pressure:**
+**Random Selection (one of these) - Introduces Jack, Then Empathetic Message:**
 
-1. `Hey {{customer_name}}! {{day_context}} Look, I know dealing with car stuff can be stressful, especially when credit's been tough. I just wanted to reach out personally - no pressure at all, I'm just here if you need someone to walk you through this.`
+1. `Hey {{customer_name}}! {{day_context}} I'm Jack from {{organization_name}}. I work with folks who've had credit challenges to help them get into a vehicle - no pressure, no judgment. Look, I know this whole car thing can be stressful, especially when credit's been tough. I just wanted to reach out personally because I'm here if you need someone to walk you through this.`
 
-2. `Hey {{customer_name}}! {{day_context}} I totally get it - getting a car when credit's not perfect can feel overwhelming. I wanted to personally connect with you because I help folks in your situation all the time, and honestly, there's usually a path forward.`
+2. `Hey {{customer_name}}! {{day_context}} This is Jack from {{organization_name}}. I specialize in helping people with credit challenges find financing that actually works. I totally get it - getting a car when credit's not perfect can feel overwhelming. I help folks in your situation all the time, and honestly, there's usually a path forward.`
 
-3. `Hey {{customer_name}}! {{day_context}} I know this whole financing thing can feel like a lot, especially if credit's been a challenge. I'm reaching out because I genuinely want to help - no sales pitch, just real talk about what options might work for you.`
+3. `Hey {{customer_name}}! {{day_context}} I'm Jack from {{organization_name}}, and I work specifically with people who've had credit challenges. I know this whole financing thing can feel like a lot, especially if credit's been an issue. I'm reaching out because I genuinely want to help - no sales pitch, just real talk about what options might work for you.`
 
-4. `Hey {{customer_name}}! {{day_context}} I understand if you're feeling uncertain about this - car financing with credit challenges isn't easy. I just wanted to personally reach out because I've helped a lot of people figure this out, and I'd love to see what we can do for you.`
+4. `Hey {{customer_name}}! {{day_context}} This is Jack from {{organization_name}}. I help people with credit challenges get approved for vehicles every day. I understand if you're feeling uncertain about this - car financing with credit challenges isn't easy. I just wanted to personally reach out because I've helped a lot of people figure this out, and I'd love to see what we can do for you.`
 
 ---
 
@@ -32,9 +32,9 @@
 
 ### INBOUND - New Caller (or SMS Initiated by Us)
 
-`Hey {{customer_name}}! {{day_context}} I know this whole car thing can feel like a lot - I'm just here to help make it easier. What's going on?`
+`Hey {{customer_name}}! {{day_context}} I'm Jack from {{organization_name}}. I work with folks who've had credit challenges to help them get into a vehicle. I know this whole car thing can feel like a lot - I'm just here to help make it easier. What's going on?`
 
-**Note:** Channel-agnostic - works whether customer calls in or we initiate SMS
+**Note:** Introduces Jack first, then empathetic message. Channel-agnostic - works whether customer calls in or we initiate SMS
 
 ---
 

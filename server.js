@@ -1101,14 +1101,14 @@ function getCustomerGreeting(customerName, lastVisit) {
 }
 
 // Helper function: Get empathetic opening for initial subprime outreach
-function getSubprimeInitialOpening(customerName, dayContext, timeGreeting) {
+function getSubprimeInitialOpening(customerName, organizationName, dayContext, timeGreeting) {
   const greeting = dayContext || timeGreeting;
 
   const openings = [
-    `Hey ${customerName}! ${greeting} Look, I know dealing with car stuff can be stressful, especially when credit's been tough. I just wanted to reach out personally - no pressure at all, I'm just here if you need someone to walk you through this.`,
-    `Hey ${customerName}! ${greeting} I totally get it - getting a car when credit's not perfect can feel overwhelming. I wanted to personally connect with you because I help folks in your situation all the time, and honestly, there's usually a path forward.`,
-    `Hey ${customerName}! ${greeting} I know this whole financing thing can feel like a lot, especially if credit's been a challenge. I'm reaching out because I genuinely want to help - no sales pitch, just real talk about what options might work for you.`,
-    `Hey ${customerName}! ${greeting} I understand if you're feeling uncertain about this - car financing with credit challenges isn't easy. I just wanted to personally reach out because I've helped a lot of people figure this out, and I'd love to see what we can do for you.`
+    `Hey ${customerName}! ${greeting} I'm Jack from ${organizationName}. I work with folks who've had credit challenges to help them get into a vehicle - no pressure, no judgment. Look, I know this whole car thing can be stressful, especially when credit's been tough. I just wanted to reach out personally because I'm here if you need someone to walk you through this.`,
+    `Hey ${customerName}! ${greeting} This is Jack from ${organizationName}. I specialize in helping people with credit challenges find financing that actually works. I totally get it - getting a car when credit's not perfect can feel overwhelming. I help folks in your situation all the time, and honestly, there's usually a path forward.`,
+    `Hey ${customerName}! ${greeting} I'm Jack from ${organizationName}, and I work specifically with people who've had credit challenges. I know this whole financing thing can feel like a lot, especially if credit's been an issue. I'm reaching out because I genuinely want to help - no sales pitch, just real talk about what options might work for you.`,
+    `Hey ${customerName}! ${greeting} This is Jack from ${organizationName}. I help people with credit challenges get approved for vehicles every day. I understand if you're feeling uncertain about this - car financing with credit challenges isn't easy. I just wanted to personally reach out because I've helped a lot of people figure this out, and I'd love to see what we can do for you.`
   ];
 
   return openings[Math.floor(Math.random() * openings.length)];
@@ -1132,9 +1132,9 @@ function getSubprimeContinuation(customerName, summaryText, dayContext, timeGree
 }
 
 // Helper function: Get empathetic inbound greeting for new subprime leads
-function getSubprimeInboundNew(customerName, dayContext, timeGreeting) {
+function getSubprimeInboundNew(customerName, organizationName, dayContext, timeGreeting) {
   const greeting = dayContext || timeGreeting;
-  return `Hey ${customerName}! ${greeting} I know this whole car thing can feel like a lot - I'm just here to help make it easier. What's going on?`;
+  return `Hey ${customerName}! ${greeting} I'm Jack from ${organizationName}. I work with folks who've had credit challenges to help them get into a vehicle. I know this whole car thing can feel like a lot - I'm just here to help make it easier. What's going on?`;
 }
 
 // Helper function: Get empathetic inbound greeting for returning customers
@@ -1148,7 +1148,7 @@ function getSubprimeInboundReturning(customerName, summaryText, dayContext, time
   return `Hey ${customerName}! ${greeting} Good to hear from you again. What's on your mind?`;
 }
 
-function generateGreetingContext(leadData, isOutbound = false, previousSummary = null) {
+function generateGreetingContext(leadData, isOutbound = false, previousSummary = null, organizationName = "our dealership") {
   const hasName = !!(leadData?.customerName);
   const customerName = leadData?.customerName || "";
 
@@ -1174,12 +1174,12 @@ function generateGreetingContext(leadData, isOutbound = false, previousSummary =
       const summaryText = previousSummary.toLowerCase();
       firstMessageDynamic = getSubprimeContinuation(customerName, summaryText, dayContext, outboundTimeGreeting);
     } else if (hasName) {
-      // Initial outreach - empathetic subprime opening
-      firstMessageDynamic = getSubprimeInitialOpening(customerName, dayContext, outboundTimeGreeting);
+      // Initial outreach - empathetic subprime opening with intro
+      firstMessageDynamic = getSubprimeInitialOpening(customerName, organizationName, dayContext, outboundTimeGreeting);
     } else {
-      // No name - generic but warm
+      // No name - generic but warm with intro
       const greeting = dayContext || outboundTimeGreeting;
-      firstMessageDynamic = `Hey there! ${greeting} I wanted to reach out about helping you with your vehicle financing. I work with folks who've had credit challenges and I'd love to see what options we can find for you.`;
+      firstMessageDynamic = `Hey there! ${greeting} I'm Jack from ${organizationName}. I work with folks who've had credit challenges and I'd love to see what options we can find for you.`;
     }
 
     return {
@@ -1215,14 +1215,14 @@ function generateGreetingContext(leadData, isOutbound = false, previousSummary =
       firstMessageDynamic = `Hey! ${greeting} Thanks for calling back. What can I help you with?`;
     }
   } else {
-    // First-time caller - empathetic subprime greeting
+    // First-time caller - empathetic subprime greeting with intro
     callType = "inbound_new";
 
     if (hasName) {
-      firstMessageDynamic = getSubprimeInboundNew(customerName, dayGreeting, timeGreeting);
+      firstMessageDynamic = getSubprimeInboundNew(customerName, organizationName, dayGreeting, timeGreeting);
     } else {
       const greeting = dayGreeting || timeGreeting;
-      firstMessageDynamic = `Hey there! ${greeting} I'm here to help make this process as simple as possible for you. What's on your mind?`;
+      firstMessageDynamic = `Hey there! ${greeting} I'm Jack from ${organizationName}. I'm here to help make this process as simple as possible for you. What's on your mind?`;
     }
   }
 
@@ -2167,7 +2167,7 @@ function startConversation(phoneNumber, initialMessage, organizationId = null, c
     }
     
     // Generate greeting context for SMS (inbound response)
-    const greetingContext = generateGreetingContext(leadData, false, previousSummary);
+    const greetingContext = generateGreetingContext(leadData, false, previousSummary, organizationName);
     
     // DEBUG: Log the actual dynamic variables being sent
     const dynamicVars = {
@@ -3354,7 +3354,7 @@ app.post('/api/elevenlabs/outbound-call', validateOrganizationAccess, async (req
     });
     
     // Generate dynamic greeting context for outbound calls
-    const greetingContext = generateGreetingContext(leadData, true, previousSummary);
+    const greetingContext = generateGreetingContext(leadData, true, previousSummary, organizationName);
     
     // Build comprehensive dynamic variables
     const enhancedDynamicVariables = {
@@ -5748,7 +5748,7 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', async (req, res) =>
     const finalContext = createSmartContextSummary(conversationContext, messages, summary);
     
     // Generate dynamic greeting context (BICI approach)
-    const greetingContext = generateGreetingContext(leadData, false, previousSummary);
+    const greetingContext = generateGreetingContext(leadData, false, previousSummary, organizationName);
     
     // Build the response in the format ElevenLabs expects with dynamic greetings
     const response = {
