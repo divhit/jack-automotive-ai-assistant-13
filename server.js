@@ -396,6 +396,35 @@ function normalizePhoneNumber(phoneNumber) {
 }
 
 /**
+ * Convert display format (555) 123-4567 to Twilio format +15551234567
+ * Used for sending SMS messages via Twilio API
+ */
+function normalizePhoneForTwilio(phoneNumber) {
+  if (!phoneNumber) return phoneNumber;
+
+  // Remove all non-digit characters
+  const digits = phoneNumber.replace(/\D/g, '');
+
+  // Add +1 country code if not present
+  if (digits.length === 10) {
+    return `+1${digits}`;
+  } else if (digits.length === 11 && digits.startsWith('1')) {
+    return `+${digits}`;
+  }
+
+  // Return as-is if unexpected format
+  return phoneNumber;
+}
+
+/**
+ * Generate empathetic initial outreach message for subprime leads
+ * User-agnostic, permission-based cold outreach
+ */
+function generateInitialSubprimeMessage(customerName, organizationName) {
+  return `Hi ${customerName}, this is Jack from ${organizationName}. I know dealing with car financing can be stressful, especially if credit has been a challenge. I'm here to help make it easier - no judgment, just real options. Mind if I ask what you're looking for in a vehicle?`;
+}
+
+/**
  * Find conversation history using organization-aware phone number lookup
  * This ensures SMS and Voice conversations are properly isolated by organization
  */
@@ -5950,9 +5979,81 @@ app.post('/api/subprime/create-lead', validateOrganizationAccess, async (req, re
 
     // Invalidate cache since we added a new lead
     invalidateLeadsCache(leadData.organizationId);
-    
-    res.status(201).json({ 
-      success: true, 
+
+    // Send initial SMS message asynchronously (non-blocking)
+    (async () => {
+      try {
+        if (leadRecord.phoneNumber && leadRecord.organizationId) {
+          // Check if Twilio is configured
+          const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
+          const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
+
+          if (!twilioAccountSid || !twilioAuthToken) {
+            console.log(`⚠️ Twilio not configured - skipping initial SMS`);
+            return;
+          }
+
+          console.log(`📱 Sending initial outreach to ${leadRecord.customerName} (${leadRecord.phoneNumber})`);
+
+          // Get organization name from cache
+          const organizationName = await getOrganizationNameCached(leadRecord.organizationId);
+
+          // Generate empathetic initial message
+          const initialMessage = generateInitialSubprimeMessage(
+            leadRecord.customerName,
+            organizationName
+          );
+
+          // Get organization's Twilio phone number
+          const orgPhoneNumbers = await getOrganizationPhoneNumber(leadRecord.organizationId);
+          const fromPhone = orgPhoneNumbers?.sms || process.env.TWILIO_PHONE_NUMBER;
+
+          // Convert display format to Twilio format
+          const toPhone = normalizePhoneForTwilio(leadRecord.phoneNumber);
+
+          // Create Twilio client and send SMS
+          const { default: twilio } = await import('twilio');
+          const twilioClient = twilio(twilioAccountSid, twilioAuthToken);
+
+          await twilioClient.messages.create({
+            body: initialMessage,
+            from: fromPhone,
+            to: toPhone
+          });
+
+          console.log(`✅ Initial SMS sent to ${toPhone} from ${fromPhone}`);
+
+          // ⭐ CRITICAL: Store in conversation history for context continuity
+          // This ensures ElevenLabs agent has full context when customer responds
+          addToConversationHistory(
+            toPhone,                      // phoneNumber (normalized format)
+            initialMessage,                // message content
+            'agent',                       // sentBy (agent sent this)
+            'text',                        // messageType (SMS)
+            leadRecord.organizationId      // organizationId for multi-tenant isolation
+          );
+
+          // Persist to Supabase for durability
+          await supabasePersistence.persistConversationMessage(
+            toPhone,              // phoneNumber
+            initialMessage,       // message
+            'agent',              // sentBy
+            'text',               // messageType
+            { organizationId: leadRecord.organizationId }  // metadata
+          ).catch(err => {
+            console.log(`⚠️ DB persistence warning (non-critical):`, err.message);
+          });
+
+          console.log(`💾 Initial message stored in conversation history for context continuity`);
+        }
+      } catch (error) {
+        console.error(`⚠️ Failed to send initial message (non-blocking):`, error);
+        // Don't fail lead creation if message fails
+      }
+    })();
+
+    res.status(201).json({
+      success: true,
       message: 'Lead created successfully',
       leadId: leadData.id,
       organizationId: leadData.organizationId, // SECURITY: Return organization context
