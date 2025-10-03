@@ -2206,13 +2206,24 @@ function startConversation(phoneNumber, initialMessage, organizationId = null, c
       call_type: dynamicVars.call_type
     });
 
-    // Build first message override for SMS to respond to user's message contextually
-    const firstMessageOverride = conversationChannel === 'sms'
-      ? dynamicVars.first_message_dynamic || `Hey ${customerName}! Thanks for reaching out. How can I help you?`
-      : null;
+    // Build first message override for SMS
+    // CRITICAL: Only use first_message for INITIAL outreach (when we send first SMS)
+    // For CONTINUING conversations (user replies), set to empty string so agent responds naturally
+    const isInitialOutreach = history.length <= 1; // Only our initial SMS exists
+
+    let firstMessageOverride = null;
+    if (conversationChannel === 'sms') {
+      if (isInitialOutreach) {
+        // Initial outreach - use dynamic greeting
+        firstMessageOverride = dynamicVars.first_message_dynamic || `Hey ${customerName}! Thanks for reaching out. How can I help you?`;
+      } else {
+        // Continuing conversation - blank first_message so agent responds to user's message
+        firstMessageOverride = "";
+      }
+    }
 
     // Build conversation config override (for SMS first message)
-    const conversationConfigOverride = conversationChannel === 'sms' && firstMessageOverride ? {
+    const conversationConfigOverride = conversationChannel === 'sms' && firstMessageOverride !== null ? {
       agent: {
         first_message: firstMessageOverride
       }
