@@ -1100,42 +1100,61 @@ function getCustomerGreeting(customerName, lastVisit) {
   return `${customerName}`;
 }
 
+// Helper function: Get empathetic opening for initial subprime outreach
+function getSubprimeInitialOpening(customerName, dayContext, timeGreeting) {
+  const openings = [
+    `${customerName}, I know dealing with car financing can feel overwhelming, especially when credit's been a challenge. I'm here to help make this easier for you - no pressure, no judgment.`,
+    `${customerName}, I understand getting approved for a car loan can be tough when credit's not perfect. That's exactly why I'm reaching out - I work with folks in your situation every day.`,
+    `${customerName}, I get it - financing a vehicle when you've had credit challenges can be stressful. I wanted to personally reach out because I've helped a lot of people in similar situations.`,
+    `${customerName}, I know the car buying process can feel really stressful, especially when credit's been an issue. I'm here to walk you through this with real options that actually work.`
+  ];
+
+  const opening = openings[Math.floor(Math.random() * openings.length)];
+  const greeting = dayContext || timeGreeting;
+
+  return `Hey ${opening}`;
+}
+
+// Helper function: Get empathetic continuation for returning customers
+function getSubprimeContinuation(customerName, summaryText, dayContext, timeGreeting) {
+  const greeting = dayContext || timeGreeting;
+
+  if (summaryText.includes('suv') || summaryText.includes('truck')) {
+    return `Hey ${customerName}! ${greeting} I wanted to follow up about that SUV we discussed. Have you had a chance to think it over?`;
+  }
+  if (summaryText.includes('financing') || summaryText.includes('credit') || summaryText.includes('approval')) {
+    return `Hey ${customerName}! ${greeting} I've been looking into your financing options and wanted to share some good news with you.`;
+  }
+  if (summaryText.includes('trade')) {
+    return `Hey ${customerName}! ${greeting} I wanted to follow up on your trade-in - I think I can get you a better number than we discussed.`;
+  }
+
+  return `Hey ${customerName}! ${greeting} I wanted to check in with you and see where you're at with everything.`;
+}
+
+// Helper function: Get empathetic inbound greeting for new subprime leads
+function getSubprimeInboundNew(customerName, dayContext, timeGreeting) {
+  const greeting = dayContext || timeGreeting;
+  return `Hey ${customerName}! ${greeting} Thanks for calling. I know this whole process can feel overwhelming - I'm here to make it as simple as possible for you. What's on your mind?`;
+}
+
+// Helper function: Get empathetic inbound greeting for returning customers
+function getSubprimeInboundReturning(customerName, summaryText, dayContext, timeGreeting) {
+  const greeting = dayContext || timeGreeting;
+
+  if (summaryText.includes('financing') || summaryText.includes('credit')) {
+    return `Hey ${customerName}! ${greeting} Good to hear from you again. Let's pick up where we left off with your financing - I've got some updates for you.`;
+  }
+
+  return `Hey ${customerName}! ${greeting} Thanks for getting back to me. What can I help you with?`;
+}
+
 function generateGreetingContext(leadData, isOutbound = false, previousSummary = null) {
   const hasName = !!(leadData?.customerName);
   const customerName = leadData?.customerName || "";
-  
-  // For outbound calls, create continuation greetings
+
+  // For outbound calls, create empathetic subprime-focused greetings
   if (isOutbound) {
-    const outboundVariations = [
-      "I wanted to follow up with you",
-      "Just calling to check in with you", 
-      "I'm following up from our earlier chat",
-      "Wanted to continue where we left off",
-      "Just giving you a quick call back"
-    ];
-    
-    let variation = outboundVariations[Math.floor(Math.random() * outboundVariations.length)];
-    
-    // Make it more specific based on previous conversation
-    if (previousSummary) {
-      const summaryText = previousSummary.toLowerCase();
-      
-      if (summaryText.includes('suv') || summaryText.includes('truck')) {
-        variation = "I'm calling about the SUV you were interested in";
-      } else if (summaryText.includes('sedan') || summaryText.includes('car')) {
-        variation = "I'm calling about the vehicle you were interested in";
-      } else if (summaryText.includes('financing') || summaryText.includes('loan')) {
-        variation = "I'm following up on the financing options we discussed";
-      } else if (summaryText.includes('test drive') || summaryText.includes('appointment')) {
-        variation = "I'm calling about scheduling your test drive";
-      } else if (summaryText.includes('service') || summaryText.includes('maintenance')) {
-        variation = "I'm calling about your service appointment";
-      } else if (summaryText.includes('trade') || summaryText.includes('trade-in')) {
-        variation = "I'm following up on your trade-in inquiry";
-      }
-    }
-    
-    // Outbound-specific time greeting (no "thanks for calling")
     const getOutboundTimeGreeting = () => {
       const now = new Date();
       const pacificTime = new Date(now.toLocaleString("en-US", { timeZone: "America/Los_Angeles" }));
@@ -1149,21 +1168,19 @@ function generateGreetingContext(leadData, isOutbound = false, previousSummary =
     const outboundTimeGreeting = getOutboundTimeGreeting();
     const dayContext = getDayContext();
 
-    // Build natural outbound first message
     let firstMessageDynamic;
-    if (hasName && previousSummary) {
-      const callReason = extractCallReason(previousSummary);
-      firstMessageDynamic = dayContext ?
-        `Hey ${customerName}! ${dayContext} I'm calling about ${callReason}` :
-        `Hey ${customerName}! ${outboundTimeGreeting} I'm calling about ${callReason}`;
+
+    if (hasName && previousSummary && !previousSummary.includes("First conversation")) {
+      // Returning customer - empathetic continuation
+      const summaryText = previousSummary.toLowerCase();
+      firstMessageDynamic = getSubprimeContinuation(customerName, summaryText, dayContext, outboundTimeGreeting);
     } else if (hasName) {
-      firstMessageDynamic = dayContext ?
-        `Hey ${customerName}! ${dayContext} ${variation}` :
-        `Hey ${customerName}! ${outboundTimeGreeting} ${variation}`;
+      // Initial outreach - empathetic subprime opening
+      firstMessageDynamic = getSubprimeInitialOpening(customerName, dayContext, outboundTimeGreeting);
     } else {
-      firstMessageDynamic = dayContext ?
-        `Hey! ${dayContext} ${variation}` :
-        `Hey! ${outboundTimeGreeting} ${variation}`;
+      // No name - generic but warm
+      const greeting = dayContext || outboundTimeGreeting;
+      firstMessageDynamic = `Hey there! ${greeting} I wanted to reach out about helping you with your vehicle financing. I work with folks who've had credit challenges and I'd love to see what options we can find for you.`;
     }
 
     return {
@@ -1171,15 +1188,15 @@ function generateGreetingContext(leadData, isOutbound = false, previousSummary =
       day_context: dayContext,
       customer_greeting: getCustomerGreeting(customerName, leadData?.lastTouchpoint),
       customer_name: customerName,
-      greeting_opener: hasName ? `Hey ${customerName}!` : "Hey!",
-      greeting_variation: variation,
+      greeting_opener: hasName ? `Hey ${customerName}!` : "Hey there!",
+      greeting_variation: previousSummary && !previousSummary.includes("First conversation") ? "returning_subprime" : "initial_subprime",
       is_outbound: "true",
-      call_type: "outbound_followup",
+      call_type: previousSummary && !previousSummary.includes("First conversation") ? "outbound_followup" : "outbound_initial",
       first_message_dynamic: firstMessageDynamic
     };
   }
   
-  // Inbound call greetings - differentiate between first-time and returning
+  // Inbound call greetings - empathetic subprime-focused
   const isReturning = previousSummary && !previousSummary.includes("First conversation");
   const timeGreeting = getTimeBasedGreeting();
   const dayGreeting = getDayContext();
@@ -1188,47 +1205,25 @@ function generateGreetingContext(leadData, isOutbound = false, previousSummary =
   let callType;
 
   if (isReturning) {
-    // Returning customer - personalized greeting with context
+    // Returning customer - empathetic continuation
     callType = "inbound_returning";
 
     if (hasName) {
-      // Extract key context for personalized greeting
       const summaryText = previousSummary?.toLowerCase() || '';
-      let contextPhrase = "";
-
-      if (summaryText.includes('subaru') || summaryText.includes('forester')) {
-        contextPhrase = "I see you're looking at that Subaru Forester.";
-      } else if (summaryText.includes('suv') || summaryText.includes('truck')) {
-        contextPhrase = "Let's continue where we left off with that SUV.";
-      } else if (summaryText.includes('financing') || summaryText.includes('credit')) {
-        contextPhrase = "Let's pick up where we left off with your financing.";
-      } else if (summaryText.includes('trade')) {
-        contextPhrase = "Let's talk more about your trade-in.";
-      } else {
-        contextPhrase = "Thanks for getting back to me.";
-      }
-
-      // Natural, varied greetings
-      firstMessageDynamic = dayGreeting ?
-        `Hey ${customerName}! ${dayGreeting} ${contextPhrase} What's on your mind?` :
-        `Hey ${customerName}! ${timeGreeting} ${contextPhrase} What can I help you with?`;
+      firstMessageDynamic = getSubprimeInboundReturning(customerName, summaryText, dayGreeting, timeGreeting);
     } else {
-      firstMessageDynamic = dayGreeting ?
-        `Hey! ${dayGreeting} Thanks for calling back. What can I help you with?` :
-        `Hey! ${timeGreeting} How can I help you today?`;
+      const greeting = dayGreeting || timeGreeting;
+      firstMessageDynamic = `Hey! ${greeting} Thanks for calling back. What can I help you with?`;
     }
   } else {
-    // First-time caller - warm but professional greeting
+    // First-time caller - empathetic subprime greeting
     callType = "inbound_new";
 
     if (hasName) {
-      firstMessageDynamic = dayGreeting ?
-        `Hey ${customerName}! ${dayGreeting} What can I help you with today?` :
-        `Hey ${customerName}! ${timeGreeting} How can I help you?`;
+      firstMessageDynamic = getSubprimeInboundNew(customerName, dayGreeting, timeGreeting);
     } else {
-      firstMessageDynamic = dayGreeting ?
-        `Hey there! ${dayGreeting} What can I help you with?` :
-        `Hey there! ${timeGreeting} How can I help you today?`;
+      const greeting = dayGreeting || timeGreeting;
+      firstMessageDynamic = `Hey there! ${greeting} Thanks for calling. I'm here to help make this process as simple as possible for you. What's on your mind?`;
     }
   }
 
@@ -1238,11 +1233,10 @@ function generateGreetingContext(leadData, isOutbound = false, previousSummary =
     customer_greeting: getCustomerGreeting(customerName, leadData?.lastTouchpoint),
     customer_name: customerName,
     greeting_opener: hasName ? `Hey ${customerName}!` : "Hey there!",
-    greeting_variation: isReturning ? "continuing_conversation" : "new_conversation",
+    greeting_variation: isReturning ? "continuing_subprime" : "new_subprime",
     is_outbound: "false",
     is_returning_customer: isReturning ? "true" : "false",
     call_type: callType,
-    // ElevenLabs-optimized first message
     first_message_dynamic: firstMessageDynamic
   };
 }
