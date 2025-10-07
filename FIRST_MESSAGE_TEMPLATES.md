@@ -30,19 +30,21 @@
 
 ### INBOUND - New Caller (or SMS Initiated by Us)
 
-`Hey {{customer_name}}! {{day_context}} I'm Jack from {{organization_name}}. I work with folks who've had credit challenges to help them get into a vehicle. I know this whole car thing can feel like a lot - I'm just here to help make it easier. What's going on?`
+`Hey {{customer_name}}! {{day_context}} I'm Jack from {{organization_name}}. I work with folks who've had credit challenges to help them get into a vehicle. I know this whole car thing can feel like a lot - I'm just here to help make it easier. To get you connected with a financing specialist ASAP, I'll need to ask a few quick questions. First - are you working right now?`
 
-**Note:** Introduces Jack first, then empathetic message. Channel-agnostic - works whether customer calls in or we initiate SMS
+**Note:** Introduces Jack first, establishes empathy, then IMMEDIATELY starts qualification with employment question. Channel-agnostic - works whether customer calls in or we initiate SMS
 
 ---
 
 ### INBOUND - Returning Caller
 
-**Context-aware, Warm, Helpful:**
+**Context-aware, Qualification-Focused:**
 
-- **About Financing:** `Hey {{customer_name}}! {{day_context}} Good to hear from you. So I've been looking at some things for your financing situation - got a few ideas I want to run by you.`
+- **About Financing:** `Hey {{customer_name}}! {{day_context}} Good to hear from you. I've been looking at some things for your financing situation - to move this forward, quick question: are you currently employed?`
 
-- **General:** `Hey {{customer_name}}! {{day_context}} Good to hear from you again. What's on your mind?`
+- **Employment Already Discussed:** `Hey {{customer_name}}! {{day_context}} Good to hear from you again. To keep things moving, I need to ask about your housing situation. Do you own your place or rent?`
+
+- **General (No Context):** `Hey {{customer_name}}! {{day_context}} Good to hear from you again. To see what we can get approved, I need a couple quick details. First up - where are you currently working?`
 
 ---
 
@@ -59,11 +61,13 @@
 
 ✅ **Non-Salesy** - "Just checking in", "No rush at all", "Just wanted to reach out"
 ✅ **Genuinely Empathetic** - "I totally get it", "I know this can feel like a lot"
-✅ **Conversational** - "Want to go over it?", "What's going on?", "Got a few ideas"
+✅ **Action-Oriented CTAs** - Immediately starts qualification, no vague "What's on your mind?"
+✅ **Info-Gathering First** - Employment, housing, income - critical qualification questions
 ✅ **Zero Pressure** - "No pressure at all", "No rush", explicitly stated
 ✅ **Personal & Real** - "I just wanted to personally reach out", "real talk"
 ✅ **Helper, Not Seller** - "I'm just here if you need someone", "just here to help"
 ✅ **Context-Aware** - Different for voice/SMS, inbound/outbound, new/returning
+✅ **Progressive Qualification** - If employment already discussed, move to housing/income
 
 ---
 
@@ -72,7 +76,24 @@
 The system automatically selects the appropriate first message based on:
 - **Call direction:** Inbound vs. Outbound
 - **Customer history:** New vs. Returning
-- **Previous conversation:** SUV interest, financing discussion, trade-in, etc.
+- **Previous conversation:** SUV interest, financing discussion, trade-in, employment, housing, etc.
 - **Time/Day:** Adds dynamic greeting based on Pacific Time
+- **Progressive Qualification:** Tracks what info was gathered, asks next critical question
 
 All messages flow through the same `first_message_dynamic` variable, so you can use this single dynamic variable in your ElevenLabs agent configuration.
+
+---
+
+## Qualification Priority Order
+
+Jack should gather information in this order:
+1. **Employment Status** - "Are you working right now?" / "Where are you currently working?"
+2. **Housing Status** - "Do you own your place or rent?"
+3. **Monthly Income** - "What's your monthly income?"
+4. **Employment Length** - "How long have you been there?"
+5. **Monthly Payment Preference** - "What monthly payment works for your budget?"
+6. **Vehicle Preference** - "What kind of vehicle are you looking for?"
+7. **Trade-in** - "Do you have a trade-in?"
+8. **Down Payment** - "Do you have anything for a down payment?"
+
+The first message CTAs now start this qualification process immediately instead of waiting for the customer to direct the conversation.

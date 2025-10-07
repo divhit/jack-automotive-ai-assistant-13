@@ -1160,7 +1160,7 @@ function getSubprimeContinuation(customerName, organizationName, summaryText, da
 // Helper function: Get empathetic inbound greeting for new subprime leads
 function getSubprimeInboundNew(customerName, organizationName, dayContext, timeGreeting) {
   const greeting = dayContext || timeGreeting;
-  return `Hey ${customerName}! ${greeting} I'm Jack from ${organizationName}. I work with folks who've had credit challenges to help them get into a vehicle. I know this whole car thing can feel like a lot - I'm just here to help make it easier. What's going on?`;
+  return `Hey ${customerName}! ${greeting} I'm Jack from ${organizationName}. I work with folks who've had credit challenges to help them get into a vehicle. I know this whole car thing can feel like a lot - I'm just here to help make it easier. To get you connected with a financing specialist ASAP, I'll need to ask a few quick questions. First - are you working right now?`;
 }
 
 // Helper function: Get empathetic inbound greeting for returning customers
@@ -1168,10 +1168,15 @@ function getSubprimeInboundReturning(customerName, summaryText, dayContext, time
   const greeting = dayContext || timeGreeting;
 
   if (summaryText.includes('financing') || summaryText.includes('credit')) {
-    return `Hey ${customerName}! ${greeting} Good to hear from you. So I've been looking at some things for your financing situation - got a few ideas I want to run by you.`;
+    return `Hey ${customerName}! ${greeting} Good to hear from you. I've been looking at some things for your financing situation - to move this forward, quick question: are you currently employed?`;
   }
 
-  return `Hey ${customerName}! ${greeting} Good to hear from you again. What's on your mind?`;
+  // Check if employment info was already discussed
+  if (summaryText.includes('employment') || summaryText.includes('work') || summaryText.includes('job')) {
+    return `Hey ${customerName}! ${greeting} Good to hear from you again. To keep things moving, I need to ask about your housing situation. Do you own your place or rent?`;
+  }
+
+  return `Hey ${customerName}! ${greeting} Good to hear from you again. To see what we can get approved, I need a couple quick details. First up - where are you currently working?`;
 }
 
 function generateGreetingContext(leadData, isOutbound = false, previousSummary = null, organizationName = "our dealership") {
@@ -1238,7 +1243,7 @@ function generateGreetingContext(leadData, isOutbound = false, previousSummary =
       firstMessageDynamic = getSubprimeInboundReturning(customerName, summaryText, dayGreeting, timeGreeting);
     } else {
       const greeting = dayGreeting || timeGreeting;
-      firstMessageDynamic = `Hey! ${greeting} Thanks for calling back. What can I help you with?`;
+      firstMessageDynamic = `Hey! ${greeting} Thanks for calling back. To get things moving, I need to gather a few quick details. First - are you currently working?`;
     }
   } else {
     // First-time caller - empathetic subprime greeting with intro
@@ -1248,7 +1253,7 @@ function generateGreetingContext(leadData, isOutbound = false, previousSummary =
       firstMessageDynamic = getSubprimeInboundNew(customerName, organizationName, dayGreeting, timeGreeting);
     } else {
       const greeting = dayGreeting || timeGreeting;
-      firstMessageDynamic = `Hey there! ${greeting} I'm Jack from ${organizationName}. I'm here to help make this process as simple as possible for you. What's on your mind?`;
+      firstMessageDynamic = `Hey there! ${greeting} I'm Jack from ${organizationName}. I work with folks who've had credit challenges and I'm here to help make this as simple as possible. To get you connected with a specialist ASAP, I'll ask a few quick questions. First - are you working right now?`;
     }
   }
 
