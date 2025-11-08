@@ -46,6 +46,7 @@ export interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error?: AuthError }>;
   signUp: (email: string, password: string, orgData?: OrganizationSignupData) => Promise<{ error?: AuthError }>;
   signOut: () => Promise<{ error?: AuthError }>;
+  resetPassword: (email: string) => Promise<{ error?: AuthError }>;
   
   // Organization methods
   createOrganization: (data: OrganizationCreateData) => Promise<{ data?: Organization; error?: Error }>;
@@ -407,7 +408,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const signOut = async () => {
     try {
       const { error } = await supabase.auth.signOut();
-      
+
       if (error) {
         toast.error('Error signing out: ' + error.message);
         return { error };
@@ -418,6 +419,31 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error) {
       const authError = error as AuthError;
       toast.error('Unexpected error during sign out');
+      return { error: authError };
+    }
+  };
+
+  // Reset password
+  const resetPassword = async (email: string) => {
+    try {
+      const siteUrl = import.meta.env.VITE_SITE_URL ||
+                     import.meta.env.REACT_APP_SITE_URL ||
+                     (import.meta.env.PROD ? 'https://jack-automotive-ai-assistant-13.onrender.com' : 'http://localhost:8080');
+
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${siteUrl}/reset-password`,
+      });
+
+      if (error) {
+        toast.error('Password reset failed: ' + error.message);
+        return { error };
+      }
+
+      toast.success('Password reset email sent! Please check your inbox.');
+      return {};
+    } catch (error) {
+      const authError = error as AuthError;
+      toast.error('Unexpected error during password reset');
       return { error: authError };
     }
   };
@@ -524,6 +550,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     signIn,
     signUp,
     signOut,
+    resetPassword,
     
     // Organization methods
     createOrganization,

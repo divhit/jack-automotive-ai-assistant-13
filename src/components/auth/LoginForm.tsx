@@ -14,15 +14,17 @@ interface LoginFormProps {
 }
 
 export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToSignup, className }) => {
-  const { signIn } = useAuth();
-  
+  const { signIn, resetPassword } = useAuth();
+
   const [formData, setFormData] = useState({
     email: '',
     password: '',
   });
-  
+
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -55,39 +57,66 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToSignup, classNam
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       toast.error('Please fix the form errors');
       return;
     }
 
     setIsLoading(true);
-    
+
     try {
       const { error } = await signIn(formData.email, formData.password);
-      
+
       if (error) {
         // Handle specific error cases
         if (error.message?.includes('Invalid login credentials')) {
-          setErrors({ 
-            password: 'Invalid email or password. Please check your credentials and try again.' 
+          setErrors({
+            password: 'Invalid email or password. Please check your credentials and try again.'
           });
         } else if (error.message?.includes('Email not confirmed')) {
-          setErrors({ 
-            email: 'Please check your email and click the confirmation link before signing in.' 
+          setErrors({
+            email: 'Please check your email and click the confirmation link before signing in.'
           });
         } else {
-          setErrors({ 
-            general: error.message || 'An unexpected error occurred. Please try again.' 
+          setErrors({
+            general: error.message || 'An unexpected error occurred. Please try again.'
           });
         }
       }
       // Success handling is done in the AuthContext with toast notification
     } catch (error) {
       console.error('Login error:', error);
-      setErrors({ 
-        general: 'An unexpected error occurred. Please try again.' 
+      setErrors({
+        general: 'An unexpected error occurred. Please try again.'
       });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!resetEmail) {
+      toast.error('Please enter your email address');
+      return;
+    }
+
+    if (!/\S+@\S+\.\S+/.test(resetEmail)) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      await resetPassword(resetEmail);
+      // Reset the form and switch back to login mode
+      setIsForgotPassword(false);
+      setResetEmail('');
+    } catch (error) {
+      console.error('Password reset error:', error);
     } finally {
       setIsLoading(false);
     }
@@ -96,14 +125,71 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToSignup, classNam
   return (
     <Card className={`w-full max-w-md mx-auto ${className}`}>
       <CardHeader className="space-y-1">
-        <CardTitle className="text-2xl font-bold text-center">Welcome Back</CardTitle>
+        <CardTitle className="text-2xl font-bold text-center">
+          {isForgotPassword ? 'Reset Password' : 'Welcome Back'}
+        </CardTitle>
         <CardDescription className="text-center">
-          Sign in to your automotive AI assistant dashboard
+          {isForgotPassword
+            ? 'Enter your email to receive a password reset link'
+            : 'Sign in to your automotive AI assistant dashboard'}
         </CardDescription>
       </CardHeader>
-      
+
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        {isForgotPassword ? (
+          <form onSubmit={handleForgotPassword} className="space-y-4">
+            {/* Email Field for Password Reset */}
+            <div className="space-y-2">
+              <Label htmlFor="reset-email">Email Address</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="reset-email"
+                  type="email"
+                  placeholder="Enter your email"
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  disabled={isLoading}
+                  className="pl-10"
+                  autoComplete="email"
+                />
+              </div>
+            </div>
+
+            {/* Submit Button */}
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Sending Reset Link...
+                </>
+              ) : (
+                'Send Reset Link'
+              )}
+            </Button>
+
+            {/* Back to Login */}
+            <div className="text-center">
+              <Button
+                type="button"
+                variant="link"
+                onClick={() => {
+                  setIsForgotPassword(false);
+                  setResetEmail('');
+                }}
+                disabled={isLoading}
+                className="text-sm"
+              >
+                Back to Login
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
           {/* General Error Alert */}
           {errors.general && (
             <Alert variant="destructive">
@@ -185,19 +271,21 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToSignup, classNam
               </Button>
             </div>
           )}
-        </form>
 
-        {/* Forgot Password Link */}
-        <div className="mt-4 text-center">
-          <Button
-            type="button"
-            variant="link"
-            disabled={isLoading}
-            className="text-sm text-muted-foreground"
-          >
-            Forgot your password?
-          </Button>
-        </div>
+          {/* Forgot Password Link */}
+          <div className="text-center">
+            <Button
+              type="button"
+              variant="link"
+              onClick={() => setIsForgotPassword(true)}
+              disabled={isLoading}
+              className="text-sm text-muted-foreground"
+            >
+              Forgot your password?
+            </Button>
+          </div>
+        </form>
+      )}
       </CardContent>
     </Card>
   );
