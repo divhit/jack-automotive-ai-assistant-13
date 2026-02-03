@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { SubprimeLead } from "@/data/subprime/subprimeLeads";
 import { UserPlus, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
@@ -56,6 +57,7 @@ export const SubprimeAddLeadDialog = ({ open, onOpenChange, onLeadAdded }: Subpr
     email: ""
   });
 
+  const [sendInitialMessage, setSendInitialMessage] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const validateForm = () => {
@@ -174,7 +176,7 @@ export const SubprimeAddLeadDialog = ({ open, onOpenChange, onLeadAdded }: Subpr
           'Content-Type': 'application/json',
           'organizationId': organizationId, // SECURITY: Include organization context
         },
-        body: JSON.stringify(newLead)
+        body: JSON.stringify({ ...newLead, sendInitialMessage })
       });
 
       if (!response.ok) {
@@ -195,6 +197,7 @@ export const SubprimeAddLeadDialog = ({ open, onOpenChange, onLeadAdded }: Subpr
         phoneNumber: "",
         email: ""
       });
+      setSendInitialMessage(false);
 
       toast.success(`Lead created successfully`, {
         description: `${newLead.customerName} has been added to the subprime pipeline and is ready for telephony integration`
@@ -281,6 +284,17 @@ export const SubprimeAddLeadDialog = ({ open, onOpenChange, onLeadAdded }: Subpr
                 {errors.email}
               </div>
             )}
+          </div>
+
+          <div className="flex items-center space-x-2 pt-2">
+            <Checkbox
+              id="sendInitialMessage"
+              checked={sendInitialMessage}
+              onCheckedChange={(checked) => setSendInitialMessage(checked === true)}
+            />
+            <Label htmlFor="sendInitialMessage" className="text-sm font-normal cursor-pointer">
+              Send initial outreach message now
+            </Label>
           </div>
         </div>
 

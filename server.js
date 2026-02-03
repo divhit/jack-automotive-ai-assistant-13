@@ -667,10 +667,14 @@ function addToConversationHistory(phoneNumber, message, sentBy, messageType = 't
   cacheManager.delete('comprehensive', cacheKey).catch(() => {}); // Fire-and-forget
 
   // Persist to Supabase with organization context (async)
-  supabasePersistence.persistConversationMessage(phoneNumber, message, sentBy, messageType, { organizationId })
-    .catch(error => {
-      console.log(`🗄️ Organization-scoped persistence failed (system continues normally):`, error.message);
-    });
+  // Skip DB persistence for voice messages during live calls — the post-call webhook
+  // handles definitive voice transcript persistence via persistConversationMessageWithTimestamp()
+  if (messageType !== 'voice') {
+    supabasePersistence.persistConversationMessage(phoneNumber, message, sentBy, messageType, { organizationId })
+      .catch(error => {
+        console.log(`🗄️ Organization-scoped persistence failed (system continues normally):`, error.message);
+      });
+  }
 }
 
 // ENHANCED: Add conversation message with custom timestamp and sequence support
@@ -5875,8 +5879,8 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', async (req, res) =>
 // API endpoint to create new leads (called from SubprimeAddLeadDialog)
 app.post('/api/subprime/create-lead', validateOrganizationAccess, async (req, res) => {
   try {
-    const leadData = req.body;
-    
+    const { sendInitialMessage, ...leadData } = req.body;
+
     // PERFORMANCE: Check for duplicate lead creation before processing
     if (dynamicLeads.has(leadData.id)) {
       console.log(`⚡ Lead ${leadData.id} already exists - returning existing lead data`);
@@ -6014,10 +6018,8 @@ app.post('/api/subprime/create-lead', validateOrganizationAccess, async (req, re
     // Invalidate cache since we added a new lead
     invalidateLeadsCache(leadData.organizationId);
 
-    // ⭐ TRIGGER AGENT OUTREACH: Simulate incoming SMS to kickstart conversation
-    // Instead of manually sending SMS, we trigger the normal SMS flow by simulating
-    // an incoming message from the lead's phone. This starts an ElevenLabs conversation
-    // where the agent speaks first, and the response gets sent as SMS automatically.
+    // ⭐ TRIGGER AGENT OUTREACH: Only if sales rep opted in via the "Send initial outreach" checkbox
+    if (sendInitialMessage) {
     (async () => {
       try {
         if (leadRecord.phoneNumber && leadRecord.organizationId) {
@@ -6060,6 +6062,7 @@ app.post('/api/subprime/create-lead', validateOrganizationAccess, async (req, re
         // Don't fail lead creation if trigger fails
       }
     })();
+    } // end sendInitialMessage guard
 
     res.status(201).json({
       success: true,

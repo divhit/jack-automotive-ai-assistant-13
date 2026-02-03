@@ -714,11 +714,17 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
           setConversationHistory(data.messages);
           
           if (data.summary) {
+            // Place summary right after the last message in loaded history,
+            // not at current time (which would always push it to the bottom)
+            const lastMsg = data.messages[data.messages.length - 1];
+            const summaryTimestamp = lastMsg?.timestamp
+              ? new Date(new Date(lastMsg.timestamp).getTime() + 1000).toISOString()
+              : new Date().toISOString();
             addConversationMessage({
               id: `loaded-summary-${Date.now()}`,
               type: 'system',
               content: `📞 Previous Call Summary: ${data.summary}`,
-              timestamp: new Date().toISOString(),
+              timestamp: summaryTimestamp,
               sentBy: 'system'
             });
           }
@@ -797,7 +803,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
             id: `summary-${Date.now()}`,
             type: 'system',
             content: `📞 Previous Conversation Summary: ${data.summary}`,
-            timestamp: new Date().toISOString(),
+            timestamp: data.timestamp || new Date().toISOString(),
             sentBy: 'system'
           });
         }
@@ -1738,7 +1744,9 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
                         <p>No messages yet. Start a conversation!</p>
                       </div>
                     ) : (
-                      conversationHistory.map((message) => (
+                      [...conversationHistory]
+                        .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+                        .map((message) => (
                         <div
                           key={message.id}
                           className={cn(
