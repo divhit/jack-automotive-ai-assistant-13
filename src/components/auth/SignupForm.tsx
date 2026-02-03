@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+// Card components removed — auth layout handled by Auth.tsx
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { Loader2, User, Mail, Lock, Building, Phone, AlertCircle, CheckCircle2 } from 'lucide-react';
@@ -132,15 +132,15 @@ export const SignupForm: React.FC<SignupFormProps> = ({ onSwitchToLogin, classNa
   };
 
   return (
-    <Card className={`w-full max-w-lg mx-auto ${className}`}>
-      <CardHeader className="space-y-1">
-        <CardTitle className="text-2xl font-bold text-center">Create Your Account</CardTitle>
-        <CardDescription className="text-center">
-          Set up your automotive dealership with AI-powered lead management
-        </CardDescription>
-      </CardHeader>
-      
-      <CardContent>
+    <div className={className}>
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold tracking-tight">Create account</h2>
+        <p className="text-sm text-muted-foreground mt-1.5">
+          Set up your dealership with AI-powered lead management
+        </p>
+      </div>
+
+      <div>
         <form onSubmit={handleSubmit} className="space-y-4">
           {errors.general && (
             <Alert variant="destructive">
@@ -299,7 +299,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ onSwitchToLogin, classNa
             </div>
           )}
         </form>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }; 

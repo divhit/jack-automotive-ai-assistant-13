@@ -26,7 +26,7 @@ const MarketInsights = () => {
         <CardHeader>
           <CardTitle className="text-xl">
             <div className="flex items-center space-x-2">
-              <DollarSign className="h-5 w-5 text-automotive-primary" />
+              <DollarSign className="h-5 w-5 text-primary" />
               <span>{marketInsights[0].title}</span>
             </div>
           </CardTitle>
@@ -35,7 +35,7 @@ const MarketInsights = () => {
         <CardContent>
           <div className="space-y-4">
             {marketInsights[0].items.map((item, index) => (
-              <div key={index} className="bg-gray-50 p-4 rounded-lg">
+              <div key={index} className="bg-muted/50 p-4 rounded-lg border border-border">
                 <div className="flex justify-between items-start">
                   <div>
                     <div className="font-medium">{item.vehicle}</div>
@@ -76,7 +76,7 @@ const MarketInsights = () => {
         <CardHeader>
           <CardTitle className="text-xl">
             <div className="flex items-center space-x-2">
-              <TrendingUp className="h-5 w-5 text-automotive-primary" />
+              <TrendingUp className="h-5 w-5 text-primary" />
               <span>{marketInsights[1].title}</span>
             </div>
           </CardTitle>
@@ -85,7 +85,7 @@ const MarketInsights = () => {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {marketInsights[1].items.map((item, index) => (
-              <div key={index} className="bg-gray-50 p-4 rounded-lg">
+              <div key={index} className="bg-muted/50 p-4 rounded-lg border border-border">
                 <div className="font-medium mb-1">{item.category}</div>
                 <div className="text-sm text-muted-foreground mb-2">{item.examples}</div>
                 <Badge className="mb-3 bg-green-100 text-green-800 hover:bg-green-100">
@@ -103,7 +103,7 @@ const MarketInsights = () => {
         <CardHeader>
           <CardTitle className="text-xl">
             <div className="flex items-center space-x-2">
-              <Building className="h-5 w-5 text-automotive-primary" />
+              <Building className="h-5 w-5 text-primary" />
               <span>{marketInsights[2].title}</span>
             </div>
           </CardTitle>
@@ -112,13 +112,13 @@ const MarketInsights = () => {
         <CardContent>
           <div className="space-y-4">
             {marketInsights[2].items.map((item, index) => (
-              <div key={index} className="bg-gray-50 p-4 rounded-lg flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div key={index} className="bg-muted/50 p-4 rounded-lg border border-border flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
                   <div className="font-medium">{item.competitor}</div>
                   <div className="text-sm text-muted-foreground">{item.distance} away</div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="bg-gray-200 p-2 rounded-md text-center">
+                  <div className="bg-muted p-2 rounded-lg text-center">
                     <div className="text-xs text-muted-foreground">Competing Vehicles</div>
                     <div className="font-medium">{item.competitiveVehicles}</div>
                   </div>
@@ -137,7 +137,7 @@ const MarketInsights = () => {
         <CardHeader>
           <CardTitle className="text-xl">
             <div className="flex items-center space-x-2">
-              <Package className="h-5 w-5 text-automotive-primary" />
+              <Package className="h-5 w-5 text-primary" />
               <span>{marketInsights[3].title}</span>
             </div>
           </CardTitle>
@@ -146,7 +146,7 @@ const MarketInsights = () => {
         <CardContent>
           <div className="space-y-4">
             {marketInsights[3].items.map((item, index) => (
-              <div key={index} className="bg-gray-50 p-4 rounded-lg">
+              <div key={index} className="bg-muted/50 p-4 rounded-lg border border-border">
                 <div className="flex justify-between items-start">
                   <div className="font-medium">{item.category}</div>
                   <Badge className={
@@ -172,13 +172,13 @@ const MarketInsights = () => {
           <CardHeader>
             <CardTitle className="text-xl">
               <div className="flex items-center space-x-2">
-                <BarChart3 className="h-5 w-5 text-automotive-primary" />
+                <BarChart3 className="h-5 w-5 text-primary" />
                 <span>Market Performance</span>
               </div>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-60 flex items-center justify-center bg-gray-50 rounded-md border">
+            <div className="h-60 flex items-center justify-center bg-muted/30 rounded-lg border border-border">
               <div className="text-center text-muted-foreground">
                 <BarChart3 className="h-10 w-10 mx-auto mb-2" />
                 <p>Market performance chart visualization</p>
@@ -192,13 +192,13 @@ const MarketInsights = () => {
           <CardHeader>
             <CardTitle className="text-xl">
               <div className="flex items-center space-x-2">
-                <BarChart3 className="h-5 w-5 text-automotive-primary" />
+                <BarChart3 className="h-5 w-5 text-primary" />
                 <span>Inventory Age Analysis</span>
               </div>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-60 flex items-center justify-center bg-gray-50 rounded-md border">
+            <div className="h-60 flex items-center justify-center bg-muted/30 rounded-lg border border-border">
               <div className="text-center text-muted-foreground">
                 <BarChart3 className="h-10 w-10 mx-auto mb-2" />
                 <p>Inventory age analysis visualization</p>

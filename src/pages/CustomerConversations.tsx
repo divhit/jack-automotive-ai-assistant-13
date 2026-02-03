@@ -103,7 +103,7 @@ const CustomerConversations = () => {
       case "Active":
         return "bg-green-100 text-green-800 hover:bg-green-100";
       case "Closed":
-        return "bg-gray-100 text-gray-800 hover:bg-gray-100";
+        return "bg-muted text-foreground hover:bg-gray-100";
       case "Test Drive Scheduled":
         return "bg-blue-100 text-blue-800 hover:bg-blue-100";
       case "Follow-up Needed":
@@ -111,7 +111,7 @@ const CustomerConversations = () => {
       case "New":
         return "bg-purple-100 text-purple-800 hover:bg-purple-100";
       default:
-        return "bg-gray-100 text-gray-800 hover:bg-gray-100";
+        return "bg-muted text-foreground hover:bg-gray-100";
     }
   };
 
@@ -144,7 +144,7 @@ const CustomerConversations = () => {
         <CardHeader>
           <CardTitle className="text-xl">
             <div className="flex items-center space-x-2">
-              <Phone className="h-5 w-5 text-automotive-primary" />
+              <Phone className="h-5 w-5 text-primary" />
               <span>Customer SMS Conversations</span>
             </div>
           </CardTitle>
@@ -239,7 +239,7 @@ const CustomerConversations = () => {
                           </DialogHeader>
                           <div className="flex items-center gap-3 mt-2">
                             <Avatar className="h-10 w-10">
-                              <AvatarFallback className="bg-automotive-primary text-white">
+                              <AvatarFallback className="bg-primary text-primary-foreground">
                                 {conversation.customerName.charAt(0)}
                               </AvatarFallback>
                             </Avatar>
@@ -268,8 +268,8 @@ const CustomerConversations = () => {
                                 <div 
                                   className={`max-w-[80%] p-3 rounded-lg ${
                                     message.type === "outgoing" 
-                                      ? "bg-automotive-primary text-white" 
-                                      : "bg-gray-100 text-gray-800"
+                                      ? "bg-primary text-primary-foreground" 
+                                      : "bg-muted text-foreground"
                                   }`}
                                 >
                                   <div>{message.message}</div>
