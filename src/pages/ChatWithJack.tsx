@@ -17,14 +17,26 @@ interface ChatMessage {
   timestamp: Date;
 }
 
-const ChatWithJack = () => {
+interface ChatWithJackProps {
+  mode?: "prime" | "subprime";
+}
+
+const INITIAL_MESSAGES: Record<string, ChatMessage> = {
+  prime: {
+    type: "ai",
+    content: "Hey there! I'm Jack, your dealership assistant. I can help with inventory questions, market pricing, or customer follow-ups. What do you need?",
+    timestamp: new Date(),
+  },
+  subprime: {
+    type: "ai",
+    content: "Hey! I'm Jack, your subprime specialist assistant. I can help with credit-challenged leads, funding readiness, chase sequences, or lender matching. What are you working on?",
+    timestamp: new Date(),
+  },
+};
+
+const ChatWithJack = ({ mode = "prime" }: ChatWithJackProps) => {
   const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      type: "ai",
-      content:
-        "Hello! I'm Jack, your automotive AI assistant. How can I help you today?",
-      timestamp: new Date(),
-    },
+    INITIAL_MESSAGES[mode] || INITIAL_MESSAGES.prime,
   ]);
   const [currentMessage, setCurrentMessage] = useState("");
   const [isRecording, setIsRecording] = useState(false);

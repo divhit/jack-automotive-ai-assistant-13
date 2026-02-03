@@ -64,18 +64,13 @@ export default {
 					DEFAULT: 'hsl(var(--warning))',
 					foreground: 'hsl(var(--warning-foreground))',
 				},
-				// Automotive palette — sharp, professional
+				// Automotive palette
 				automotive: {
-					primary: 'hsl(220 72% 50%)',
-					secondary: 'hsl(220 45% 58%)',
-					accent: 'hsl(220 72% 56%)',
-					gray: 'hsl(220 14% 92%)',
-					darkgray: 'hsl(220 10% 36%)',
-					success: 'hsl(160 60% 45%)',
-					warning: 'hsl(38 92% 50%)',
-					danger: 'hsl(0 72% 51%)',
-					light: 'hsl(220 16% 96%)',
-					dark: 'hsl(222 22% 8%)',
+					primary: 'hsl(220 65% 48%)',
+					secondary: 'hsl(220 40% 56%)',
+					success: 'hsl(152 55% 42%)',
+					warning: 'hsl(38 88% 50%)',
+					danger: 'hsl(0 68% 50%)',
 				},
 				sidebar: {
 					DEFAULT: 'hsl(var(--sidebar-background))',
