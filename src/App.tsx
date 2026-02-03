@@ -12,6 +12,7 @@ import CustomerConversations from "./pages/CustomerConversations";
 import MarketInsights from "./pages/MarketInsights";
 import SubprimeDashboard from "./pages/SubprimeDashboard";
 import Auth from "./pages/Auth";
+import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,6 +27,7 @@ const App = () => (
           <Routes>
             {/* Public routes */}
             <Route path="/auth" element={<Auth />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             
             {/* Protected routes */}
             <Route path="/" element={

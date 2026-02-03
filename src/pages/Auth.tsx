@@ -1,13 +1,21 @@
 import React, { useState } from 'react';
+import { Navigate } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { LoginForm } from '@/components/auth/LoginForm';
 import { SignupForm } from '@/components/auth/SignupForm';
 import { Badge } from '@/components/ui/badge';
 import { Car, Brain, MessageSquare, BarChart3 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 const Auth: React.FC = () => {
+  const { isAuthenticated, loading } = useAuth();
   const [activeTab, setActiveTab] = useState<'login' | 'signup'>('login');
+
+  // Redirect to dashboard if already authenticated
+  if (!loading && isAuthenticated) {
+    return <Navigate to="/" replace />;
+  }
 
   const handleSwitchToSignup = () => {
     setActiveTab('signup');

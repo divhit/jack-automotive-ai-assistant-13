@@ -165,7 +165,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               // Add timeout to prevent hanging
               await Promise.race([
                 loadUserData(currentSession.user.id),
-                new Promise((_, reject) => 
+                new Promise((_, reject) =>
                   setTimeout(() => reject(new Error('loadUserData timeout')), 10000)
                 )
               ]);
@@ -174,6 +174,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               console.error('Error in auth state change handler:', error);
               // Continue without profile - don't block the app
             }
+          } else if (event === 'PASSWORD_RECOVERY') {
+            // User arrived via password reset link - redirect to reset page
+            window.location.href = '/reset-password';
           } else if (event === 'SIGNED_OUT') {
             setProfile(null);
             setOrganization(null);
