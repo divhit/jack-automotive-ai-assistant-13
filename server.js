@@ -2202,9 +2202,10 @@ function startConversation(phoneNumber, initialMessage, organizationId = null, c
   // Initialize SMS response counter for this conversation
   smsResponseCounters.set(normalized, 0);
 
-  // Declare leadStatus and channel in outer scope to be accessible in message handler
+  // Declare leadStatus, channel, and conversationConfigOverride in outer scope to be accessible in both open and message handlers
   let leadStatus = "New Inquiry"; // Default
   const conversationChannel = channel; // Store channel for use in handlers
+  let conversationConfigOverride = undefined; // Must be in outer scope for message handler access
 
   const wsUrl = `wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${agentId}`;
   const ws = new WebSocket(wsUrl, {
@@ -2318,7 +2319,6 @@ function startConversation(phoneNumber, initialMessage, organizationId = null, c
     // For CONTINUING conversations (user replies), DON'T set first_message - we'll send user's message instead
     const isInitialOutreach = history.length <= 1; // Only our initial SMS exists
 
-    let conversationConfigOverride = undefined;
     if (conversationChannel === 'sms' && isInitialOutreach) {
       // Initial outreach only - agent speaks first
       const firstMessageOverride = dynamicVars.first_message_dynamic || `Hey ${customerName}! Thanks for reaching out. How can I help you?`;
@@ -2438,12 +2438,12 @@ function startConversation(phoneNumber, initialMessage, organizationId = null, c
                 organizationId: resolvedOrganizationId
             });
         }
+      } else if (response.type === 'agent_chat_response_part') {
+        // Streaming text chunks from ElevenLabs text/SMS mode - final text comes in agent_response
       } else if (response.type === 'ping') {
         // Handle ping/pong to keep connection alive
-        console.log(`📨 [${phoneNumber}] Received ping`);
       } else if (response.type === 'audio') {
-        // Handle audio chunks if needed
-        console.log(`📨 [${phoneNumber}] Received audio`);
+        // Handle audio chunks for SMS channel (ignored)
       } else {
         console.log(`📨 [${phoneNumber}] Received unknown message type:`, response.type);
       }
