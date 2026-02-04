@@ -1104,15 +1104,15 @@ function getCustomerGreeting(customerName, lastVisit) {
   return `${customerName}`;
 }
 
-// Helper function: Get empathetic opening for initial subprime outreach
+// Helper function: Get opening for initial outbound outreach (SOP-aligned)
 function getSubprimeInitialOpening(customerName, organizationName, dayContext, timeGreeting) {
   const greeting = dayContext || timeGreeting;
 
   const openings = [
-    `Hey ${customerName}! ${greeting} I'm Jack from ${organizationName}. I work with folks who've had credit challenges to help them get into a vehicle - no pressure, no judgment. Look, I know this whole car thing can be stressful, especially when credit's been tough. I just wanted to reach out personally because I'm here if you need someone to walk you through this.`,
-    `Hey ${customerName}! ${greeting} This is Jack from ${organizationName}. I specialize in helping people with credit challenges find financing that actually works. I totally get it - getting a car when credit's not perfect can feel overwhelming. I help folks in your situation all the time, and honestly, there's usually a path forward.`,
-    `Hey ${customerName}! ${greeting} I'm Jack from ${organizationName}, and I work specifically with people who've had credit challenges. I know this whole financing thing can feel like a lot, especially if credit's been an issue. I'm reaching out because I genuinely want to help - no sales pitch, just real talk about what options might work for you.`,
-    `Hey ${customerName}! ${greeting} This is Jack from ${organizationName}. I help people with credit challenges get approved for vehicles every day. I understand if you're feeling uncertain about this - car financing with credit challenges isn't easy. I just wanted to personally reach out because I've helped a lot of people figure this out, and I'd love to see what we can do for you.`
+    `Hey ${customerName}! ${greeting} This is Jack from ${organizationName}. We just received your application and I see you're looking to get into a vehicle! I've got an approval started for you — I was just calling to get a quick idea of what you're looking for. Are you driving anything right now?`,
+    `Hey, is this ${customerName}? ${greeting} This is Jack from ${organizationName}. We got your vehicle application and I wanted to reach out personally — we've got some solid options I think you'll like. Quick question — what kind of vehicle are you looking for? Truck, SUV, car?`,
+    `Hey ${customerName}! ${greeting} It's Jack from ${organizationName}. Your application just came through and I wanted to jump on it right away — we've got you started on an approval. Real quick, are you driving anything right now or is this your first vehicle?`,
+    `Hey ${customerName}! ${greeting} This is Jack over at ${organizationName}. I just got your application and wanted to personally reach out — let's get you driving. What kind of vehicle were you thinking? Anything specific or are you open to options?`
   ];
 
   return openings[Math.floor(Math.random() * openings.length)];
@@ -1127,60 +1127,139 @@ function extractBriefContext(summaryText) {
   // Extract a brief natural reference from the conversation
   const text = summaryText.toLowerCase();
 
+  // Specific vehicle mentions
   if (text.includes('honda') || text.includes('civic') || text.includes('accord')) {
     return "the Honda you were looking at";
   }
-  if (text.includes('toyota') || text.includes('camry') || text.includes('corolla')) {
+  if (text.includes('toyota') || text.includes('camry') || text.includes('corolla') || text.includes('rav4')) {
     return "that Toyota we discussed";
   }
-  if (text.includes('suv') || text.includes('cr-v') || text.includes('rav4')) {
+  if (text.includes('ford') || text.includes('f-150') || text.includes('f150') || text.includes('escape')) {
+    return "that Ford we talked about";
+  }
+  if (text.includes('chevy') || text.includes('chevrolet') || text.includes('silverado') || text.includes('equinox')) {
+    return "the Chevy you were interested in";
+  }
+  if (text.includes('hyundai') || text.includes('kia') || text.includes('tucson') || text.includes('sportage')) {
+    return "that vehicle we were looking at";
+  }
+  if (text.includes('jeep') || text.includes('wrangler') || text.includes('grand cherokee')) {
+    return "that Jeep we talked about";
+  }
+  if (text.includes('dodge') || text.includes('ram')) {
+    return "that Dodge we discussed";
+  }
+  if (text.includes('nissan') || text.includes('rogue') || text.includes('sentra')) {
+    return "that Nissan you were looking at";
+  }
+
+  // Vehicle type mentions
+  if (text.includes('suv') || text.includes('cr-v')) {
     return "the SUV you were interested in";
   }
-  if (text.includes('truck') || text.includes('f-150') || text.includes('silverado')) {
+  if (text.includes('truck')) {
     return "that truck we talked about";
   }
-  if (text.includes('trade')) {
-    return "your trade-in";
+  if (text.includes('sedan') || text.includes('car')) {
+    return "the vehicle we were looking at for you";
   }
-  if (text.includes('financing') || text.includes('approval') || text.includes('credit')) {
+
+  // Process stage mentions
+  if (text.includes('documents') || text.includes('pay stub') || text.includes('license') || text.includes('homework')) {
+    return "the documents we needed for your approval";
+  }
+  if (text.includes('trade')) {
+    return "your trade-in situation";
+  }
+  if (text.includes('approval') || text.includes('approved')) {
+    return "your approval status";
+  }
+  if (text.includes('financing') || text.includes('credit') || text.includes('bank')) {
     return "your financing";
   }
+  if (text.includes('payment') || text.includes('budget')) {
+    return "the payment options we discussed";
+  }
+  if (text.includes('delivery') || text.includes('pickup')) {
+    return "your delivery";
+  }
+  if (text.includes('cosigner') || text.includes('co-signer')) {
+    return "the cosigner we discussed";
+  }
 
-  return "our previous conversation";
+  return "where we left off last time";
 }
 
-// Helper function: Get empathetic continuation for returning customers (outbound follow-up)
+// Helper function: Get continuation for returning customers (outbound follow-up, SOP-aligned)
 function getSubprimeContinuation(customerName, organizationName, summaryText, dayContext, timeGreeting) {
   const greeting = dayContext || timeGreeting;
   const context = extractBriefContext(summaryText);
 
-  if (context) {
-    return `Hey ${customerName}! ${greeting} It's Jack calling from ${organizationName}. Just following up on ${context}. Have you had a chance to think about it?`;
+  // Check what stage they're at based on summary content
+  const text = summaryText.toLowerCase();
+  const needsDocs = text.includes('document') || text.includes('pay stub') || text.includes('license') || text.includes('homework');
+  const hasApproval = text.includes('approved') || text.includes('approval');
+  const vehiclePicked = text.includes('going with') || text.includes('chose') || text.includes('picked');
+
+  if (vehiclePicked) {
+    return `Hey ${customerName}! ${greeting} It's Jack from ${organizationName}. Just calling to give you an update on ${context}. How are things going on your end?`;
   }
 
-  return `Hey ${customerName}! ${greeting} It's Jack calling from ${organizationName}. Just wanted to check in - have you had any more thoughts since we last talked?`;
+  if (needsDocs) {
+    return `Hey ${customerName}! ${greeting} It's Jack from ${organizationName} calling back. I'm still working on ${context} — just wanted to check in and see if you've had a chance to send those over yet? No rush, just want to keep things moving for you.`;
+  }
+
+  if (hasApproval) {
+    return `Hey ${customerName}! ${greeting} It's Jack from ${organizationName}. Good news — I've been working on ${context} and wanted to touch base. Got a few minutes?`;
+  }
+
+  if (context) {
+    return `Hey ${customerName}! ${greeting} It's Jack from ${organizationName} calling back. Wanted to follow up on ${context} — how are things going?`;
+  }
+
+  return `Hey ${customerName}! ${greeting} It's Jack from ${organizationName}. Just wanted to check in since we last talked — any updates on your end? I've been looking into some options for you.`;
 }
 
-// Helper function: Get empathetic inbound greeting for new subprime leads
+// Helper function: Get inbound greeting for new leads (SOP-aligned)
 function getSubprimeInboundNew(customerName, organizationName, dayContext, timeGreeting) {
   const greeting = dayContext || timeGreeting;
-  return `Hey ${customerName}! ${greeting} I'm Jack from ${organizationName}. I work with folks who've had credit challenges to help them get into a vehicle. I know this whole car thing can feel like a lot - I'm just here to help make it easier. To get you connected with a financing specialist ASAP, I'll need to ask a few quick questions. First - are you working right now?`;
+
+  const openings = [
+    `Hey ${customerName}! ${greeting} This is Jack with ${organizationName}. Thanks for calling in — what can I help you with today?`,
+    `Hey ${customerName}! ${greeting} I'm Jack from ${organizationName}. Glad you reached out — are you looking to get into a vehicle?`,
+    `Hey ${customerName}! ${greeting} This is Jack at ${organizationName}. Thanks for the call — what kind of vehicle are you looking for?`
+  ];
+
+  return openings[Math.floor(Math.random() * openings.length)];
 }
 
-// Helper function: Get empathetic inbound greeting for returning customers
+// Helper function: Get inbound greeting for returning customers (SOP-aligned)
 function getSubprimeInboundReturning(customerName, summaryText, dayContext, timeGreeting) {
   const greeting = dayContext || timeGreeting;
+  const context = extractBriefContext(summaryText);
 
-  if (summaryText.includes('financing') || summaryText.includes('credit')) {
-    return `Hey ${customerName}! ${greeting} Good to hear from you. I've been looking at some things for your financing situation - to move this forward, quick question: are you currently employed?`;
+  // Check what stage they're at
+  const needsDocs = summaryText.includes('document') || summaryText.includes('pay stub') || summaryText.includes('license') || summaryText.includes('homework');
+  const hasApproval = summaryText.includes('approved') || summaryText.includes('approval');
+  const vehiclePicked = summaryText.includes('going with') || summaryText.includes('chose') || summaryText.includes('picked');
+
+  if (vehiclePicked) {
+    return `Hey ${customerName}! ${greeting} Glad you called back. I was just working on things for ${context}. What's on your mind?`;
   }
 
-  // Check if employment info was already discussed
-  if (summaryText.includes('employment') || summaryText.includes('work') || summaryText.includes('job')) {
-    return `Hey ${customerName}! ${greeting} Good to hear from you again. To keep things moving, I need to ask about your housing situation. Do you own your place or rent?`;
+  if (needsDocs) {
+    return `Hey ${customerName}! ${greeting} Good to hear from you. I've been waiting on ${context} to keep your approval moving — were you able to get those together?`;
   }
 
-  return `Hey ${customerName}! ${greeting} Good to hear from you again. To see what we can get approved, I need a couple quick details. First up - where are you currently working?`;
+  if (hasApproval) {
+    return `Hey ${customerName}! ${greeting} Great timing calling back. I've got some updates on ${context} — got a minute?`;
+  }
+
+  if (context) {
+    return `Hey ${customerName}! ${greeting} Good to hear from you again. Last time we were talking about ${context} — what's going on?`;
+  }
+
+  return `Hey ${customerName}! ${greeting} Glad you called back. Let's pick up where we left off — how are things going?`;
 }
 
 function generateGreetingContext(leadData, isOutbound = false, previousSummary = null, organizationName = "our dealership") {
@@ -1214,7 +1293,7 @@ function generateGreetingContext(leadData, isOutbound = false, previousSummary =
     } else {
       // No name - generic but warm with intro
       const greeting = dayContext || outboundTimeGreeting;
-      firstMessageDynamic = `Hey there! ${greeting} I'm Jack from ${organizationName}. I work with folks who've had credit challenges and I'd love to see what options we can find for you.`;
+      firstMessageDynamic = `Hey there! ${greeting} This is Jack from ${organizationName}. We received your vehicle application and I wanted to reach out personally. Are you looking to get into a vehicle?`;
     }
 
     return {
@@ -1247,7 +1326,7 @@ function generateGreetingContext(leadData, isOutbound = false, previousSummary =
       firstMessageDynamic = getSubprimeInboundReturning(customerName, summaryText, dayGreeting, timeGreeting);
     } else {
       const greeting = dayGreeting || timeGreeting;
-      firstMessageDynamic = `Hey! ${greeting} Thanks for calling back. To get things moving, I need to gather a few quick details. First - are you currently working?`;
+      firstMessageDynamic = `Hey! ${greeting} Thanks for calling back. Glad to hear from you — what's going on?`;
     }
   } else {
     // First-time caller - empathetic subprime greeting with intro
@@ -1257,7 +1336,7 @@ function generateGreetingContext(leadData, isOutbound = false, previousSummary =
       firstMessageDynamic = getSubprimeInboundNew(customerName, organizationName, dayGreeting, timeGreeting);
     } else {
       const greeting = dayGreeting || timeGreeting;
-      firstMessageDynamic = `Hey there! ${greeting} I'm Jack from ${organizationName}. I work with folks who've had credit challenges and I'm here to help make this as simple as possible. To get you connected with a specialist ASAP, I'll ask a few quick questions. First - are you working right now?`;
+      firstMessageDynamic = `Hey there! ${greeting} This is Jack with ${organizationName}. Thanks for calling in — are you looking to get into a vehicle?`;
     }
   }
 

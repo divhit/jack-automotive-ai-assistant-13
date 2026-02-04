@@ -853,6 +853,44 @@ class SupabasePersistenceService {
 
         if (phoneConversationError) throw phoneConversationError;
         console.log(`🗑️ Deleted ${count || 0} conversations for phone ${phoneNumber} in org ${organizationId}`);
+
+        // Delete conversation_summaries for this phone + org (prevents stale previous_summary)
+        const { error: summariesError, count: summaryCount } = await this.supabase
+          .from('conversation_summaries')
+          .delete({ count: 'exact' })
+          .eq('phone_number_normalized', phoneNumber)
+          .eq('organization_id', organizationId);
+
+        if (summariesError && !summariesError.message?.includes('does not exist')) {
+          console.warn('⚠️ Failed to delete conversation_summaries:', summariesError.message);
+        } else {
+          console.log(`🗑️ Deleted ${summaryCount || 0} conversation summaries for phone ${phoneNumber} in org ${organizationId}`);
+        }
+
+        // Delete call_sessions for this phone + org (prevents stale call history)
+        const { error: callSessionsError, count: sessionCount } = await this.supabase
+          .from('call_sessions')
+          .delete({ count: 'exact' })
+          .eq('phone_number_normalized', phoneNumber)
+          .eq('organization_id', organizationId);
+
+        if (callSessionsError && !callSessionsError.message?.includes('does not exist')) {
+          console.warn('⚠️ Failed to delete call_sessions:', callSessionsError.message);
+        } else {
+          console.log(`🗑️ Deleted ${sessionCount || 0} call sessions for phone ${phoneNumber} in org ${organizationId}`);
+        }
+      }
+
+      // Delete lead_activities for this lead
+      const { error: activitiesError } = await this.supabase
+        .from('lead_activities')
+        .delete()
+        .eq('lead_id', leadId);
+
+      if (activitiesError && !activitiesError.message?.includes('does not exist')) {
+        console.warn('⚠️ Failed to delete lead_activities:', activitiesError.message);
+      } else {
+        console.log(`🗑️ Deleted lead activities for lead ${leadId}`);
       }
 
       // Also delete by lead_id in case phone number lookup missed any
