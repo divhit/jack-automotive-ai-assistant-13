@@ -17,7 +17,6 @@ interface DarkConversationInputProps {
   onTextInputChange: (val: string) => void;
   onSendMessage: () => void;
   onStartVoiceCall: () => void;
-  onEndCall: () => void;
   onManualCall: () => void;
   onEndManualCall: () => void;
   isCallActive: boolean;
@@ -37,7 +36,6 @@ export const DarkConversationInput = ({
   onTextInputChange,
   onSendMessage,
   onStartVoiceCall,
-  onEndCall,
   onManualCall,
   onEndManualCall,
   isCallActive,
@@ -204,18 +202,6 @@ export const DarkConversationInput = ({
           >
             <PhoneCall className="h-3.5 w-3.5 mr-1.5" />
             Manual Call
-          </Button>
-        )}
-
-        {/* End Call */}
-        {isCallActive && !isManualCallActive && (
-          <Button
-            size="sm"
-            onClick={onEndCall}
-            className="h-8 bg-red-600/80 hover:bg-red-600 text-white text-xs px-3 transition-colors duration-150"
-          >
-            <PhoneOff className="h-3.5 w-3.5 mr-1.5" />
-            End Call
           </Button>
         )}
 

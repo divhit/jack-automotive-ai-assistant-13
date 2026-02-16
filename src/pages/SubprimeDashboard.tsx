@@ -476,7 +476,6 @@ const SubprimeDashboard = () => {
                         onTextInputChange={telephony.setTextInput}
                         onSendMessage={telephony.handleSendTextMessage}
                         onStartVoiceCall={telephony.handleStartVoiceCall}
-                        onEndCall={telephony.handleEndCall}
                         onManualCall={telephony.handleManualCall}
                         onEndManualCall={telephony.handleEndManualCall}
                         isCallActive={telephony.isCallActive}
