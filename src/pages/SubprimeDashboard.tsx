@@ -16,8 +16,7 @@ import { LeadAnalyticsDashboard } from "@/components/subprime/analytics/LeadAnal
 import { RealTimeAnalyticsPanel } from "@/components/subprime/analytics/RealTimeAnalyticsPanel";
 import { SubprimeLead } from "@/data/subprime/subprimeLeads";
 import {
-  BarChart3, Users, MessageSquare, Clock, Info, UserPlus, Database,
-  RefreshCw, Trash2, CheckCircle2, Search
+  UserPlus, RefreshCw, Trash2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
@@ -290,40 +289,28 @@ const SubprimeDashboard = () => {
       label: "In Progress",
       value: metrics.inProgress,
       sub: `${metrics.percentages.inProgress}% of all leads`,
-      icon: MessageSquare,
-      color: "text-amber-400",
-      bg: "bg-amber-500/10",
-      border: "border-amber-500/20",
+      dotColor: "bg-amber-400",
       tileKey: "inProgress" as const,
     },
     {
       label: "Not Ready",
       value: metrics.notReady,
       sub: `${metrics.percentages.notReady}% of all leads`,
-      icon: Users,
-      color: "text-red-400",
-      bg: "bg-red-500/10",
-      border: "border-red-500/20",
+      dotColor: "bg-red-400",
       tileKey: "notReady" as const,
     },
     {
       label: "Needs Action",
       value: metrics.overdueActions,
       sub: `${metrics.overdueActions} overdue`,
-      icon: Clock,
-      color: "text-violet-400",
-      bg: "bg-violet-500/10",
-      border: "border-violet-500/20",
+      dotColor: "bg-violet-400",
       tileKey: "needsAction" as const,
     },
     {
       label: "Ready for Funding",
       value: metrics.readyForFunding,
       sub: `${metrics.percentages.readyForFunding}% of all leads`,
-      icon: CheckCircle2,
-      color: "text-emerald-400",
-      bg: "bg-emerald-500/10",
-      border: "border-emerald-500/20",
+      dotColor: "bg-emerald-400",
       tileKey: "readyForFunding" as const,
     },
   ];
@@ -331,33 +318,29 @@ const SubprimeDashboard = () => {
   return (
     <div className="bg-zinc-950 text-zinc-100 min-h-screen flex flex-col">
       {/* Header Bar */}
-      <div className="flex-shrink-0 bg-zinc-900 border-b border-zinc-800 px-6 py-3">
+      <div className="flex-shrink-0 backdrop-blur-xl bg-zinc-950/80 border-b border-white/[0.06] px-6 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <h1 className="text-lg font-semibold text-zinc-100">
+            <h1 className="text-[15px] font-semibold text-zinc-100 tracking-tight">
               {organization?.name || 'Lead Management'}
             </h1>
-            <Badge variant="outline" className="text-[10px] font-normal border-zinc-700 text-zinc-400">
+            <Badge variant="outline" className="text-[10px] font-normal border-white/[0.08] text-zinc-500">
               {hasRole('admin') ? 'Admin' : hasRole('manager') ? 'Manager' : 'Agent'}
             </Badge>
             <div className="flex items-center gap-1.5">
               <div className={`w-1.5 h-1.5 rounded-full ${autoRefreshEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-600'}`} />
-              <span className="text-[10px] text-zinc-500">
-                {autoRefreshEnabled ? 'Live' : 'Manual'}
+              <span className="text-[10px] text-zinc-600">
+                {autoRefreshEnabled ? 'Live' : 'Paused'}
               </span>
             </div>
-            <span className="text-[10px] text-zinc-600">
-              <Database className="inline h-3 w-3 mr-0.5" />
-              {dataSource} &middot; {lastRefresh.toLocaleTimeString()}
-            </span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setAutoRefreshEnabled(!autoRefreshEnabled)}
-              className="h-8 text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
+              className="h-8 text-xs text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.04] transition-colors duration-150"
             >
               <div className={`w-1.5 h-1.5 rounded-full mr-1.5 ${autoRefreshEnabled ? 'bg-emerald-500' : 'bg-zinc-600'}`} />
               {autoRefreshEnabled ? 'Live' : 'Manual'}
@@ -368,7 +351,7 @@ const SubprimeDashboard = () => {
               size="sm"
               onClick={loadLeadsFromServer}
               disabled={isLoading}
-              className="h-8 text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
+              className="h-8 text-xs text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.04] transition-colors duration-150"
             >
               <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isLoading ? 'animate-spin' : ''}`} />
               Refresh
@@ -378,7 +361,7 @@ const SubprimeDashboard = () => {
               <Button
                 onClick={() => setAddLeadDialogOpen(true)}
                 size="sm"
-                className="h-8 bg-blue-600 hover:bg-blue-700 text-white text-xs"
+                className="h-8 bg-white/[0.06] hover:bg-white/[0.1] text-zinc-300 border border-white/[0.08] text-xs transition-all duration-150"
               >
                 <UserPlus className="h-3.5 w-3.5 mr-1.5" />
                 Add Lead
@@ -390,7 +373,7 @@ const SubprimeDashboard = () => {
                 variant="ghost"
                 size="sm"
                 onClick={handleDeleteAllLeads}
-                className="h-8 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                className="h-8 text-xs text-zinc-500 hover:text-red-400 hover:bg-white/[0.04] transition-colors duration-150"
               >
                 <Trash2 className="h-3.5 w-3.5 mr-1.5" />
                 Clear All
@@ -401,18 +384,18 @@ const SubprimeDashboard = () => {
       </div>
 
       {/* Main Tabs */}
-      <div className="flex-shrink-0 bg-zinc-900 border-b border-zinc-800 px-6">
+      <div className="flex-shrink-0 border-b border-white/[0.06] px-6">
         <Tabs value={activeMainTab} onValueChange={setActiveMainTab}>
-          <TabsList className="bg-transparent h-10">
+          <TabsList className="bg-transparent h-auto gap-6 p-0">
             <TabsTrigger
               value="overview"
-              className="text-zinc-400 data-[state=active]:text-zinc-100 data-[state=active]:bg-zinc-800 data-[state=active]:shadow-none rounded-md px-3 py-1.5 text-sm"
+              className="text-zinc-500 data-[state=active]:text-zinc-100 data-[state=active]:bg-transparent data-[state=active]:shadow-none rounded-none border-b-2 border-transparent data-[state=active]:border-zinc-100 px-0 pb-2.5 pt-3 text-[13px] font-medium transition-colors duration-150"
             >
               Lead Overview
             </TabsTrigger>
             <TabsTrigger
               value="analytics"
-              className="text-zinc-400 data-[state=active]:text-zinc-100 data-[state=active]:bg-zinc-800 data-[state=active]:shadow-none rounded-md px-3 py-1.5 text-sm"
+              className="text-zinc-500 data-[state=active]:text-zinc-100 data-[state=active]:bg-transparent data-[state=active]:shadow-none rounded-none border-b-2 border-transparent data-[state=active]:border-zinc-100 px-0 pb-2.5 pt-3 text-[13px] font-medium transition-colors duration-150"
             >
               CRM Analytics
             </TabsTrigger>
@@ -430,19 +413,16 @@ const SubprimeDashboard = () => {
                 <button
                   key={kpi.label}
                   onClick={() => handleTileClick(getTileContent()[kpi.tileKey].title, getTileContent()[kpi.tileKey].content)}
-                  className={`bg-zinc-900 border ${kpi.border} rounded-lg p-4 text-left hover:bg-zinc-800/80 transition-colors`}
+                  className="bg-white/[0.02] border border-white/[0.06] rounded-lg p-4 text-left hover:bg-white/[0.04] transition-all duration-150"
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider flex items-center gap-1">
+                  <div className="flex items-center gap-1.5 mb-3">
+                    <div className={`w-1.5 h-1.5 rounded-full ${kpi.dotColor}`} />
+                    <span className="text-[11px] font-medium text-zinc-500 tracking-wide uppercase">
                       {kpi.label}
-                      <Info className="h-3 w-3" />
                     </span>
-                    <div className={`w-7 h-7 rounded-lg ${kpi.bg} flex items-center justify-center`}>
-                      <kpi.icon className={`h-3.5 w-3.5 ${kpi.color}`} />
-                    </div>
                   </div>
-                  <div className={`text-2xl font-bold ${kpi.color}`}>{kpi.value}</div>
-                  <p className="text-[10px] text-zinc-500 mt-0.5">{kpi.sub}</p>
+                  <div className="text-2xl font-semibold text-zinc-100 tracking-tight">{kpi.value}</div>
+                  <p className="text-xs text-zinc-500 mt-0.5">{kpi.sub}</p>
                 </button>
               ))}
             </div>
@@ -463,7 +443,7 @@ const SubprimeDashboard = () => {
                 />
               </ResizablePanel>
 
-              <ResizableHandle withHandle className="bg-zinc-800 hover:bg-zinc-700 transition-colors" />
+              <ResizableHandle withHandle className="bg-white/[0.04] hover:bg-white/[0.08] transition-colors duration-150" />
 
               {/* Right panel: Lead detail + conversation */}
               <ResizablePanel defaultSize={75}>
@@ -554,12 +534,12 @@ const SubprimeDashboard = () => {
         <div className="flex-1 p-6 overflow-y-auto">
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
             <div className="lg:col-span-1">
-              <div className="bg-zinc-900 border border-zinc-800 rounded-lg">
+              <div className="bg-white/[0.02] border border-white/[0.06] rounded-lg">
                 <RealTimeAnalyticsPanel />
               </div>
             </div>
             <div className="lg:col-span-3">
-              <div className="bg-zinc-900 border border-zinc-800 rounded-lg">
+              <div className="bg-white/[0.02] border border-white/[0.06] rounded-lg">
                 <LeadAnalyticsDashboard />
               </div>
             </div>
@@ -575,7 +555,7 @@ const SubprimeDashboard = () => {
       />
 
       <Dialog open={tileDialogOpen} onOpenChange={setTileDialogOpen}>
-        <DialogContent className="max-w-lg bg-zinc-900 border-zinc-800 text-zinc-100">
+        <DialogContent className="max-w-lg bg-zinc-950 border-white/[0.06] text-zinc-100">
           <DialogHeader>
             <DialogTitle className="text-zinc-100">{activeTileInfo.title}</DialogTitle>
             <DialogDescription className="text-zinc-400">Detailed breakdown</DialogDescription>

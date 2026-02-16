@@ -28,9 +28,9 @@ interface DarkSettingsTabProps {
 }
 
 const darkInputClasses =
-  'bg-zinc-800 border-zinc-700 text-zinc-100 placeholder:text-zinc-600 focus:border-blue-500 focus-visible:ring-blue-500/30 focus-visible:ring-offset-zinc-900';
+  'bg-white/[0.04] border-white/[0.06] text-zinc-200 placeholder:text-zinc-600 focus:border-white/[0.15] focus:bg-white/[0.06] focus-visible:ring-0 rounded-md transition-colors duration-150';
 
-const darkLabelClasses = 'text-xs font-medium text-zinc-400 uppercase tracking-wider';
+const darkLabelClasses = 'text-[11px] font-medium text-zinc-500 uppercase tracking-wider';
 
 const DarkSettingsTab: React.FC<DarkSettingsTabProps> = ({
   agentName,
@@ -45,10 +45,10 @@ const DarkSettingsTab: React.FC<DarkSettingsTabProps> = ({
   return (
     <div className="p-4 space-y-6 overflow-y-auto h-full">
       {/* Section 1: Agent Configuration */}
-      <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-4">
+      <div className="bg-white/[0.02] border border-white/[0.06] rounded-lg p-4">
         <div className="flex items-center gap-2 mb-4">
-          <Phone className="w-5 h-5 text-zinc-400" />
-          <h3 className="text-sm font-semibold text-zinc-300">Agent Configuration</h3>
+          <Phone className="w-4 h-4 text-zinc-600" />
+          <h3 className="text-[13px] font-medium text-zinc-300 tracking-tight">Agent Configuration</h3>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -83,10 +83,10 @@ const DarkSettingsTab: React.FC<DarkSettingsTabProps> = ({
       </div>
 
       {/* Section 2: Conversation Mode */}
-      <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-4">
+      <div className="bg-white/[0.02] border border-white/[0.06] rounded-lg p-4">
         <div className="flex items-center gap-2 mb-4">
-          <Shield className="w-5 h-5 text-zinc-400" />
-          <h3 className="text-sm font-semibold text-zinc-300">Conversation Mode</h3>
+          <Shield className="w-4 h-4 text-zinc-600" />
+          <h3 className="text-[13px] font-medium text-zinc-300 tracking-tight">Conversation Mode</h3>
         </div>
 
         <div className="flex items-center justify-between">
@@ -122,10 +122,10 @@ const DarkSettingsTab: React.FC<DarkSettingsTabProps> = ({
       </div>
 
       {/* Section 3: AI Features */}
-      <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-4">
+      <div className="bg-white/[0.02] border border-white/[0.06] rounded-lg p-4">
         <div className="flex items-center gap-2 mb-4">
-          <Bot className="w-5 h-5 text-zinc-400" />
-          <h3 className="text-sm font-semibold text-zinc-300">AI Features</h3>
+          <Bot className="w-4 h-4 text-zinc-600" />
+          <h3 className="text-[13px] font-medium text-zinc-300 tracking-tight">AI Features</h3>
         </div>
 
         <div className="space-y-4">
@@ -134,9 +134,9 @@ const DarkSettingsTab: React.FC<DarkSettingsTabProps> = ({
             <div className="flex-1 mr-4">
               <div className="flex items-center gap-2">
                 <TrendingUp className="w-4 h-4 text-blue-500" />
-                <span className="text-sm font-medium text-zinc-200">Auto Chase</span>
+                <span className="text-[13px] font-medium text-zinc-200">Auto Chase</span>
               </div>
-              <p className="text-xs text-zinc-500 mt-0.5 ml-6">
+              <p className="text-[12px] text-zinc-500 mt-0.5 ml-6">
                 Automated follow-up sequences for unresponsive leads
               </p>
             </div>
@@ -152,9 +152,9 @@ const DarkSettingsTab: React.FC<DarkSettingsTabProps> = ({
             <div className="flex-1 mr-4">
               <div className="flex items-center gap-2">
                 <Bot className="w-4 h-4 text-purple-500" />
-                <span className="text-sm font-medium text-zinc-200">Smart Responses</span>
+                <span className="text-[13px] font-medium text-zinc-200">Smart Responses</span>
               </div>
-              <p className="text-xs text-zinc-500 mt-0.5 ml-6">
+              <p className="text-[12px] text-zinc-500 mt-0.5 ml-6">
                 AI analyzes conversations and suggests optimal responses
               </p>
             </div>
@@ -170,9 +170,9 @@ const DarkSettingsTab: React.FC<DarkSettingsTabProps> = ({
             <div className="flex-1 mr-4">
               <div className="flex items-center gap-2">
                 <Bot className="w-4 h-4 text-amber-500" />
-                <span className="text-sm font-medium text-zinc-200">Mood Detection</span>
+                <span className="text-[13px] font-medium text-zinc-200">Mood Detection</span>
               </div>
-              <p className="text-xs text-zinc-500 mt-0.5 ml-6">
+              <p className="text-[12px] text-zinc-500 mt-0.5 ml-6">
                 Detect customer sentiment and adjust conversation tone
               </p>
             </div>
@@ -188,9 +188,9 @@ const DarkSettingsTab: React.FC<DarkSettingsTabProps> = ({
             <div className="flex-1 mr-4">
               <div className="flex items-center gap-2">
                 <Bell className="w-4 h-4 text-yellow-500" />
-                <span className="text-sm font-medium text-zinc-200">Notifications</span>
+                <span className="text-[13px] font-medium text-zinc-200">Notifications</span>
               </div>
-              <p className="text-xs text-zinc-500 mt-0.5 ml-6">
+              <p className="text-[12px] text-zinc-500 mt-0.5 ml-6">
                 Get notified of call events and text message activity
               </p>
             </div>
@@ -204,10 +204,10 @@ const DarkSettingsTab: React.FC<DarkSettingsTabProps> = ({
       </div>
 
       {/* Section 4: Priority Level */}
-      <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-4">
+      <div className="bg-white/[0.02] border border-white/[0.06] rounded-lg p-4">
         <div className="flex items-center gap-2 mb-4">
-          <AlertTriangle className="w-5 h-5 text-zinc-400" />
-          <h3 className="text-sm font-semibold text-zinc-300">Priority Level</h3>
+          <AlertTriangle className="w-4 h-4 text-zinc-600" />
+          <h3 className="text-[13px] font-medium text-zinc-300 tracking-tight">Priority Level</h3>
         </div>
 
         <div className="space-y-1.5">
@@ -216,10 +216,10 @@ const DarkSettingsTab: React.FC<DarkSettingsTabProps> = ({
             value={settingsData.priorityLevel || 'Normal'}
             onValueChange={(value) => onSettingChange('priorityLevel', value)}
           >
-            <SelectTrigger className="bg-zinc-800 border-zinc-700 text-zinc-100 focus:ring-blue-500/30 focus:ring-offset-zinc-900">
+            <SelectTrigger className="bg-white/[0.04] border-white/[0.06] text-zinc-200 focus:ring-0">
               <SelectValue placeholder="Select priority" />
             </SelectTrigger>
-            <SelectContent className="bg-zinc-800 border-zinc-700 text-zinc-100">
+            <SelectContent className="bg-zinc-900 border-white/[0.08] text-zinc-200">
               <SelectItem value="Low">Low</SelectItem>
               <SelectItem value="Normal">Normal</SelectItem>
               <SelectItem value="High">High</SelectItem>

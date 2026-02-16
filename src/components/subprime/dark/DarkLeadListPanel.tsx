@@ -71,16 +71,16 @@ export const DarkLeadListPanel = ({
   });
 
   return (
-    <div className="flex flex-col h-full bg-zinc-950 border-r border-zinc-800">
+    <div className="flex flex-col h-full bg-zinc-950 border-r border-white/[0.06]">
       {/* Search bar */}
-      <div className="p-3 space-y-2 border-b border-zinc-800">
+      <div className="p-3 space-y-2 border-b border-white/[0.06]">
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
           <Input
             value={searchTerm}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search leads..."
-            className="pl-9 h-9 bg-zinc-900 border-zinc-700 text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-blue-500/50"
+            className="pl-9 h-9 bg-white/[0.04] border-white/[0.06] text-zinc-200 placeholder:text-zinc-600 focus:border-white/[0.12] focus:bg-white/[0.06] focus-visible:ring-0"
           />
         </div>
 
@@ -91,7 +91,7 @@ export const DarkLeadListPanel = ({
             size="sm"
             onClick={() => setShowFilters(!showFilters)}
             className={cn(
-              "h-7 px-2 text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800",
+              "h-7 px-2 text-xs text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04] transition-colors duration-150",
               showFilters && "text-blue-400 hover:text-blue-300"
             )}
           >
@@ -130,35 +130,35 @@ export const DarkLeadListPanel = ({
                 <ToggleGroupItem
                   value="all"
                   size="sm"
-                  className="text-[10px] h-6 px-2 border-zinc-700 text-zinc-400 data-[state=on]:bg-zinc-700 data-[state=on]:text-zinc-100"
+                  className="text-[10px] h-6 px-2 border-white/[0.08] text-zinc-500 data-[state=on]:bg-white/[0.06] data-[state=on]:text-zinc-200"
                 >
                   All
                 </ToggleGroupItem>
                 <ToggleGroupItem
                   value="Auto Chase Running"
                   size="sm"
-                  className="text-[10px] h-6 px-2 border-zinc-700 text-zinc-400 data-[state=on]:bg-zinc-700 data-[state=on]:text-zinc-100"
+                  className="text-[10px] h-6 px-2 border-white/[0.08] text-zinc-500 data-[state=on]:bg-white/[0.06] data-[state=on]:text-zinc-200"
                 >
                   Auto
                 </ToggleGroupItem>
                 <ToggleGroupItem
                   value="Paused"
                   size="sm"
-                  className="text-[10px] h-6 px-2 border-zinc-700 text-zinc-400 data-[state=on]:bg-zinc-700 data-[state=on]:text-zinc-100"
+                  className="text-[10px] h-6 px-2 border-white/[0.08] text-zinc-500 data-[state=on]:bg-white/[0.06] data-[state=on]:text-zinc-200"
                 >
                   Paused
                 </ToggleGroupItem>
                 <ToggleGroupItem
                   value="Completed"
                   size="sm"
-                  className="text-[10px] h-6 px-2 border-zinc-700 text-zinc-400 data-[state=on]:bg-zinc-700 data-[state=on]:text-zinc-100"
+                  className="text-[10px] h-6 px-2 border-white/[0.08] text-zinc-500 data-[state=on]:bg-white/[0.06] data-[state=on]:text-zinc-200"
                 >
                   Done
                 </ToggleGroupItem>
                 <ToggleGroupItem
                   value="Manual Review"
                   size="sm"
-                  className="text-[10px] h-6 px-2 border-zinc-700 text-zinc-400 data-[state=on]:bg-zinc-700 data-[state=on]:text-zinc-100"
+                  className="text-[10px] h-6 px-2 border-white/[0.08] text-zinc-500 data-[state=on]:bg-white/[0.06] data-[state=on]:text-zinc-200"
                 >
                   Manual
                 </ToggleGroupItem>
@@ -180,28 +180,28 @@ export const DarkLeadListPanel = ({
                 <ToggleGroupItem
                   value="all"
                   size="sm"
-                  className="text-[10px] h-6 px-2 border-zinc-700 text-zinc-400 data-[state=on]:bg-zinc-700 data-[state=on]:text-zinc-100"
+                  className="text-[10px] h-6 px-2 border-white/[0.08] text-zinc-500 data-[state=on]:bg-white/[0.06] data-[state=on]:text-zinc-200"
                 >
                   All
                 </ToggleGroupItem>
                 <ToggleGroupItem
                   value="Ready"
                   size="sm"
-                  className="text-[10px] h-6 px-2 border-emerald-800/50 text-emerald-500 data-[state=on]:bg-emerald-500/20 data-[state=on]:text-emerald-400"
+                  className="text-[10px] h-6 px-2 border-white/[0.08] text-zinc-500 data-[state=on]:bg-white/[0.06] data-[state=on]:text-zinc-200"
                 >
                   Ready
                 </ToggleGroupItem>
                 <ToggleGroupItem
                   value="Partial"
                   size="sm"
-                  className="text-[10px] h-6 px-2 border-amber-800/50 text-amber-500 data-[state=on]:bg-amber-500/20 data-[state=on]:text-amber-400"
+                  className="text-[10px] h-6 px-2 border-white/[0.08] text-zinc-500 data-[state=on]:bg-white/[0.06] data-[state=on]:text-zinc-200"
                 >
                   Partial
                 </ToggleGroupItem>
                 <ToggleGroupItem
                   value="Not Ready"
                   size="sm"
-                  className="text-[10px] h-6 px-2 border-red-800/50 text-red-500 data-[state=on]:bg-red-500/20 data-[state=on]:text-red-400"
+                  className="text-[10px] h-6 px-2 border-white/[0.08] text-zinc-500 data-[state=on]:bg-white/[0.06] data-[state=on]:text-zinc-200"
                 >
                   Not Ready
                 </ToggleGroupItem>
@@ -223,56 +223,56 @@ export const DarkLeadListPanel = ({
                 <ToggleGroupItem
                   value="all"
                   size="sm"
-                  className="text-[10px] h-6 px-2 border-zinc-700 text-zinc-400 data-[state=on]:bg-zinc-700 data-[state=on]:text-zinc-100"
+                  className="text-[10px] h-6 px-2 border-white/[0.08] text-zinc-500 data-[state=on]:bg-white/[0.06] data-[state=on]:text-zinc-200"
                 >
                   All
                 </ToggleGroupItem>
                 <ToggleGroupItem
                   value="Warm"
                   size="sm"
-                  className="text-[10px] h-6 px-2 border-zinc-700 data-[state=on]:bg-zinc-700"
+                  className="text-[10px] h-6 px-2 border-white/[0.08] data-[state=on]:bg-white/[0.06]"
                 >
                   {"\u{1F60A}"}
                 </ToggleGroupItem>
                 <ToggleGroupItem
                   value="Neutral"
                   size="sm"
-                  className="text-[10px] h-6 px-2 border-zinc-700 data-[state=on]:bg-zinc-700"
+                  className="text-[10px] h-6 px-2 border-white/[0.08] data-[state=on]:bg-white/[0.06]"
                 >
                   {"\u{1F610}"}
                 </ToggleGroupItem>
                 <ToggleGroupItem
                   value="Negative"
                   size="sm"
-                  className="text-[10px] h-6 px-2 border-zinc-700 data-[state=on]:bg-zinc-700"
+                  className="text-[10px] h-6 px-2 border-white/[0.08] data-[state=on]:bg-white/[0.06]"
                 >
                   {"\u{1F615}"}
                 </ToggleGroupItem>
                 <ToggleGroupItem
                   value="Ghosted"
                   size="sm"
-                  className="text-[10px] h-6 px-2 border-zinc-700 data-[state=on]:bg-zinc-700"
+                  className="text-[10px] h-6 px-2 border-white/[0.08] data-[state=on]:bg-white/[0.06]"
                 >
                   {"\u{1F634}"}
                 </ToggleGroupItem>
                 <ToggleGroupItem
                   value="Cold"
                   size="sm"
-                  className="text-[10px] h-6 px-2 border-zinc-700 data-[state=on]:bg-zinc-700"
+                  className="text-[10px] h-6 px-2 border-white/[0.08] data-[state=on]:bg-white/[0.06]"
                 >
                   {"\u{1F9CA}"}
                 </ToggleGroupItem>
                 <ToggleGroupItem
                   value="Frustrated"
                   size="sm"
-                  className="text-[10px] h-6 px-2 border-zinc-700 data-[state=on]:bg-zinc-700"
+                  className="text-[10px] h-6 px-2 border-white/[0.08] data-[state=on]:bg-white/[0.06]"
                 >
                   {"\u{1F5EF}\u{FE0F}"}
                 </ToggleGroupItem>
                 <ToggleGroupItem
                   value="Needs Human"
                   size="sm"
-                  className="text-[10px] h-6 px-2 border-zinc-700 data-[state=on]:bg-zinc-700"
+                  className="text-[10px] h-6 px-2 border-white/[0.08] data-[state=on]:bg-white/[0.06]"
                 >
                   {"\u{1F64B}"}
                 </ToggleGroupItem>
@@ -284,7 +284,7 @@ export const DarkLeadListPanel = ({
 
       {/* Scrollable lead list */}
       <ScrollArea className="flex-1">
-        <div className="divide-y divide-zinc-800/50">
+        <div className="divide-y divide-white/[0.04]">
           {filteredLeads.length > 0 ? (
             filteredLeads.map((lead) => (
               <DarkLeadListItem
@@ -296,7 +296,7 @@ export const DarkLeadListPanel = ({
             ))
           ) : (
             <div className="flex flex-col items-center justify-center py-12 px-4">
-              <Search className="h-8 w-8 text-zinc-700 mb-3" />
+              <Search className="h-8 w-8 text-zinc-800 mb-3" />
               <p className="text-sm text-zinc-500 text-center">
                 No leads match your search or filters.
               </p>
@@ -314,10 +314,10 @@ export const DarkLeadListPanel = ({
       </ScrollArea>
 
       {/* Add Lead button */}
-      <div className="p-3 border-t border-zinc-800">
+      <div className="p-3 border-t border-white/[0.06]">
         <Button
           onClick={onAddLead}
-          className="w-full h-9 bg-blue-600 hover:bg-blue-700 text-white text-sm"
+          className="w-full h-9 bg-white/[0.06] hover:bg-white/[0.1] text-zinc-300 border border-white/[0.08] text-sm transition-all duration-150"
         >
           <Plus className="h-4 w-4 mr-1.5" />
           Add Lead

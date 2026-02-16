@@ -84,7 +84,7 @@ export const DarkConversationInput = ({
   const anyCallActive = isCallActive || isManualCallActive;
 
   return (
-    <div className="bg-zinc-900 border-t border-zinc-800 p-3 space-y-2.5">
+    <div className="bg-zinc-950 border-t border-white/[0.06] px-4 py-3 space-y-2.5">
       {/* Top row: Auto/Manual toggle + status */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -92,7 +92,7 @@ export const DarkConversationInput = ({
             id="auto-mode"
             checked={isAutoMode}
             onCheckedChange={onToggleAutoMode}
-            className="h-5 w-9 data-[state=checked]:bg-blue-600 data-[state=unchecked]:bg-zinc-700"
+            className="h-4 w-7 data-[state=checked]:bg-blue-600 data-[state=unchecked]:bg-zinc-700"
           />
           <Label
             htmlFor="auto-mode"
@@ -120,7 +120,7 @@ export const DarkConversationInput = ({
 
       {/* Human control banner */}
       {isUnderHumanControl && (
-        <div className="flex items-center justify-between bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+        <div className="flex items-center justify-between bg-amber-500/5 border border-amber-500/10 rounded-lg px-3 py-2">
           <div className="flex items-center gap-2">
             <UserCheck className="h-4 w-4 text-amber-400" />
             <span className="text-xs text-amber-300">
@@ -161,10 +161,10 @@ export const DarkConversationInput = ({
               : "Type a message..."
           }
           className={cn(
-            "flex-1 resize-none rounded-lg px-3 py-2 text-sm leading-relaxed",
-            "bg-zinc-800 border border-zinc-700 text-zinc-100",
-            "placeholder:text-zinc-500",
-            "focus:outline-none focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500/50",
+            "flex-1 resize-none rounded-lg px-3 py-2 text-[13px] leading-relaxed",
+            "bg-white/[0.04] border border-white/[0.06] text-zinc-200",
+            "placeholder:text-zinc-600",
+            "focus:outline-none focus:ring-0 focus:border-white/[0.12] focus:bg-white/[0.06]",
             "scrollbar-thin scrollbar-thumb-zinc-700"
           )}
         />
@@ -175,7 +175,7 @@ export const DarkConversationInput = ({
               ? !humanInput.trim()
               : !textInput.trim()
           }
-          className="h-[52px] w-10 bg-blue-600 hover:bg-blue-700 disabled:bg-zinc-800 disabled:text-zinc-600 shrink-0"
+          className="h-[52px] w-10 bg-blue-600 hover:bg-blue-500 disabled:bg-white/[0.04] disabled:text-zinc-600 transition-colors duration-150 shrink-0"
         >
           <Send className="h-4 w-4" />
         </Button>
@@ -188,7 +188,7 @@ export const DarkConversationInput = ({
           <Button
             size="sm"
             onClick={onStartVoiceCall}
-            className="h-8 bg-blue-600 hover:bg-blue-700 text-white text-xs px-3"
+            className="h-8 bg-white/[0.06] hover:bg-white/[0.1] text-zinc-300 border border-white/[0.08] text-xs px-3 transition-all duration-150"
           >
             <Phone className="h-3.5 w-3.5 mr-1.5" />
             Jack Call
@@ -200,7 +200,7 @@ export const DarkConversationInput = ({
           <Button
             size="sm"
             onClick={onManualCall}
-            className="h-8 bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-3"
+            className="h-8 bg-white/[0.06] hover:bg-white/[0.1] text-zinc-300 border border-white/[0.08] text-xs px-3 transition-all duration-150"
           >
             <PhoneCall className="h-3.5 w-3.5 mr-1.5" />
             Manual Call
@@ -212,7 +212,7 @@ export const DarkConversationInput = ({
           <Button
             size="sm"
             onClick={onEndCall}
-            className="h-8 bg-red-600 hover:bg-red-700 text-white text-xs px-3"
+            className="h-8 bg-red-600/80 hover:bg-red-600 text-white text-xs px-3 transition-colors duration-150"
           >
             <PhoneOff className="h-3.5 w-3.5 mr-1.5" />
             End Call
@@ -223,7 +223,7 @@ export const DarkConversationInput = ({
           <Button
             size="sm"
             onClick={onEndManualCall}
-            className="h-8 bg-red-600 hover:bg-red-700 text-white text-xs px-3"
+            className="h-8 bg-red-600/80 hover:bg-red-600 text-white text-xs px-3 transition-colors duration-150"
           >
             <PhoneOff className="h-3.5 w-3.5 mr-1.5" />
             End Manual Call
@@ -236,7 +236,7 @@ export const DarkConversationInput = ({
             size="sm"
             variant="ghost"
             onClick={onJoinHumanControl}
-            className="h-8 text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 px-3 ml-auto"
+            className="h-8 text-xs text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.04] transition-colors duration-150 px-3 ml-auto"
           >
             <UserCheck className="h-3.5 w-3.5 mr-1.5" />
             Join as Human
@@ -253,7 +253,7 @@ export const DarkConversationInput = ({
               }
             }}
             disabled={!humanInput.trim()}
-            className="h-8 bg-amber-600 hover:bg-amber-700 text-white text-xs px-3 ml-auto disabled:bg-zinc-800 disabled:text-zinc-600"
+            className="h-8 bg-amber-600/80 hover:bg-amber-600 text-white text-xs px-3 ml-auto disabled:bg-white/[0.04] disabled:text-zinc-600 transition-colors duration-150"
           >
             <Send className="h-3.5 w-3.5 mr-1.5" />
             Send as Human

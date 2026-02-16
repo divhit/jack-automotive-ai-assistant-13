@@ -68,9 +68,9 @@ export const DarkConversationThread = ({
         {isLoading && conversationHistory.length === 0 && (
           <div className="flex items-center justify-center py-8">
             <div className="flex items-center gap-2 text-zinc-500 text-sm">
-              <div className="h-1.5 w-1.5 rounded-full bg-zinc-500 animate-pulse" />
-              <div className="h-1.5 w-1.5 rounded-full bg-zinc-500 animate-pulse [animation-delay:200ms]" />
-              <div className="h-1.5 w-1.5 rounded-full bg-zinc-500 animate-pulse [animation-delay:400ms]" />
+              <div className="h-1.5 w-1.5 rounded-full bg-zinc-600 animate-pulse" />
+              <div className="h-1.5 w-1.5 rounded-full bg-zinc-600 animate-pulse [animation-delay:200ms]" />
+              <div className="h-1.5 w-1.5 rounded-full bg-zinc-600 animate-pulse [animation-delay:400ms]" />
               <span className="ml-1">Loading messages...</span>
             </div>
           </div>
@@ -81,10 +81,10 @@ export const DarkConversationThread = ({
           if (message.sentBy === "system") {
             return (
               <div key={message.id} className="flex justify-center">
-                <p className="text-zinc-500 text-xs italic max-w-[85%] text-center">
+                <p className="text-zinc-600 text-[11px] italic max-w-[85%] text-center">
                   {message.content}
                   {message.timestamp && (
-                    <span className="ml-2 text-[10px] text-zinc-600">
+                    <span className="ml-2 text-[10px] text-zinc-700">
                       {formatTimestamp(message.timestamp)}
                     </span>
                   )}
@@ -108,25 +108,18 @@ export const DarkConversationThread = ({
                 className={cn(
                   "max-w-[75%] px-3.5 py-2.5",
                   isUser &&
-                    "bg-zinc-800 rounded-2xl rounded-bl-md text-zinc-100",
+                    "bg-white/[0.05] rounded-lg text-zinc-200",
                   !isUser &&
                     !isHumanAgent &&
-                    "bg-blue-600/90 rounded-2xl rounded-br-md text-white",
+                    "bg-blue-600/20 rounded-lg text-zinc-100 border border-blue-500/10",
                   isHumanAgent &&
-                    "bg-amber-600/90 rounded-2xl rounded-br-md text-white"
+                    "bg-amber-600/15 rounded-lg text-zinc-100 border border-amber-500/10"
                 )}
               >
-                {/* Voice badge */}
-                {(message.type === "voice" || message.type === "call") && (
-                  <div className="flex items-center gap-1 mb-1">
-                    <Mic className="h-3 w-3 opacity-60" />
-                    <span className="text-[10px] opacity-60 uppercase tracking-wider font-medium">
-                      Voice
-                    </span>
-                  </div>
-                )}
-
                 <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+                  {(message.type === "voice" || message.type === "call") && (
+                    <Mic className="h-3 w-3 opacity-40 inline mr-1" />
+                  )}
                   {message.content}
                 </p>
 
@@ -137,7 +130,7 @@ export const DarkConversationThread = ({
                   <span
                     className={cn(
                       "text-[10px]",
-                      isUser ? "text-zinc-500" : "text-white/50"
+                      isUser ? "text-zinc-500" : "text-zinc-500"
                     )}
                   >
                     {formatTimestamp(message.timestamp)}
@@ -164,8 +157,8 @@ export const DarkConversationThread = ({
                 className={cn(
                   "max-w-[75%] px-3.5 py-2.5 opacity-70",
                   isUserSpeaking
-                    ? "bg-zinc-800/60 rounded-2xl rounded-bl-md"
-                    : "bg-blue-600/50 rounded-2xl rounded-br-md"
+                    ? "bg-white/[0.03] rounded-lg border-l-2 border-blue-500/30"
+                    : "bg-white/[0.03] rounded-lg border-l-2 border-blue-500/30"
                 )}
               >
                 <div className="flex items-center gap-1.5 mb-1">
@@ -201,7 +194,7 @@ export const DarkConversationThread = ({
           <Button
             size="sm"
             onClick={onScrollToBottom}
-            className="h-8 rounded-full bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 shadow-lg shadow-black/30 px-3"
+            className="h-8 rounded-full bg-zinc-900 hover:bg-zinc-800 text-zinc-400 border border-white/[0.08] shadow-lg px-3"
           >
             <ArrowDown className="h-3.5 w-3.5 mr-1" />
             <span className="text-xs">New messages</span>

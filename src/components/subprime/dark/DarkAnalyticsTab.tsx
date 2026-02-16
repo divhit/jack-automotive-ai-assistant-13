@@ -123,10 +123,10 @@ const DarkAnalyticsTab: React.FC<DarkAnalyticsTabProps> = ({
       {/* Top row: 3 stat cards */}
       <div className="grid grid-cols-3 gap-3">
         {/* Lead Score */}
-        <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-4">
+        <div className="bg-white/[0.02] border border-white/[0.06] rounded-lg p-4">
           <div className="flex items-center gap-2 mb-2">
             <Target className="w-4 h-4 text-orange-500" />
-            <span className="text-xs text-zinc-500 uppercase">Lead Score</span>
+            <span className="text-[11px] text-zinc-500 uppercase tracking-wider">Lead Score</span>
           </div>
           <div className={`text-3xl font-bold ${getScoreColor(analyticsData.leadScore || 0)}`}>
             {analyticsData.leadScore || 0}
@@ -134,7 +134,7 @@ const DarkAnalyticsTab: React.FC<DarkAnalyticsTabProps> = ({
           <div className="text-xs text-zinc-500 mt-1">
             {getScoreLabel(analyticsData.leadScore || 0)}
           </div>
-          <div className="w-full bg-zinc-800 rounded-full h-1.5 mt-3">
+          <div className="w-full bg-white/[0.06] rounded-full h-1.5 mt-3">
             <div
               className={`h-1.5 rounded-full transition-all ${getScoreBarColor(analyticsData.leadScore || 0)}`}
               style={{ width: `${analyticsData.leadScore || 0}%` }}
@@ -143,10 +143,10 @@ const DarkAnalyticsTab: React.FC<DarkAnalyticsTabProps> = ({
         </div>
 
         {/* Conversion */}
-        <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-4">
+        <div className="bg-white/[0.02] border border-white/[0.06] rounded-lg p-4">
           <div className="flex items-center gap-2 mb-2">
             <TrendingUp className="w-4 h-4 text-emerald-500" />
-            <span className="text-xs text-zinc-500 uppercase">Conversion</span>
+            <span className="text-[11px] text-zinc-500 uppercase tracking-wider">Conversion</span>
           </div>
           <div className={`text-3xl font-bold ${getConversionColor(analyticsData.conversionProbability || 0)}`}>
             {conversionPercent}%
@@ -157,10 +157,10 @@ const DarkAnalyticsTab: React.FC<DarkAnalyticsTabProps> = ({
         </div>
 
         {/* Contact Attempts */}
-        <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-4">
+        <div className="bg-white/[0.02] border border-white/[0.06] rounded-lg p-4">
           <div className="flex items-center gap-2 mb-2">
             <Clock className="w-4 h-4 text-purple-500" />
-            <span className="text-xs text-zinc-500 uppercase">Contact Attempts</span>
+            <span className="text-[11px] text-zinc-500 uppercase tracking-wider">Contact Attempts</span>
           </div>
           <div className="text-3xl font-bold text-zinc-100">
             {analyticsData.contactAttempts || 0}
@@ -172,8 +172,8 @@ const DarkAnalyticsTab: React.FC<DarkAnalyticsTabProps> = ({
       {/* Middle row: 2 info cards */}
       <div className="grid grid-cols-2 gap-3">
         {/* Funding Readiness */}
-        <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-4">
-          <span className="text-xs text-zinc-500 uppercase">Funding Readiness</span>
+        <div className="bg-white/[0.02] border border-white/[0.06] rounded-lg p-4">
+          <span className="text-[11px] text-zinc-500 uppercase tracking-wider">Funding Readiness</span>
           <div className="mt-3">
             <Badge className={`text-sm px-3 py-1 ${getFundingReadinessBadge(analyticsData.fundingReadiness || 'Not Ready')}`}>
               {analyticsData.fundingReadiness || 'Not Ready'}
@@ -182,8 +182,8 @@ const DarkAnalyticsTab: React.FC<DarkAnalyticsTabProps> = ({
         </div>
 
         {/* Sentiment */}
-        <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-4">
-          <span className="text-xs text-zinc-500 uppercase">Sentiment</span>
+        <div className="bg-white/[0.02] border border-white/[0.06] rounded-lg p-4">
+          <span className="text-[11px] text-zinc-500 uppercase tracking-wider">Sentiment</span>
           <div className="mt-3">
             <Badge className={`text-sm px-3 py-1 ${getSentimentBadge(analyticsData.sentiment || 'Neutral')}`}>
               {getSentimentEmoji(analyticsData.sentiment || 'Neutral')}{' '}
@@ -194,8 +194,8 @@ const DarkAnalyticsTab: React.FC<DarkAnalyticsTabProps> = ({
       </div>
 
       {/* Bottom: Chase Status */}
-      <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-4">
-        <span className="text-xs text-zinc-500 uppercase">Chase Status</span>
+      <div className="bg-white/[0.02] border border-white/[0.06] rounded-lg p-4">
+        <span className="text-[11px] text-zinc-500 uppercase tracking-wider">Chase Status</span>
         <div className="mt-3 flex items-center gap-3">
           <Badge className={`text-sm px-3 py-1 ${getChaseStatusBadge(analyticsData.chaseStatus || 'Inactive')}`}>
             {analyticsData.chaseStatus || 'Inactive'}

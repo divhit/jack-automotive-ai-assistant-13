@@ -88,11 +88,8 @@ const DarkLeadDetailPanel: React.FC<DarkLeadDetailPanelProps> = ({
       <div className="flex-1 flex flex-col h-full bg-zinc-950">
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
-            <Users className="w-12 h-12 mx-auto mb-4 text-zinc-500 opacity-50" />
-            <p className="text-lg font-medium text-zinc-500">Select a lead</p>
-            <p className="text-sm text-zinc-600 mt-1">
-              Choose a lead from the list to view their details and conversation history.
-            </p>
+            <Users className="w-8 h-8 mx-auto mb-4 text-zinc-800" />
+            <p className="text-[14px] text-zinc-600">Select a lead</p>
           </div>
         </div>
       </div>
@@ -102,18 +99,20 @@ const DarkLeadDetailPanel: React.FC<DarkLeadDetailPanelProps> = ({
   return (
     <div className="flex-1 flex flex-col h-full bg-zinc-950">
       {/* Lead Header Bar */}
-      <div className="h-14 bg-zinc-900 border-b border-zinc-800 px-4 flex items-center flex-shrink-0">
+      <div className="h-14 bg-zinc-950 border-b border-white/[0.06] px-4 flex items-center flex-shrink-0">
         <div className="flex items-center flex-1 min-w-0">
-          <span className="text-lg font-semibold text-zinc-100 truncate">
+          <span className="text-[15px] font-semibold text-zinc-100 tracking-tight truncate">
             {selectedLead.customerName}
           </span>
-          <span className="text-sm text-zinc-400 ml-3 flex-shrink-0">
+          <span className="text-[13px] text-zinc-500 ml-3 flex-shrink-0">
             {selectedLead.phoneNumber}
           </span>
-          <Badge className={`ml-3 flex-shrink-0 ${getFundingReadinessColor(selectedLead.fundingReadiness)}`}>
+          <Badge className="ml-3 flex-shrink-0 bg-white/[0.06] text-zinc-300 border border-white/[0.08]">
+            <span className={`inline-block h-1.5 w-1.5 rounded-full mr-1.5 ${selectedLead.fundingReadiness === 'Ready' ? 'bg-emerald-400' : selectedLead.fundingReadiness === 'Partial' ? 'bg-amber-400' : 'bg-red-400'}`} />
             {selectedLead.fundingReadiness}
           </Badge>
-          <Badge className={`ml-2 flex-shrink-0 ${getSentimentColor(selectedLead.sentiment)}`}>
+          <Badge className="ml-2 flex-shrink-0 bg-white/[0.06] text-zinc-300 border border-white/[0.08]">
+            <span className={`inline-block h-1.5 w-1.5 rounded-full mr-1.5 ${selectedLead.sentiment === 'Warm' ? 'bg-emerald-400' : selectedLead.sentiment === 'Neutral' ? 'bg-zinc-400' : selectedLead.sentiment === 'Negative' || selectedLead.sentiment === 'Frustrated' ? 'bg-red-400' : selectedLead.sentiment === 'Ghosted' || selectedLead.sentiment === 'Cold' ? 'bg-blue-400' : 'bg-amber-400'}`} />
             {getSentimentEmoji(selectedLead.sentiment)} {selectedLead.sentiment}
           </Badge>
         </div>
@@ -126,7 +125,7 @@ const DarkLeadDetailPanel: React.FC<DarkLeadDetailPanelProps> = ({
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
               </span>
-              <span className="text-sm text-emerald-400 font-medium">
+              <span className="text-[12px] text-emerald-400 font-medium">
                 {formatDuration(callDuration)}
               </span>
             </div>
@@ -137,7 +136,7 @@ const DarkLeadDetailPanel: React.FC<DarkLeadDetailPanelProps> = ({
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500" />
               </span>
-              <span className="text-sm text-amber-400 font-medium">
+              <span className="text-[12px] text-amber-400 font-medium">
                 {humanControlAgent || 'Human'}
               </span>
             </div>
@@ -164,34 +163,34 @@ const DarkLeadDetailPanel: React.FC<DarkLeadDetailPanelProps> = ({
         onValueChange={onTabChange}
         className="flex-1 flex flex-col overflow-hidden"
       >
-        <div className="bg-zinc-900 border-b border-zinc-800 flex-shrink-0">
+        <div className="border-b border-white/[0.06] flex-shrink-0">
           <TabsList className="bg-transparent h-11 w-full justify-start px-2 gap-1">
             <TabsTrigger
               value="conversation"
-              className="text-zinc-400 data-[state=active]:text-zinc-100 data-[state=active]:bg-zinc-800 data-[state=active]:shadow-none rounded-md px-3 py-1.5 text-sm font-medium gap-1.5"
+              className="text-zinc-500 data-[state=active]:text-zinc-100 data-[state=active]:bg-transparent data-[state=active]:shadow-none rounded-none border-b-2 border-transparent data-[state=active]:border-zinc-100 px-3 pb-2.5 pt-2 text-[13px] font-medium transition-colors duration-150 gap-1.5"
             >
-              <MessageSquare className="w-4 h-4" />
+              <MessageSquare className="w-3.5 h-3.5" />
               Conversation
             </TabsTrigger>
             <TabsTrigger
               value="profile"
-              className="text-zinc-400 data-[state=active]:text-zinc-100 data-[state=active]:bg-zinc-800 data-[state=active]:shadow-none rounded-md px-3 py-1.5 text-sm font-medium gap-1.5"
+              className="text-zinc-500 data-[state=active]:text-zinc-100 data-[state=active]:bg-transparent data-[state=active]:shadow-none rounded-none border-b-2 border-transparent data-[state=active]:border-zinc-100 px-3 pb-2.5 pt-2 text-[13px] font-medium transition-colors duration-150 gap-1.5"
             >
-              <User className="w-4 h-4" />
+              <User className="w-3.5 h-3.5" />
               Profile
             </TabsTrigger>
             <TabsTrigger
               value="analytics"
-              className="text-zinc-400 data-[state=active]:text-zinc-100 data-[state=active]:bg-zinc-800 data-[state=active]:shadow-none rounded-md px-3 py-1.5 text-sm font-medium gap-1.5"
+              className="text-zinc-500 data-[state=active]:text-zinc-100 data-[state=active]:bg-transparent data-[state=active]:shadow-none rounded-none border-b-2 border-transparent data-[state=active]:border-zinc-100 px-3 pb-2.5 pt-2 text-[13px] font-medium transition-colors duration-150 gap-1.5"
             >
-              <BarChart3 className="w-4 h-4" />
+              <BarChart3 className="w-3.5 h-3.5" />
               Analytics
             </TabsTrigger>
             <TabsTrigger
               value="settings"
-              className="text-zinc-400 data-[state=active]:text-zinc-100 data-[state=active]:bg-zinc-800 data-[state=active]:shadow-none rounded-md px-3 py-1.5 text-sm font-medium gap-1.5"
+              className="text-zinc-500 data-[state=active]:text-zinc-100 data-[state=active]:bg-transparent data-[state=active]:shadow-none rounded-none border-b-2 border-transparent data-[state=active]:border-zinc-100 px-3 pb-2.5 pt-2 text-[13px] font-medium transition-colors duration-150 gap-1.5"
             >
-              <Settings className="w-4 h-4" />
+              <Settings className="w-3.5 h-3.5" />
               Settings
             </TabsTrigger>
           </TabsList>

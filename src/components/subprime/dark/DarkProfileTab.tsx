@@ -31,15 +31,15 @@ interface DarkProfileTabProps {
 }
 
 const darkInputClasses =
-  'bg-zinc-800 border-zinc-700 text-zinc-100 placeholder:text-zinc-600 focus:border-blue-500 focus-visible:ring-blue-500/30 focus-visible:ring-offset-zinc-900';
+  'bg-white/[0.04] border-white/[0.06] text-zinc-200 placeholder:text-zinc-600 focus:border-white/[0.15] focus:bg-white/[0.06] focus-visible:ring-0 rounded-md transition-colors duration-150';
 
 const darkSelectTriggerClasses =
-  'bg-zinc-800 border-zinc-700 text-zinc-100 focus:ring-blue-500/30 focus:ring-offset-zinc-900';
+  'bg-white/[0.04] border-white/[0.06] text-zinc-200 focus:ring-0 rounded-md';
 
 const darkSelectContentClasses =
-  'bg-zinc-800 border-zinc-700 text-zinc-100';
+  'bg-zinc-900 border-white/[0.08] text-zinc-200';
 
-const darkLabelClasses = 'text-xs font-medium text-zinc-400 uppercase tracking-wider';
+const darkLabelClasses = 'text-[11px] font-medium text-zinc-500 uppercase tracking-wider';
 
 const DarkProfileTab: React.FC<DarkProfileTabProps> = ({
   profileFormData,
@@ -71,10 +71,10 @@ const DarkProfileTab: React.FC<DarkProfileTabProps> = ({
       </div>
 
       {/* Section 1: Identity & Contact */}
-      <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-4">
+      <div className="bg-white/[0.02] border border-white/[0.06] rounded-lg p-4">
         <div className="flex items-center gap-2 mb-4">
-          <User className="w-5 h-5 text-zinc-400" />
-          <h3 className="text-sm font-semibold text-zinc-300">Identity & Contact</h3>
+          <User className="w-4 h-4 text-zinc-600" />
+          <h3 className="text-[13px] font-medium text-zinc-300 tracking-tight">Identity & Contact</h3>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -150,10 +150,10 @@ const DarkProfileTab: React.FC<DarkProfileTabProps> = ({
       </div>
 
       {/* Section 2: Residence & Housing */}
-      <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-4">
+      <div className="bg-white/[0.02] border border-white/[0.06] rounded-lg p-4">
         <div className="flex items-center gap-2 mb-4">
-          <Home className="w-5 h-5 text-zinc-400" />
-          <h3 className="text-sm font-semibold text-zinc-300">Residence & Housing</h3>
+          <Home className="w-4 h-4 text-zinc-600" />
+          <h3 className="text-[13px] font-medium text-zinc-300 tracking-tight">Residence & Housing</h3>
         </div>
 
         <div className="space-y-4">

@@ -18,17 +18,13 @@ const sentimentEmoji: Record<SubprimeLead["sentiment"], string> = {
   "Needs Human": "\u{1F64B}",
 };
 
-const fundingBadgeColor: Record<SubprimeLead["fundingReadiness"], string> = {
-  Ready: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
-  Partial: "bg-amber-500/20 text-amber-400 border-amber-500/30",
-  "Not Ready": "bg-red-500/20 text-red-400 border-red-500/30",
+const fundingDotColor: Record<SubprimeLead["fundingReadiness"], string> = {
+  Ready: "bg-emerald-400",
+  Partial: "bg-amber-400",
+  "Not Ready": "bg-red-400",
 };
 
-const leftBorderColor: Record<SubprimeLead["fundingReadiness"], string> = {
-  Ready: "border-l-emerald-500",
-  Partial: "border-l-amber-500",
-  "Not Ready": "border-l-red-500",
-};
+const leftBorderColor = "border-l-transparent";
 
 export const DarkLeadListItem = ({
   lead,
@@ -50,38 +46,34 @@ export const DarkLeadListItem = ({
       type="button"
       onClick={() => onSelect(lead)}
       className={cn(
-        "w-full text-left px-3 py-2.5 border-l-2 transition-colors",
+        "w-full text-left px-3 py-2.5 border-l-2 transition-colors duration-100",
         "focus:outline-none focus-visible:ring-1 focus-visible:ring-blue-500",
         isSelected
-          ? "bg-zinc-800 border-l-blue-500"
-          : cn("bg-transparent hover:bg-zinc-800/50", leftBorderColor[lead.fundingReadiness])
+          ? "bg-white/[0.04] border-l-white/20"
+          : cn("bg-transparent hover:bg-white/[0.03]", leftBorderColor)
       )}
     >
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="font-medium text-zinc-100 truncate text-sm">
+            <span className="font-medium text-zinc-200 truncate text-[13px] tracking-tight">
               {lead.customerName}
             </span>
             <span className="text-sm" title={lead.sentiment}>
               {sentimentEmoji[lead.sentiment]}
             </span>
           </div>
-          <div className="text-xs text-zinc-500 mt-0.5 truncate">
+          <div className="text-[12px] text-zinc-500 mt-0.5 truncate">
             {lead.phoneNumber}
           </div>
         </div>
 
         <div className="flex flex-col items-end gap-1 shrink-0">
-          <span
-            className={cn(
-              "inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium leading-none",
-              fundingBadgeColor[lead.fundingReadiness]
-            )}
-          >
-            {lead.fundingReadiness}
+          <span className="flex items-center gap-1">
+            <span className={cn("h-1.5 w-1.5 rounded-full", fundingDotColor[lead.fundingReadiness])} />
+            <span className="text-[10px] text-zinc-400">{lead.fundingReadiness}</span>
           </span>
-          <span className="text-[10px] text-zinc-500 whitespace-nowrap">
+          <span className="text-[11px] text-zinc-600 whitespace-nowrap">
             {relativeTime}
           </span>
         </div>
