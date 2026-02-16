@@ -1187,7 +1187,7 @@ function extractBriefContext(summaryText) {
     return "the cosigner we discussed";
   }
 
-  return "where we left off last time";
+  return null;
 }
 
 // Helper function: Get continuation for returning customers (outbound follow-up, SOP-aligned)
@@ -1202,15 +1202,15 @@ function getSubprimeContinuation(customerName, organizationName, summaryText, da
   const vehiclePicked = text.includes('going with') || text.includes('chose') || text.includes('picked');
 
   if (vehiclePicked) {
-    return `Hey ${customerName}! ${greeting} It's Jack from ${organizationName}. Just calling to give you an update on ${context}. How are things going on your end?`;
+    return `Hey ${customerName}! ${greeting} It's Jack from ${organizationName}. Just calling to give you an update on ${context || "your vehicle"}. How are things going on your end?`;
   }
 
   if (needsDocs) {
-    return `Hey ${customerName}! ${greeting} It's Jack from ${organizationName} calling back. I'm still working on ${context} — just wanted to check in and see if you've had a chance to send those over yet? No rush, just want to keep things moving for you.`;
+    return `Hey ${customerName}! ${greeting} It's Jack from ${organizationName} calling back. I'm still working on ${context || "getting things moving for you"} — just wanted to check in and see if you've had a chance to send those over yet? No rush, just want to keep things moving for you.`;
   }
 
   if (hasApproval) {
-    return `Hey ${customerName}! ${greeting} It's Jack from ${organizationName}. Good news — I've been working on ${context} and wanted to touch base. Got a few minutes?`;
+    return `Hey ${customerName}! ${greeting} It's Jack from ${organizationName}. Good news — I've been working on ${context || "your approval"} and wanted to touch base. Got a few minutes?`;
   }
 
   if (context) {
@@ -1244,15 +1244,15 @@ function getSubprimeInboundReturning(customerName, summaryText, dayContext, time
   const vehiclePicked = summaryText.includes('going with') || summaryText.includes('chose') || summaryText.includes('picked');
 
   if (vehiclePicked) {
-    return `Hey ${customerName}! ${greeting} Glad you called back. I was just working on things for ${context}. What's on your mind?`;
+    return `Hey ${customerName}! ${greeting} Glad you called back. I was just working on things for ${context || "your vehicle"}. What's on your mind?`;
   }
 
   if (needsDocs) {
-    return `Hey ${customerName}! ${greeting} Good to hear from you. I've been waiting on ${context} to keep your approval moving — were you able to get those together?`;
+    return `Hey ${customerName}! ${greeting} Good to hear from you. I've been waiting on ${context || "some documents"} to keep your approval moving — were you able to get those together?`;
   }
 
   if (hasApproval) {
-    return `Hey ${customerName}! ${greeting} Great timing calling back. I've got some updates on ${context} — got a minute?`;
+    return `Hey ${customerName}! ${greeting} Great timing calling back. I've got some updates on ${context || "your approval"} — got a minute?`;
   }
 
   if (context) {
