@@ -57,7 +57,7 @@ export const SubprimeAddLeadDialog = ({ open, onOpenChange, onLeadAdded }: Subpr
     email: ""
   });
 
-  const [sendInitialMessage, setSendInitialMessage] = useState(false);
+  const [sendInitialMessage, setSendInitialMessage] = useState(true);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const validateForm = () => {

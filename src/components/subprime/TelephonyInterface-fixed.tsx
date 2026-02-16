@@ -255,15 +255,16 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
 
     try {
       setIsLoading(true);
-      const { data, error } = await supabase
+      const { data: rows, error } = await supabase
         .from('leads')
         .select('*')
         .eq('id', selectedLead.id)
         .eq('organization_id', organizationId)
-        .single();
+        .limit(1);
 
       if (error) throw error;
 
+      const data = rows?.[0];
       if (data) {
         setLeadData(data);
         setProfileFormData({
@@ -314,7 +315,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
       setIsSaving(true);
       setSaveStatus('saving');
 
-      const { data, error } = await supabase
+      const { data: rows, error } = await supabase
         .from('leads')
         .update({
           ...updates,
@@ -323,7 +324,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
         .eq('id', selectedLead.id)
         .eq('organization_id', organizationId)
         .select()
-        .single();
+        .limit(1);
 
       if (error) throw error;
 
@@ -331,6 +332,7 @@ export const TelephonyInterface: React.FC<TelephonyInterfaceProps> = ({
       toast.success('Changes saved successfully');
 
       // Update local state
+      const data = rows?.[0];
       if (data) {
         setLeadData(data);
       }
