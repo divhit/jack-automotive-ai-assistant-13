@@ -10,20 +10,36 @@ import {
   DialogDescription
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { subprimeLeads } from "@/data";
-import { SubprimeLeadFilters } from "@/components/subprime/SubprimeLeadFilters";
 import { SubprimeAnalytics } from "@/components/subprime/SubprimeAnalytics";
-import { SubprimeLeadsList } from "@/components/subprime/SubprimeLeadsList";
 import { SubprimeAddLeadDialog } from "@/components/subprime/SubprimeAddLeadDialog";
 import { LeadAnalyticsDashboard } from "@/components/subprime/analytics/LeadAnalyticsDashboard";
 import { RealTimeAnalyticsPanel } from "@/components/subprime/analytics/RealTimeAnalyticsPanel";
 import { SubprimeLead } from "@/data/subprime/subprimeLeads";
-import { BarChart3, Users, MessageSquare, Clock, Info, UserPlus, Database, RefreshCw, Trash2, Target, CheckCircle2 } from "lucide-react";
+import {
+  BarChart3, Users, MessageSquare, Clock, Info, UserPlus, Database,
+  RefreshCw, Trash2, CheckCircle2, Search
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { SubprimeSettingsDialog } from "@/components/subprime/SubprimeSettingsDialog";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from "@/components/ui/resizable";
+
+// Dark theme components
+import { DarkLeadListPanel } from "@/components/subprime/dark/DarkLeadListPanel";
+import DarkLeadDetailPanel from "@/components/subprime/dark/DarkLeadDetailPanel";
+import { DarkConversationThread } from "@/components/subprime/dark/DarkConversationThread";
+import { DarkConversationInput } from "@/components/subprime/dark/DarkConversationInput";
+import DarkProfileTab from "@/components/subprime/dark/DarkProfileTab";
+import DarkAnalyticsTab from "@/components/subprime/dark/DarkAnalyticsTab";
+import DarkSettingsTab from "@/components/subprime/dark/DarkSettingsTab";
+
+// Business logic hook
+import { useTelephonyInterface } from "@/components/subprime/hooks/useTelephonyInterface";
 
 const SubprimeDashboard = () => {
   const { user, profile, organization, signOut, hasRole, hasPermission } = useAuth();
@@ -31,7 +47,6 @@ const SubprimeDashboard = () => {
   const [allLeads, setAllLeads] = useState<SubprimeLead[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [tileDialogOpen, setTileDialogOpen] = useState(false);
-  const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [addLeadDialogOpen, setAddLeadDialogOpen] = useState(false);
   const [activeTileInfo, setActiveTileInfo] = useState<{title: string; content: React.ReactNode}>({
     title: "",
@@ -42,22 +57,23 @@ const SubprimeDashboard = () => {
   const [dataSource, setDataSource] = useState<'database' | 'memory'>('memory');
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
-  // Filter states
-  const [chaseStatusFilter, setChaseStatusFilter] = useState<string>("all");
-  const [fundingReadinessFilter, setFundingReadinessFilter] = useState<string>("all");
-  const [sentimentFilter, setSentimentFilter] = useState<string>("all");
-  const [scriptProgressFilter, setScriptProgressFilter] = useState<string>("all");
-  const [showOverdueOnly, setShowOverdueOnly] = useState(false);
-
   // Real-time update state
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
-  const [refreshInterval, setRefreshInterval] = useState(60000);
+  const [refreshInterval] = useState(60000);
+
+  // Selected lead (lifted to dashboard level for split-pane)
+  const [selectedLead, setSelectedLead] = useState<SubprimeLead | null>(null);
+
+  // Organization ID
+  const orgId = organization?.id || '';
+
+  // Telephony hook - drives the right panel
+  const telephony = useTelephonyInterface(selectedLead, orgId, handleLeadUpdate);
 
   // Metrics
   const metrics = useMemo(() => {
     const totalLeads = allLeads.length;
     const readyForFunding = allLeads.filter(lead => lead.fundingReadiness === 'Ready').length;
-    const partialFunding = allLeads.filter(lead => lead.fundingReadiness === 'Partial').length;
     const notReady = allLeads.filter(lead => lead.fundingReadiness === 'Not Ready').length;
     const activeChases = allLeads.filter(lead => lead.chaseStatus === 'Auto Chase Running').length;
     const overdueActions = allLeads.filter(lead => lead.nextAction?.isOverdue).length;
@@ -71,90 +87,43 @@ const SubprimeDashboard = () => {
       return hasRecentActivity || isActivelyChased || isInQualification;
     }).length;
 
-    const calculatePercentage = (value: number, total: number) => {
-      return total > 0 ? Math.round((value / total) * 100) : 0;
-    };
+    const pct = (value: number) => totalLeads > 0 ? Math.round((value / totalLeads) * 100) : 0;
 
     return {
       totalLeads,
       readyForFunding,
-      partialFunding,
       notReady,
       inProgress,
       activeChases,
       overdueActions,
       percentages: {
-        readyForFunding: calculatePercentage(readyForFunding, totalLeads),
-        partialFunding: calculatePercentage(partialFunding, totalLeads),
-        notReady: calculatePercentage(notReady, totalLeads),
-        inProgress: calculatePercentage(inProgress, totalLeads),
-        overdueActions: calculatePercentage(overdueActions, totalLeads)
+        readyForFunding: pct(readyForFunding),
+        notReady: pct(notReady),
+        inProgress: pct(inProgress),
+        overdueActions: pct(overdueActions)
       }
     };
   }, [allLeads]);
 
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(e.target.value.toLowerCase());
-  };
-
-  // Filtering
-  const filteredLeadsCalculation = useMemo(() => {
-    let filtered = [...allLeads];
-
-    if (searchTerm !== "") {
-      filtered = filtered.filter(lead =>
-        lead.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        lead.phoneNumber.includes(searchTerm)
-      );
-    }
-    if (chaseStatusFilter !== "all") {
-      filtered = filtered.filter(lead => lead.chaseStatus === chaseStatusFilter);
-    }
-    if (fundingReadinessFilter !== "all") {
-      filtered = filtered.filter(lead => lead.fundingReadiness === fundingReadinessFilter);
-    }
-    if (sentimentFilter !== "all") {
-      filtered = filtered.filter(lead => lead.sentiment === sentimentFilter);
-    }
-    if (scriptProgressFilter !== "all") {
-      filtered = filtered.filter(lead => lead.scriptProgress.currentStep === scriptProgressFilter);
-    }
-    if (showOverdueOnly) {
-      filtered = filtered.filter(lead => lead.nextAction?.isOverdue);
-    }
-
-    return filtered;
-  }, [allLeads, searchTerm, chaseStatusFilter, fundingReadinessFilter, sentimentFilter, scriptProgressFilter, showOverdueOnly]);
-
   // Load leads from server
   useEffect(() => {
-    if (organization?.id) {
-      loadLeadsFromServer();
-    }
+    if (organization?.id) loadLeadsFromServer();
   }, [organization?.id]);
 
   // Auto-refresh
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
-
     if (autoRefreshEnabled && organization?.id) {
-      intervalId = setInterval(() => {
-        loadLeadsFromServer();
-      }, refreshInterval);
+      intervalId = setInterval(() => loadLeadsFromServer(), refreshInterval);
     }
-
-    return () => {
-      if (intervalId) clearInterval(intervalId);
-    };
+    return () => { if (intervalId) clearInterval(intervalId); };
   }, [autoRefreshEnabled, refreshInterval, organization?.id]);
 
   // Real-time updates via SSE
   useEffect(() => {
     let eventSource: EventSource | null = null;
-
     if (organization?.id) {
       eventSource = new EventSource(`/api/analytics/stream?organizationId=${organization.id}`);
-
       eventSource.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
@@ -163,64 +132,35 @@ const SubprimeDashboard = () => {
           } else if (data.type === 'conversation_update') {
             handleConversationUpdate(data);
           }
-        } catch (error) {
-          console.error('Error parsing SSE data:', error);
-        }
+        } catch (_) {}
       };
-
       eventSource.onerror = () => {
         setTimeout(() => {
           if (organization?.id) loadLeadsFromServer();
         }, 5000);
       };
     }
-
-    return () => {
-      if (eventSource) eventSource.close();
-    };
+    return () => { if (eventSource) eventSource.close(); };
   }, [organization?.id]);
 
   const updateLeadInState = useCallback((leadId: string, updates: Partial<SubprimeLead>) => {
     setAllLeads(prevLeads =>
       prevLeads.map(lead =>
-        lead.id === leadId
-          ? { ...lead, ...updates, lastTouchpoint: new Date().toISOString() }
-          : lead
+        lead.id === leadId ? { ...lead, ...updates, lastTouchpoint: new Date().toISOString() } : lead
       )
     );
-  }, []);
+    // Update selected lead if it's the one being updated
+    if (selectedLead?.id === leadId) {
+      setSelectedLead(prev => prev ? { ...prev, ...updates, lastTouchpoint: new Date().toISOString() } : prev);
+    }
+  }, [selectedLead?.id]);
 
   const handleConversationUpdate = useCallback((data: any) => {
     const { leadId, sentiment, messageCount, lastActivity } = data;
-
     const updates: Partial<SubprimeLead> = {
       lastTouchpoint: lastActivity || new Date().toISOString()
     };
-
     if (sentiment) updates.sentiment = sentiment;
-
-    if (messageCount !== undefined) {
-      updates.conversations = Array.from({ length: messageCount }, (_, i) => ({
-        id: `msg-${i}`,
-        type: 'system',
-        content: `Message ${i + 1}`,
-        timestamp: new Date().toISOString(),
-        sentBy: i % 2 === 0 ? 'lead' : 'agent'
-      }));
-    }
-
-    if (messageCount >= 5) {
-      updates.scriptProgress = {
-        currentStep: 'qualification',
-        completedSteps: ['contacted', 'screening']
-      };
-    } else if (messageCount >= 2) {
-      updates.scriptProgress = {
-        currentStep: 'screening',
-        completedSteps: ['contacted']
-      };
-    }
-
     updateLeadInState(leadId, updates);
   }, [updateLeadInState]);
 
@@ -229,23 +169,19 @@ const SubprimeDashboard = () => {
       toast.error('Organization context missing. Please refresh the page.');
       return;
     }
-
     setIsLoading(true);
     try {
       const response = await fetch(`/api/subprime/leads?limit=100&organization_id=${organization.id}`);
       const data = await response.json();
-
       if (data.success) {
         setAllLeads(data.leads);
         setDataSource(data.source);
         setLastRefresh(new Date());
-
         if (data.source === 'database') {
           toast.success(`Loaded ${data.leads.length} leads from database`);
         }
       }
-    } catch (error) {
-      console.error('Error loading leads:', error);
+    } catch (_) {
       toast.error('Failed to load leads from server');
       setAllLeads([]);
     } finally {
@@ -253,36 +189,26 @@ const SubprimeDashboard = () => {
     }
   };
 
-  const handleLeadUpdate = async (leadId: string, updates: Partial<SubprimeLead>) => {
+  function handleLeadUpdate(leadId: string, updates: Partial<SubprimeLead>) {
     setAllLeads(prevLeads =>
       prevLeads.map(lead =>
-        lead.id === leadId
-          ? { ...lead, ...updates, lastTouchpoint: new Date().toISOString() }
-          : lead
+        lead.id === leadId ? { ...lead, ...updates, lastTouchpoint: new Date().toISOString() } : lead
       )
     );
-
-    try {
-      const response = await fetch(`/api/subprime/update-lead/${leadId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...updates,
-          organization_id: organization?.id,
-          updated_by: user?.id
-        })
-      });
-
-      if (response.ok) {
-        toast.success(`Lead updated successfully`);
-      } else {
-        toast.warning('Lead updated locally, but server sync failed');
-      }
-    } catch (error) {
-      console.error('Error persisting lead update:', error);
-      toast.warning('Lead updated locally, but server sync failed');
+    if (selectedLead?.id === leadId) {
+      setSelectedLead(prev => prev ? { ...prev, ...updates } : prev);
     }
-  };
+    // Persist to server
+    fetch(`/api/subprime/update-lead/${leadId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...updates,
+        organization_id: organization?.id,
+        updated_by: user?.id
+      })
+    }).catch(() => {});
+  }
 
   const handleLeadAdded = (newLead: SubprimeLead) => {
     setAllLeads(prevLeads => [newLead, ...prevLeads]);
@@ -296,60 +222,24 @@ const SubprimeDashboard = () => {
     setTileDialogOpen(true);
   };
 
-  const handleDeleteLead = async (leadId: string) => {
-    if (!confirm('Are you sure you want to delete this lead? This action cannot be undone.')) return;
-
+  const handleDeleteAllLeads = async () => {
+    if (allLeads.length === 0) { toast.info('No leads to delete'); return; }
+    if (!confirm(`Delete ALL ${allLeads.length} leads? This cannot be undone.`)) return;
     try {
-      const response = await fetch(`/api/subprime/delete-lead?id=${leadId}&organization_id=${organization?.id}`, {
-        method: 'DELETE'
-      });
-
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-
+      const response = await fetch('/api/subprime/clear-test-data', { method: 'DELETE' });
+      if (!response.ok) throw new Error('HTTP error');
       const result = await response.json();
-      if (!result.success) throw new Error(result.error || 'Failed to delete lead');
-
-      setAllLeads(prevLeads => prevLeads.filter(lead => lead.id !== leadId));
-      toast.success(`Lead deleted successfully`);
-    } catch (error) {
-      console.error('Error deleting lead:', error);
-      const shouldRemoveFromUI = confirm('Failed to delete from server. Remove from view only?');
-      if (shouldRemoveFromUI) {
-        setAllLeads(prevLeads => prevLeads.filter(lead => lead.id !== leadId));
-        toast.warning('Lead removed from view only');
-      } else {
-        toast.error(`Failed to delete lead`);
-      }
+      if (!result.success) throw new Error(result.error || 'Failed');
+      setAllLeads([]);
+      setSelectedLead(null);
+      toast.success(`Deleted all ${result.deletedCount} leads`);
+    } catch (_) {
+      toast.error('Failed to delete all leads');
     }
   };
 
-  const handleDeleteAllLeads = async () => {
-    if (allLeads.length === 0) {
-      toast.info('No leads to delete');
-      return;
-    }
-
-    if (!confirm(`Delete ALL ${allLeads.length} leads? This cannot be undone.`)) return;
-
-    try {
-      const response = await fetch('/api/subprime/clear-test-data', { method: 'DELETE' });
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-
-      const result = await response.json();
-      if (!result.success) throw new Error(result.error || 'Failed to delete all leads');
-
-      setAllLeads([]);
-      toast.success(`Deleted all ${result.deletedCount} leads`);
-    } catch (error) {
-      console.error('Error deleting all leads:', error);
-      const shouldClearUI = confirm('Failed to delete from server. Clear from view only?');
-      if (shouldClearUI) {
-        setAllLeads([]);
-        toast.warning('Leads cleared from view only');
-      } else {
-        toast.error(`Failed to delete all leads`);
-      }
-    }
+  const handleSelectLead = (lead: SubprimeLead) => {
+    setSelectedLead(lead);
   };
 
   const getTileContent = () => ({
@@ -357,11 +247,11 @@ const SubprimeDashboard = () => {
       title: "In Progress Leads",
       content: (
         <div className="space-y-4">
-          <p>There are currently <span className="font-semibold text-amber-600">{metrics.inProgress}</span> leads in progress.</p>
-          <ul className="list-disc pl-5 space-y-2 text-sm">
-            <li><span className="font-medium">{allLeads.filter(l => l.scriptProgress.currentStep === "screening").length}</span> in Screening</li>
-            <li><span className="font-medium">{allLeads.filter(l => l.scriptProgress.currentStep === "qualification").length}</span> in Qualification</li>
-            <li><span className="font-medium">{allLeads.filter(l => l.nextAction.isAutomated).length}</span> in automated follow-up</li>
+          <p>Currently <span className="font-semibold text-amber-400">{metrics.inProgress}</span> leads in progress.</p>
+          <ul className="list-disc pl-5 space-y-2 text-sm text-zinc-300">
+            <li>{allLeads.filter(l => l.scriptProgress?.currentStep === "screening").length} in Screening</li>
+            <li>{allLeads.filter(l => l.scriptProgress?.currentStep === "qualification").length} in Qualification</li>
+            <li>{allLeads.filter(l => l.nextAction?.isAutomated).length} in automated follow-up</li>
           </ul>
         </div>
       )
@@ -370,11 +260,9 @@ const SubprimeDashboard = () => {
       title: "Not Ready Leads",
       content: (
         <div className="space-y-4">
-          <p><span className="font-semibold text-red-600">{allLeads.filter(l => l.fundingReadiness === "Not Ready").length}</span> leads not ready for funding.</p>
-          <ul className="list-disc pl-5 space-y-2 text-sm">
-            <li><span className="font-medium">{allLeads.filter(l => l.creditProfile?.knownIssues.includes("Multiple Collections")).length}</span> with collections issues</li>
-            <li><span className="font-medium">{allLeads.filter(l => l.creditProfile?.knownIssues.includes("Recent Bankruptcy")).length}</span> with recent bankruptcies</li>
-            <li><span className="font-medium">{allLeads.filter(l => l.sentiment === "Ghosted").length}</span> gone silent</li>
+          <p><span className="font-semibold text-red-400">{metrics.notReady}</span> leads not ready for funding.</p>
+          <ul className="list-disc pl-5 space-y-2 text-sm text-zinc-300">
+            <li>{allLeads.filter(l => l.sentiment === "Ghosted").length} gone silent</li>
           </ul>
         </div>
       )
@@ -383,12 +271,7 @@ const SubprimeDashboard = () => {
       title: "Needs Action",
       content: (
         <div className="space-y-4">
-          <p><span className="font-semibold text-violet-600">{allLeads.filter(l => l.nextAction.isOverdue).length}</span> leads require immediate attention.</p>
-          <ul className="list-disc pl-5 space-y-2 text-sm">
-            <li><span className="font-medium">{allLeads.filter(l => l.nextAction.isOverdue && l.sentiment === "Frustrated").length}</span> overdue + frustrated</li>
-            <li><span className="font-medium">{allLeads.filter(l => l.nextAction.isOverdue && l.chaseStatus === "Manual Review").length}</span> flagged for manual review</li>
-            <li><span className="font-medium">{allLeads.filter(l => l.nextAction.isOverdue && l.fundingReadiness === "Partial").length}</span> in progress with missed follow-ups</li>
-          </ul>
+          <p><span className="font-semibold text-violet-400">{metrics.overdueActions}</span> leads require immediate attention.</p>
         </div>
       )
     },
@@ -396,12 +279,7 @@ const SubprimeDashboard = () => {
       title: "Ready for Funding",
       content: (
         <div className="space-y-4">
-          <p><span className="font-semibold text-emerald-600">{metrics.readyForFunding}</span> leads ready for financing.</p>
-          <ul className="list-disc pl-5 space-y-2 text-sm">
-            <li><span className="font-medium">{Math.round(metrics.readyForFunding * 0.4)}</span> traditional financing</li>
-            <li><span className="font-medium">{Math.round(metrics.readyForFunding * 0.35)}</span> special programs</li>
-            <li><span className="font-medium">{Math.round(metrics.readyForFunding * 0.25)}</span> alternative financing</li>
-          </ul>
+          <p><span className="font-semibold text-emerald-400">{metrics.readyForFunding}</span> leads ready for financing.</p>
         </div>
       )
     }
@@ -413,8 +291,9 @@ const SubprimeDashboard = () => {
       value: metrics.inProgress,
       sub: `${metrics.percentages.inProgress}% of all leads`,
       icon: MessageSquare,
-      color: "text-amber-600",
-      bg: "bg-amber-50",
+      color: "text-amber-400",
+      bg: "bg-amber-500/10",
+      border: "border-amber-500/20",
       tileKey: "inProgress" as const,
     },
     {
@@ -422,8 +301,9 @@ const SubprimeDashboard = () => {
       value: metrics.notReady,
       sub: `${metrics.percentages.notReady}% of all leads`,
       icon: Users,
-      color: "text-red-600",
-      bg: "bg-red-50",
+      color: "text-red-400",
+      bg: "bg-red-500/10",
+      border: "border-red-500/20",
       tileKey: "notReady" as const,
     },
     {
@@ -431,8 +311,9 @@ const SubprimeDashboard = () => {
       value: metrics.overdueActions,
       sub: `${metrics.overdueActions} overdue`,
       icon: Clock,
-      color: "text-violet-600",
-      bg: "bg-violet-50",
+      color: "text-violet-400",
+      bg: "bg-violet-500/10",
+      border: "border-violet-500/20",
       tileKey: "needsAction" as const,
     },
     {
@@ -440,185 +321,253 @@ const SubprimeDashboard = () => {
       value: metrics.readyForFunding,
       sub: `${metrics.percentages.readyForFunding}% of all leads`,
       icon: CheckCircle2,
-      color: "text-emerald-600",
-      bg: "bg-emerald-50",
+      color: "text-emerald-400",
+      bg: "bg-emerald-500/10",
+      border: "border-emerald-500/20",
       tileKey: "readyForFunding" as const,
     },
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="bg-zinc-950 text-zinc-100 min-h-screen flex flex-col">
       {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
+      <div className="flex-shrink-0 bg-zinc-900 border-b border-zinc-800 px-6 py-3">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold tracking-tight">
+            <h1 className="text-lg font-semibold text-zinc-100">
               {organization?.name || 'Lead Management'}
             </h1>
-            <Badge variant="outline" className="text-xs font-normal">
+            <Badge variant="outline" className="text-[10px] font-normal border-zinc-700 text-zinc-400">
               {hasRole('admin') ? 'Admin' : hasRole('manager') ? 'Manager' : 'Agent'}
             </Badge>
             <div className="flex items-center gap-1.5">
-              <div className={`w-1.5 h-1.5 rounded-full ${autoRefreshEnabled ? 'bg-emerald-500 animate-pulse-subtle' : 'bg-muted-foreground/30'}`} />
-              <span className="text-xs text-muted-foreground">
+              <div className={`w-1.5 h-1.5 rounded-full ${autoRefreshEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-600'}`} />
+              <span className="text-[10px] text-zinc-500">
                 {autoRefreshEnabled ? 'Live' : 'Manual'}
               </span>
             </div>
-          </div>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            <Database className="inline h-3 w-3 mr-1" />
-            {dataSource} &middot; {lastRefresh.toLocaleTimeString()}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="w-56">
-            <Input
-              placeholder="Search leads..."
-              value={searchTerm}
-              onChange={handleSearch}
-              className="h-9 text-sm"
-            />
+            <span className="text-[10px] text-zinc-600">
+              <Database className="inline h-3 w-3 mr-0.5" />
+              {dataSource} &middot; {lastRefresh.toLocaleTimeString()}
+            </span>
           </div>
 
-          <Button
-            variant={autoRefreshEnabled ? "default" : "outline"}
-            size="sm"
-            onClick={() => setAutoRefreshEnabled(!autoRefreshEnabled)}
-            className="gap-1.5 h-9"
-          >
-            <div className={`w-1.5 h-1.5 rounded-full ${autoRefreshEnabled ? 'bg-white' : 'bg-emerald-500'}`} />
-            {autoRefreshEnabled ? 'Live' : 'Manual'}
-          </Button>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={loadLeadsFromServer}
-            disabled={isLoading}
-            className="gap-1.5 h-9"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-
-          {hasPermission('lead:create') && (
+          <div className="flex items-center gap-2">
             <Button
-              onClick={() => setAddLeadDialogOpen(true)}
+              variant="ghost"
               size="sm"
-              className="gap-1.5 h-9"
+              onClick={() => setAutoRefreshEnabled(!autoRefreshEnabled)}
+              className="h-8 text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
             >
-              <UserPlus className="h-3.5 w-3.5" />
-              Add Lead
+              <div className={`w-1.5 h-1.5 rounded-full mr-1.5 ${autoRefreshEnabled ? 'bg-emerald-500' : 'bg-zinc-600'}`} />
+              {autoRefreshEnabled ? 'Live' : 'Manual'}
             </Button>
-          )}
 
-          {hasRole(['admin', 'manager']) && (
             <Button
-              variant="destructive"
+              variant="ghost"
               size="sm"
-              onClick={handleDeleteAllLeads}
-              className="gap-1.5 h-9"
+              onClick={loadLeadsFromServer}
+              disabled={isLoading}
+              className="h-8 text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
             >
-              <Trash2 className="h-3.5 w-3.5" />
-              Clear All
+              <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isLoading ? 'animate-spin' : ''}`} />
+              Refresh
             </Button>
-          )}
+
+            {hasPermission('lead:create') && (
+              <Button
+                onClick={() => setAddLeadDialogOpen(true)}
+                size="sm"
+                className="h-8 bg-blue-600 hover:bg-blue-700 text-white text-xs"
+              >
+                <UserPlus className="h-3.5 w-3.5 mr-1.5" />
+                Add Lead
+              </Button>
+            )}
+
+            {hasRole(['admin', 'manager']) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleDeleteAllLeads}
+                className="h-8 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10"
+              >
+                <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                Clear All
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Main Tabs */}
-      <Tabs value={activeMainTab} onValueChange={setActiveMainTab} className="w-full">
-        <TabsList className="h-10">
-          <TabsTrigger value="overview" className="text-sm">Lead Overview</TabsTrigger>
-          <TabsTrigger value="analytics" className="text-sm">CRM Analytics</TabsTrigger>
-        </TabsList>
+      <div className="flex-shrink-0 bg-zinc-900 border-b border-zinc-800 px-6">
+        <Tabs value={activeMainTab} onValueChange={setActiveMainTab}>
+          <TabsList className="bg-transparent h-10">
+            <TabsTrigger
+              value="overview"
+              className="text-zinc-400 data-[state=active]:text-zinc-100 data-[state=active]:bg-zinc-800 data-[state=active]:shadow-none rounded-md px-3 py-1.5 text-sm"
+            >
+              Lead Overview
+            </TabsTrigger>
+            <TabsTrigger
+              value="analytics"
+              className="text-zinc-400 data-[state=active]:text-zinc-100 data-[state=active]:bg-zinc-800 data-[state=active]:shadow-none rounded-md px-3 py-1.5 text-sm"
+            >
+              CRM Analytics
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
 
-        <TabsContent value="overview" className="space-y-6 mt-4">
-          {/* KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {kpiCards.map((kpi) => (
-              <Card
-                key={kpi.label}
-                className="stat-card cursor-pointer shadow-card hover:shadow-card-hover border border-border"
-                onClick={() => handleTileClick(getTileContent()[kpi.tileKey].title, getTileContent()[kpi.tileKey].content)}
-              >
-                <CardContent className="p-5">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+      {/* Content area */}
+      {activeMainTab === "overview" ? (
+        <div className="flex-1 flex flex-col min-h-0">
+          {/* KPI Cards Row */}
+          <div className="flex-shrink-0 px-6 py-4">
+            <div className="grid grid-cols-4 gap-3">
+              {kpiCards.map((kpi) => (
+                <button
+                  key={kpi.label}
+                  onClick={() => handleTileClick(getTileContent()[kpi.tileKey].title, getTileContent()[kpi.tileKey].content)}
+                  className={`bg-zinc-900 border ${kpi.border} rounded-lg p-4 text-left hover:bg-zinc-800/80 transition-colors`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider flex items-center gap-1">
                       {kpi.label}
                       <Info className="h-3 w-3" />
                     </span>
-                    <div className={`w-8 h-8 rounded-lg ${kpi.bg} flex items-center justify-center`}>
-                      <kpi.icon className={`h-4 w-4 ${kpi.color}`} />
+                    <div className={`w-7 h-7 rounded-lg ${kpi.bg} flex items-center justify-center`}>
+                      <kpi.icon className={`h-3.5 w-3.5 ${kpi.color}`} />
                     </div>
                   </div>
-                  <div className="text-2xl font-bold tracking-tight">{kpi.value}</div>
-                  <p className="text-xs text-muted-foreground mt-1">{kpi.sub}</p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          {/* Filters + Leads */}
-          <div className="grid gap-6 grid-cols-1 lg:grid-cols-4">
-            <div className="lg:col-span-1">
-              <SubprimeLeadFilters
-                leads={allLeads}
-                chaseStatus={chaseStatusFilter}
-                setChaseStatus={setChaseStatusFilter}
-                fundingReadiness={fundingReadinessFilter}
-                setFundingReadiness={setFundingReadinessFilter}
-                sentiment={sentimentFilter}
-                setSentiment={setSentimentFilter}
-                scriptProgress={scriptProgressFilter}
-                setScriptProgress={setScriptProgressFilter}
-                showOverdueOnly={showOverdueOnly}
-                setShowOverdueOnly={setShowOverdueOnly}
-              />
-            </div>
-
-            <div className="lg:col-span-3">
-              <SubprimeLeadsList
-                leads={filteredLeadsCalculation}
-                onLeadUpdate={handleLeadUpdate}
-                onLeadDelete={handleDeleteLead}
-              />
+                  <div className={`text-2xl font-bold ${kpi.color}`}>{kpi.value}</div>
+                  <p className="text-[10px] text-zinc-500 mt-0.5">{kpi.sub}</p>
+                </button>
+              ))}
             </div>
           </div>
 
-          {/* Performance Analytics */}
-          <Card className="shadow-card border border-border">
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <BarChart3 className="h-4 w-4 text-primary" />
-                Performance Analytics
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <SubprimeAnalytics leads={allLeads} />
-            </CardContent>
-          </Card>
-        </TabsContent>
+          {/* Split-pane: Leads List (left) + Detail Panel (right) */}
+          <div className="flex-1 min-h-0">
+            <ResizablePanelGroup direction="horizontal" className="h-full">
+              {/* Left panel: Lead list */}
+              <ResizablePanel defaultSize={25} minSize={18} maxSize={40}>
+                <DarkLeadListPanel
+                  leads={allLeads}
+                  selectedLeadId={selectedLead?.id || null}
+                  onSelectLead={handleSelectLead}
+                  searchTerm={searchTerm}
+                  onSearchChange={setSearchTerm}
+                  onAddLead={() => setAddLeadDialogOpen(true)}
+                />
+              </ResizablePanel>
 
-        <TabsContent value="analytics" className="mt-4">
+              <ResizableHandle withHandle className="bg-zinc-800 hover:bg-zinc-700 transition-colors" />
+
+              {/* Right panel: Lead detail + conversation */}
+              <ResizablePanel defaultSize={75}>
+                <DarkLeadDetailPanel
+                  selectedLead={selectedLead}
+                  activeMainTab={telephony.activeMainTab}
+                  onTabChange={telephony.setActiveMainTab}
+                  isCallActive={telephony.isCallActive}
+                  callDuration={telephony.callDuration}
+                  isManualCallActive={telephony.isManualCallActive}
+                  isUnderHumanControl={telephony.isUnderHumanControl}
+                  humanControlAgent={telephony.humanControlAgent}
+                  formatDuration={telephony.formatDuration}
+                >
+                  {/* Conversation tab */}
+                  {telephony.activeMainTab === "conversation" && (
+                    <div className="flex flex-col h-full">
+                      <DarkConversationThread
+                        conversationHistory={telephony.conversationHistory}
+                        liveTranscripts={telephony.liveTranscripts}
+                        isCallActive={telephony.isCallActive}
+                        isLoading={telephony.isLoading}
+                        messagesEndRef={telephony.messagesEndRef}
+                        scrollAreaRef={telephony.scrollAreaRef}
+                        showScrollToBottom={telephony.showScrollToBottom}
+                        onScrollToBottom={telephony.scrollToBottom}
+                      />
+                      <DarkConversationInput
+                        textInput={telephony.textInput}
+                        onTextInputChange={telephony.setTextInput}
+                        onSendMessage={telephony.handleSendTextMessage}
+                        onStartVoiceCall={telephony.handleStartVoiceCall}
+                        onEndCall={telephony.handleEndCall}
+                        onManualCall={telephony.handleManualCall}
+                        onEndManualCall={telephony.handleEndManualCall}
+                        isCallActive={telephony.isCallActive}
+                        isManualCallActive={telephony.isManualCallActive}
+                        isAutoMode={telephony.isAutoMode}
+                        onToggleAutoMode={telephony.setIsAutoMode}
+                        isUnderHumanControl={telephony.isUnderHumanControl}
+                        onSendHumanMessage={telephony.handleSendHumanMessage}
+                        onJoinHumanControl={telephony.handleJoinHumanControl}
+                        onLeaveHumanControl={telephony.handleLeaveHumanControl}
+                        humanControlAgent={telephony.humanControlAgent}
+                        currentMode={telephony.currentMode}
+                      />
+                    </div>
+                  )}
+
+                  {/* Profile tab */}
+                  {telephony.activeMainTab === "profile" && (
+                    <DarkProfileTab
+                      profileFormData={telephony.profileFormData}
+                      onFieldChange={telephony.debouncedSaveProfile}
+                      isSaving={telephony.isSaving}
+                      saveStatus={telephony.saveStatus}
+                    />
+                  )}
+
+                  {/* Analytics tab */}
+                  {telephony.activeMainTab === "analytics" && (
+                    <DarkAnalyticsTab
+                      analyticsData={telephony.analyticsData}
+                      conversationHistory={telephony.conversationHistory}
+                    />
+                  )}
+
+                  {/* Settings tab */}
+                  {telephony.activeMainTab === "settings" && (
+                    <DarkSettingsTab
+                      agentName={telephony.agentName}
+                      onAgentNameChange={telephony.setAgentName}
+                      agentPhoneNumber={telephony.agentPhoneNumber}
+                      onAgentPhoneChange={telephony.setAgentPhoneNumber}
+                      settingsData={telephony.settingsData}
+                      onSettingChange={telephony.handleSettingChange}
+                      isAutoMode={telephony.isAutoMode}
+                      onToggleAutoMode={telephony.setIsAutoMode}
+                    />
+                  )}
+                </DarkLeadDetailPanel>
+              </ResizablePanel>
+            </ResizablePanelGroup>
+          </div>
+        </div>
+      ) : (
+        /* CRM Analytics tab */
+        <div className="flex-1 p-6 overflow-y-auto">
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
             <div className="lg:col-span-1">
-              <RealTimeAnalyticsPanel />
+              <div className="bg-zinc-900 border border-zinc-800 rounded-lg">
+                <RealTimeAnalyticsPanel />
+              </div>
             </div>
             <div className="lg:col-span-3">
-              <LeadAnalyticsDashboard />
+              <div className="bg-zinc-900 border border-zinc-800 rounded-lg">
+                <LeadAnalyticsDashboard />
+              </div>
             </div>
           </div>
-        </TabsContent>
-      </Tabs>
+        </div>
+      )}
 
       {/* Dialogs */}
-      <SubprimeSettingsDialog
-        open={settingsDialogOpen}
-        onOpenChange={setSettingsDialogOpen}
-      />
-
       <SubprimeAddLeadDialog
         open={addLeadDialogOpen}
         onOpenChange={setAddLeadDialogOpen}
@@ -626,16 +575,12 @@ const SubprimeDashboard = () => {
       />
 
       <Dialog open={tileDialogOpen} onOpenChange={setTileDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg bg-zinc-900 border-zinc-800 text-zinc-100">
           <DialogHeader>
-            <DialogTitle>{activeTileInfo.title}</DialogTitle>
-            <DialogDescription>
-              Detailed breakdown
-            </DialogDescription>
+            <DialogTitle className="text-zinc-100">{activeTileInfo.title}</DialogTitle>
+            <DialogDescription className="text-zinc-400">Detailed breakdown</DialogDescription>
           </DialogHeader>
-          <div className="mt-2">
-            {activeTileInfo.content}
-          </div>
+          <div className="mt-2">{activeTileInfo.content}</div>
         </DialogContent>
       </Dialog>
 
