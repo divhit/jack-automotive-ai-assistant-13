@@ -1233,6 +1233,91 @@ function getSubprimeInboundNew(customerName, organizationName, dayContext, timeG
   return openings[Math.floor(Math.random() * openings.length)];
 }
 
+// Helper function: Get SMS initial outreach for new leads
+function getSubprimeSmsInitial(customerName, organizationName, dayContext, timeGreeting) {
+  const greeting = dayContext || timeGreeting;
+
+  const openings = [
+    `Hey ${customerName}! ${greeting} This is Jack from ${organizationName}. We just got your application and I wanted to reach out — we've got some solid options I think you'll like. What kind of vehicle are you looking for? Truck, SUV, car?`,
+    `Hey ${customerName}! ${greeting} It's Jack from ${organizationName}. Your application just came through and I'm already working on getting you approved. Quick question — are you driving anything right now or looking for your first vehicle?`,
+    `Hey ${customerName}! ${greeting} This is Jack over at ${organizationName}. I just got your application and wanted to personally reach out — let's get you driving! What kind of vehicle were you thinking?`,
+    `Hey ${customerName}! ${greeting} It's Jack from ${organizationName}. We received your vehicle application and I wanted to text you directly — we've got you started on an approval. What are you looking for?`
+  ];
+
+  return openings[Math.floor(Math.random() * openings.length)];
+}
+
+// Helper function: Get SMS follow-up for returning customers
+function getSubprimeSmsFollowup(customerName, organizationName, summaryText, dayContext, timeGreeting) {
+  const greeting = dayContext || timeGreeting;
+  const context = extractBriefContext(summaryText);
+
+  const text = summaryText.toLowerCase();
+  const needsDocs = text.includes('document') || text.includes('pay stub') || text.includes('license') || text.includes('homework');
+  const hasApproval = text.includes('approved') || text.includes('approval');
+  const vehiclePicked = text.includes('going with') || text.includes('chose') || text.includes('picked');
+
+  if (vehiclePicked) {
+    return `Hey ${customerName}! ${greeting} It's Jack from ${organizationName}. Just wanted to give you a quick update on ${context || "your vehicle"} — how's everything going on your end?`;
+  }
+
+  if (needsDocs) {
+    return `Hey ${customerName}! ${greeting} It's Jack from ${organizationName}. Just checking in on ${context || "those documents we need"} — have you had a chance to send those over? No rush, just want to keep things moving for you!`;
+  }
+
+  if (hasApproval) {
+    return `Hey ${customerName}! ${greeting} It's Jack from ${organizationName}. Got some good news on ${context || "your approval"} — got a minute to chat?`;
+  }
+
+  if (context) {
+    return `Hey ${customerName}! ${greeting} It's Jack from ${organizationName}. Wanted to follow up on ${context} — any updates?`;
+  }
+
+  return `Hey ${customerName}! ${greeting} It's Jack from ${organizationName}. Just checking in since we last spoke — any updates on your end? I've been looking into some options for you!`;
+}
+
+// Helper function: Get SMS inbound reply for new leads (they texted us first)
+function getSubprimeSmsInboundNew(customerName, organizationName, dayContext, timeGreeting) {
+  const greeting = dayContext || timeGreeting;
+
+  const openings = [
+    `Hey ${customerName}! ${greeting} This is Jack with ${organizationName}. Thanks for reaching out — what can I help you with?`,
+    `Hey ${customerName}! ${greeting} I'm Jack from ${organizationName}. Glad you texted — are you looking to get into a vehicle?`,
+    `Hey ${customerName}! ${greeting} This is Jack at ${organizationName}. Thanks for the message — what kind of vehicle are you looking for?`
+  ];
+
+  return openings[Math.floor(Math.random() * openings.length)];
+}
+
+// Helper function: Get SMS inbound reply for returning customers (they texted us back)
+function getSubprimeSmsInboundReturning(customerName, summaryText, dayContext, timeGreeting) {
+  const greeting = dayContext || timeGreeting;
+  const context = extractBriefContext(summaryText);
+
+  const text = summaryText.toLowerCase();
+  const needsDocs = text.includes('document') || text.includes('pay stub') || text.includes('license') || text.includes('homework');
+  const hasApproval = text.includes('approved') || text.includes('approval');
+  const vehiclePicked = text.includes('going with') || text.includes('chose') || text.includes('picked');
+
+  if (vehiclePicked) {
+    return `Hey ${customerName}! ${greeting} Good to hear from you. I was just working on things for ${context || "your vehicle"} — what's on your mind?`;
+  }
+
+  if (needsDocs) {
+    return `Hey ${customerName}! ${greeting} Good to hear from you! I've been waiting on ${context || "some documents"} to keep your approval moving — were you able to get those together?`;
+  }
+
+  if (hasApproval) {
+    return `Hey ${customerName}! ${greeting} Great timing! I've got some updates on ${context || "your approval"} — got a minute?`;
+  }
+
+  if (context) {
+    return `Hey ${customerName}! ${greeting} Good to hear from you again! Last time we were talking about ${context} — what's going on?`;
+  }
+
+  return `Hey ${customerName}! ${greeting} Glad you texted back! Let's pick up where we left off — how are things going?`;
+}
+
 // Helper function: Get inbound greeting for returning customers (SOP-aligned)
 function getSubprimeInboundReturning(customerName, summaryText, dayContext, timeGreeting) {
   const greeting = dayContext || timeGreeting;
@@ -1262,11 +1347,68 @@ function getSubprimeInboundReturning(customerName, summaryText, dayContext, time
   return `Hey ${customerName}! ${greeting} Glad you called back. Let's pick up where we left off — how are things going?`;
 }
 
-function generateGreetingContext(leadData, isOutbound = false, previousSummary = null, organizationName = "our dealership") {
+function generateGreetingContext(leadData, isOutbound = false, previousSummary = null, organizationName = "our dealership", channel = 'voice') {
   const hasName = !!(leadData?.customerName);
   const customerName = leadData?.customerName || "";
+  const isReturning = previousSummary && !previousSummary.includes("First conversation");
+  const timeGreeting = getTimeBasedGreeting();
+  const dayGreeting = getDayContext();
 
-  // For outbound calls, create empathetic subprime-focused greetings
+  // ─── SMS Channel ───────────────────────────────────────────────────
+  // SMS greetings never reference "calling" — they say "reach out",
+  // "text", "message" etc. Split into outbound (we text them) vs
+  // inbound (they texted us), each with new/returning variants.
+  // ────────────────────────────────────────────────────────────────────
+  if (channel === 'sms') {
+    let firstMessageDynamic;
+    let callType;
+
+    if (isOutbound) {
+      // WE are texting THEM (initial outreach or follow-up)
+      if (hasName && isReturning) {
+        const summaryText = previousSummary.toLowerCase();
+        firstMessageDynamic = getSubprimeSmsFollowup(customerName, organizationName, summaryText, dayGreeting, timeGreeting);
+        callType = "sms_outbound_followup";
+      } else if (hasName) {
+        firstMessageDynamic = getSubprimeSmsInitial(customerName, organizationName, dayGreeting, timeGreeting);
+        callType = "sms_outbound_initial";
+      } else {
+        const greeting = dayGreeting || timeGreeting;
+        firstMessageDynamic = `Hey there! ${greeting} This is Jack from ${organizationName}. We received your vehicle application and wanted to reach out — are you looking to get into a vehicle?`;
+        callType = "sms_outbound_initial";
+      }
+    } else {
+      // THEY texted US (inbound SMS)
+      if (hasName && isReturning) {
+        const summaryText = previousSummary?.toLowerCase() || '';
+        firstMessageDynamic = getSubprimeSmsInboundReturning(customerName, summaryText, dayGreeting, timeGreeting);
+        callType = "sms_inbound_returning";
+      } else if (hasName) {
+        firstMessageDynamic = getSubprimeSmsInboundNew(customerName, organizationName, dayGreeting, timeGreeting);
+        callType = "sms_inbound_new";
+      } else {
+        const greeting = dayGreeting || timeGreeting;
+        firstMessageDynamic = `Hey there! ${greeting} This is Jack with ${organizationName}. Thanks for reaching out — are you looking to get into a vehicle?`;
+        callType = "sms_inbound_new";
+      }
+    }
+
+    return {
+      time_greeting: timeGreeting,
+      day_context: dayGreeting,
+      customer_greeting: getCustomerGreeting(customerName, leadData?.lastTouchpoint),
+      customer_name: customerName,
+      greeting_opener: hasName ? `Hey ${customerName}!` : "Hey there!",
+      greeting_variation: isReturning ? "returning_sms" : "new_sms",
+      is_outbound: isOutbound ? "true" : "false",
+      is_returning_customer: isReturning ? "true" : "false",
+      channel: "sms",
+      call_type: callType,
+      first_message_dynamic: firstMessageDynamic
+    };
+  }
+
+  // ─── Voice Channel (outbound calls) ────────────────────────────────
   if (isOutbound) {
     const getOutboundTimeGreeting = () => {
       const now = new Date();
@@ -1283,15 +1425,12 @@ function generateGreetingContext(leadData, isOutbound = false, previousSummary =
 
     let firstMessageDynamic;
 
-    if (hasName && previousSummary && !previousSummary.includes("First conversation")) {
-      // Returning customer - empathetic continuation
+    if (hasName && isReturning) {
       const summaryText = previousSummary.toLowerCase();
       firstMessageDynamic = getSubprimeContinuation(customerName, organizationName, summaryText, dayContext, outboundTimeGreeting);
     } else if (hasName) {
-      // Initial outreach - empathetic subprime opening with intro
       firstMessageDynamic = getSubprimeInitialOpening(customerName, organizationName, dayContext, outboundTimeGreeting);
     } else {
-      // No name - generic but warm with intro
       const greeting = dayContext || outboundTimeGreeting;
       firstMessageDynamic = `Hey there! ${greeting} This is Jack from ${organizationName}. We received your vehicle application and I wanted to reach out personally. Are you looking to get into a vehicle?`;
     }
@@ -1302,23 +1441,19 @@ function generateGreetingContext(leadData, isOutbound = false, previousSummary =
       customer_greeting: getCustomerGreeting(customerName, leadData?.lastTouchpoint),
       customer_name: customerName,
       greeting_opener: hasName ? `Hey ${customerName}!` : "Hey there!",
-      greeting_variation: previousSummary && !previousSummary.includes("First conversation") ? "returning_subprime" : "initial_subprime",
+      greeting_variation: isReturning ? "returning_subprime" : "initial_subprime",
       is_outbound: "true",
-      call_type: previousSummary && !previousSummary.includes("First conversation") ? "outbound_followup" : "outbound_initial",
+      channel: "voice",
+      call_type: isReturning ? "outbound_followup" : "outbound_initial",
       first_message_dynamic: firstMessageDynamic
     };
   }
-  
-  // Inbound call greetings - empathetic subprime-focused
-  const isReturning = previousSummary && !previousSummary.includes("First conversation");
-  const timeGreeting = getTimeBasedGreeting();
-  const dayGreeting = getDayContext();
 
+  // ─── Voice Channel (inbound calls) ─────────────────────────────────
   let firstMessageDynamic;
   let callType;
 
   if (isReturning) {
-    // Returning customer - empathetic continuation
     callType = "inbound_returning";
 
     if (hasName) {
@@ -1329,7 +1464,6 @@ function generateGreetingContext(leadData, isOutbound = false, previousSummary =
       firstMessageDynamic = `Hey! ${greeting} Thanks for calling back. Glad to hear from you — what's going on?`;
     }
   } else {
-    // First-time caller - empathetic subprime greeting with intro
     callType = "inbound_new";
 
     if (hasName) {
@@ -1349,6 +1483,7 @@ function generateGreetingContext(leadData, isOutbound = false, previousSummary =
     greeting_variation: isReturning ? "continuing_subprime" : "new_subprime",
     is_outbound: "false",
     is_returning_customer: isReturning ? "true" : "false",
+    channel: "voice",
     call_type: callType,
     first_message_dynamic: firstMessageDynamic
   };
@@ -2275,7 +2410,9 @@ async function startConversation(phoneNumber, initialMessage, organizationId = n
       }
     }
 
-    const greetingContext = generateGreetingContext(leadData, false, previousSummary, organizationName);
+    // Determine if this is outbound SMS (we're texting them first) vs inbound (they texted us)
+    const isSmsOutbound = conversationChannel === 'sms' && (initialMessage === 'AGENT_INITIATE' || history.length === 0);
+    const greetingContext = generateGreetingContext(leadData, isSmsOutbound, previousSummary, organizationName, conversationChannel);
 
     dynamicVars = {
       customer_name: customerName,
@@ -3444,8 +3581,8 @@ app.post('/api/elevenlabs/outbound-call', validateOrganizationAccess, async (req
       weekday: 'long' 
     });
     
-    // Generate dynamic greeting context for outbound calls
-    const greetingContext = generateGreetingContext(leadData, true, previousSummary, organizationName);
+    // Generate dynamic greeting context for outbound voice calls
+    const greetingContext = generateGreetingContext(leadData, true, previousSummary, organizationName, 'voice');
     
     // Build comprehensive dynamic variables
     const enhancedDynamicVariables = {
@@ -5838,8 +5975,8 @@ app.post('/api/webhooks/elevenlabs/conversation-initiation', async (req, res) =>
     // Keep the conversation context simple but allow much larger contexts with smart truncation
     const finalContext = createSmartContextSummary(conversationContext, messages, summary);
     
-    // Generate dynamic greeting context (BICI approach)
-    const greetingContext = generateGreetingContext(leadData, false, previousSummary, organizationName);
+    // Generate dynamic greeting context for inbound voice calls (BICI approach)
+    const greetingContext = generateGreetingContext(leadData, false, previousSummary, organizationName, 'voice');
     
     // Build the response in the format ElevenLabs expects with dynamic greetings
     const response = {
