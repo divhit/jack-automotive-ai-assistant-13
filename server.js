@@ -2160,7 +2160,7 @@ function removeActiveLeadForPhone(phoneNumber, leadId) {
 const activeConversationTimeouts = new Map();
 const SMS_CONVERSATION_TIMEOUT = 60000; // 1 minute instead of 5+ minutes
 
-function startConversationWithTimeout(phoneNumber, initialMessage, organizationId = null, channel = 'sms') {
+async function startConversationWithTimeout(phoneNumber, initialMessage, organizationId = null, channel = 'sms') {
   const normalized = normalizePhoneNumber(phoneNumber);
 
   // Clear any existing timeout
@@ -2168,8 +2168,8 @@ function startConversationWithTimeout(phoneNumber, initialMessage, organizationI
     clearTimeout(activeConversationTimeouts.get(normalized));
   }
 
-  // Start the conversation
-  startConversation(phoneNumber, initialMessage, organizationId, channel);
+  // Start the conversation (await so context is built before timeout starts)
+  await startConversation(phoneNumber, initialMessage, organizationId, channel);
   
   // Set timeout to close idle connection after 1 minute
   const timeoutId = setTimeout(() => {
@@ -2189,7 +2189,7 @@ function startConversationWithTimeout(phoneNumber, initialMessage, organizationI
 // Track SMS response counts to ignore first response for returning users
 const smsResponseCounters = new Map();
 
-function startConversation(phoneNumber, initialMessage, organizationId = null, channel = 'sms') {
+async function startConversation(phoneNumber, initialMessage, organizationId = null, channel = 'sms') {
   const agentId = process.env.ELEVENLABS_AGENT_ID;
   const apiKey = process.env.ELEVENLABS_API_KEY;
   const normalized = normalizePhoneNumber(phoneNumber);
@@ -2202,254 +2202,206 @@ function startConversation(phoneNumber, initialMessage, organizationId = null, c
   // Initialize SMS response counter for this conversation
   smsResponseCounters.set(normalized, 0);
 
-  // Declare leadStatus, channel, and conversationConfigOverride in outer scope to be accessible in both open and message handlers
-  let leadStatus = "New Inquiry"; // Default
-  const conversationChannel = channel; // Store channel for use in handlers
-  let conversationConfigOverride = undefined; // Must be in outer scope for message handler access
+  let leadStatus = "New Inquiry";
+  const conversationChannel = channel;
+  let conversationConfigOverride = undefined;
 
+  // ──────────────────────────────────────────────────────────────────────
+  // STEP 1: Build ALL context BEFORE opening WebSocket.
+  // ElevenLabs expects conversation_initiation_client_data immediately
+  // on connect. Doing async DB queries inside ws.on('open') caused a
+  // multi-second delay, and ElevenLabs timed out → zero dynamic vars
+  // → "Missing required dynamic variables in first message" error.
+  // ──────────────────────────────────────────────────────────────────────
+  let dynamicVars;
+  let resolvedOrganizationId = organizationId;
+  let leadId = null;
+  let history = [];
+  let summaryData = null;
+  let conversationContext = "";
+
+  try {
+    if (!resolvedOrganizationId) {
+      resolvedOrganizationId = await getOrganizationIdFromPhone(phoneNumber);
+    }
+
+    // Run independent queries in parallel
+    const [contextResult, leadIdResult] = await Promise.all([
+      buildConversationContext(phoneNumber, resolvedOrganizationId),
+      getActiveLeadForPhone(phoneNumber)
+    ]);
+    conversationContext = contextResult;
+    leadId = leadIdResult;
+
+    const leadData = getLeadData(leadId);
+    const customerName = leadData?.customerName || `Customer ${phoneNumber}`;
+
+    // Run next batch in parallel
+    const [summaryResult, historyResult, comprehensiveSummaryResult] = await Promise.all([
+      getConversationSummaryCached(phoneNumber, resolvedOrganizationId),
+      getConversationHistoryCached(phoneNumber, resolvedOrganizationId),
+      generateComprehensiveSummary(phoneNumber, resolvedOrganizationId)
+    ]);
+    summaryData = summaryResult;
+    history = historyResult;
+    leadStatus = summaryData?.summary ? "Returning Customer" : (history.length > 0 ? "Active Lead" : "New Inquiry");
+
+    let previousSummary;
+    if (comprehensiveSummaryResult && comprehensiveSummaryResult.length > 20) {
+      previousSummary = comprehensiveSummaryResult.length > 100000 ? comprehensiveSummaryResult.substring(0, 100000) + "..." : comprehensiveSummaryResult;
+    } else if (history.length > 0) {
+      const recentMessages = history.slice(-6);
+      const customerMessages = recentMessages.filter(m => m.sentBy === 'user');
+      previousSummary = `Previous conversation: ${recentMessages.length} messages exchanged across voice/SMS. `;
+      if (customerMessages.length > 0) {
+        const lastCustomerMsg = customerMessages[customerMessages.length - 1];
+        previousSummary += `Customer's last message: "${lastCustomerMsg.content.substring(0, 100)}${lastCustomerMsg.content.length > 100 ? '...' : ''}"`;
+      }
+    } else {
+      previousSummary = "First conversation - no previous interaction history";
+    }
+
+    let organizationName = "Automarket";
+    if (resolvedOrganizationId) {
+      try {
+        const { data: orgData, error } = await client
+          .from('organizations')
+          .select('name')
+          .eq('id', resolvedOrganizationId)
+          .single();
+        if (orgData && !error) organizationName = orgData.name;
+      } catch (e) {
+        console.log('⚠️ Failed to get organization name, using fallback:', e.message);
+      }
+    }
+
+    const greetingContext = generateGreetingContext(leadData, false, previousSummary, organizationName);
+
+    dynamicVars = {
+      customer_name: customerName,
+      organization_name: organizationName,
+      lead_status: leadStatus,
+      previous_summary: previousSummary,
+      conversation_context: createSmartContextSummary(conversationContext, history, summaryData),
+      ...greetingContext
+    };
+
+    // Build first message override for initial outreach SMS
+    const isInitialOutreach = history.length <= 1;
+    if (conversationChannel === 'sms' && isInitialOutreach) {
+      const firstMessageOverride = dynamicVars.first_message_dynamic || `Hey ${customerName}! Thanks for reaching out. How can I help you?`;
+      conversationConfigOverride = { agent: { first_message: firstMessageOverride } };
+    }
+
+    console.log(`✅ [${phoneNumber}] Context built: ${Object.keys(dynamicVars).length} vars, first_message_dynamic=${dynamicVars.first_message_dynamic?.substring(0, 60)}...`);
+  } catch (contextError) {
+    console.error(`❌ Error building SMS context for ${phoneNumber}:`, contextError.message);
+
+    const fallbackGreeting = `Hey there! Thanks for reaching out. How can I help you today?`;
+    dynamicVars = {
+      customer_name: "Customer",
+      organization_name: "Automarket",
+      lead_status: "New Inquiry",
+      previous_summary: "First conversation",
+      conversation_context: "No context available",
+      first_message_dynamic: fallbackGreeting,
+      time_greeting: "Hello!",
+      day_context: "",
+      customer_greeting: "Customer",
+      greeting_opener: "Hey there!",
+      greeting_variation: "fallback",
+      is_outbound: "false",
+      call_type: "sms_fallback"
+    };
+    if (conversationChannel === 'sms') {
+      conversationConfigOverride = { agent: { first_message: fallbackGreeting } };
+    }
+  }
+
+  // ──────────────────────────────────────────────────────────────────────
+  // STEP 2: Pre-build the initiation message (zero async work left)
+  // ──────────────────────────────────────────────────────────────────────
+  const initiationMessage = {
+    type: 'conversation_initiation_client_data',
+    dynamic_variables: dynamicVars,
+    client_data: {
+      conversation_context: conversationContext || "",
+      phone_number: phoneNumber,
+      customer_phone: phoneNumber,
+      channel: conversationChannel,
+      lead_id: leadId,
+      organization_id: resolvedOrganizationId,
+      context_metadata: {
+        total_messages: history.length,
+        has_elevenlabs_summary: !!(summaryData?.summary && summaryData.summary.length > 20),
+        voice_messages: history.filter(m => m.type === 'voice').length,
+        sms_messages: history.filter(m => m.type === 'text' || m.type === 'sms').length,
+        last_interaction: history.length > 0 ? history[history.length - 1].timestamp : null
+      }
+    }
+  };
+  if (conversationConfigOverride) {
+    initiationMessage.conversation_config_override = conversationConfigOverride;
+  }
+
+  // ──────────────────────────────────────────────────────────────────────
+  // STEP 3: Open WebSocket and send initiation IMMEDIATELY on connect
+  // ──────────────────────────────────────────────────────────────────────
   const wsUrl = `wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${agentId}`;
   const ws = new WebSocket(wsUrl, {
     headers: { 'xi-api-key': apiKey }
   });
 
-  ws.on('open', async () => {
-    console.log(`🔗 WebSocket connected for ${phoneNumber} (normalized: ${normalized})`);
+  ws.on('open', () => {
+    console.log(`🔗 WebSocket connected for ${phoneNumber} — sending initiation immediately`);
     activeConversations.set(normalized, ws);
 
-    // CRITICAL: Wrap entire handler in try-catch to ensure initiation message is ALWAYS sent.
-    // Without this, any async failure silently crashes the handler and ElevenLabs never
-    // receives dynamic_variables, causing "Missing required dynamic variables" errors.
-    let dynamicVars = null;
-    let resolvedOrganizationId = organizationId;
-    let leadId = null;
-    let history = [];
-    let summaryData = null;
-    let conversationContext = "";
-
-    try {
-      // SECURITY FIX: Use provided organizationId or get from phone if not provided
-      if (!resolvedOrganizationId) {
-        console.log(`🔍 No organizationId provided, attempting to resolve from phone ${phoneNumber}`);
-        resolvedOrganizationId = await getOrganizationIdFromPhone(phoneNumber);
-      } else {
-        console.log(`🔍 Using provided organizationId: ${resolvedOrganizationId} for phone ${phoneNumber}`);
-      }
-
-      // ENHANCED: Build conversation context with async loading for better context
-      conversationContext = await buildConversationContext(phoneNumber, resolvedOrganizationId);
-
-      // Get lead data and build dynamic variables like voice calls do
-      leadId = await getActiveLeadForPhone(phoneNumber);
-      const leadData = getLeadData(leadId);
-      const customerName = leadData?.customerName || `Customer ${phoneNumber}`;
-
-      summaryData = await getConversationSummaryCached(phoneNumber, resolvedOrganizationId);
-      history = await getConversationHistoryCached(phoneNumber, resolvedOrganizationId);
-      leadStatus = summaryData?.summary ? "Returning Customer" : (history.length > 0 ? "Active Lead" : "New Inquiry");
-
-      // ENHANCED: Use comprehensive summary (voice + SMS) for better context
-      let previousSummary;
-      const comprehensiveSummary = await generateComprehensiveSummary(phoneNumber, resolvedOrganizationId);
-      if (comprehensiveSummary && comprehensiveSummary.length > 20) {
-        previousSummary = comprehensiveSummary.length > 100000 ? comprehensiveSummary.substring(0, 100000) + "..." : comprehensiveSummary;
-        console.log(`📋 SMS using comprehensive summary (${comprehensiveSummary.length} chars): ${comprehensiveSummary.substring(0, 100)}...`);
-      } else if (history.length > 0) {
-        const recentMessages = history.slice(-6);
-        const customerMessages = recentMessages.filter(m => m.sentBy === 'user');
-
-        previousSummary = `Previous conversation: ${recentMessages.length} messages exchanged across voice/SMS. `;
-        if (customerMessages.length > 0) {
-          const lastCustomerMsg = customerMessages[customerMessages.length - 1];
-          previousSummary += `Customer's last message: "${lastCustomerMsg.content.substring(0, 100)}${lastCustomerMsg.content.length > 100 ? '...' : ''}"`;
-        }
-        console.log(`📋 SMS built rich summary from ${history.length} messages: ${previousSummary.substring(0, 100)}...`);
-      } else {
-        previousSummary = "First conversation - no previous interaction history";
-        console.log(`📋 SMS new conversation - no previous history`);
-      }
-
-      console.log(`📋 SMS Context preserved: ${history.length} total messages, leadId: ${leadId}, context length: ${conversationContext.length}, using ElevenLabs summary: ${!!(summaryData?.summary && summaryData.summary.length > 20)}`);
-
-      // Get organization name for dynamic variables
-      let organizationName = "Automarket"; // Default fallback
-      if (resolvedOrganizationId) {
-        try {
-          const { data: orgData, error } = await client
-            .from('organizations')
-            .select('name')
-            .eq('id', resolvedOrganizationId)
-            .single();
-
-          if (orgData && !error) {
-            organizationName = orgData.name;
-          }
-        } catch (error) {
-          console.log('⚠️ Failed to get organization name, using fallback:', error.message);
-        }
-      }
-
-      // Generate greeting context for SMS (inbound response)
-      const greetingContext = generateGreetingContext(leadData, false, previousSummary, organizationName);
-
-      dynamicVars = {
-        customer_name: customerName,
-        organization_name: organizationName,
-        lead_status: leadStatus,
-        previous_summary: previousSummary,
-        conversation_context: createSmartContextSummary(conversationContext, history, summaryData),
-        ...greetingContext
-      };
-
-      console.log(`🧪 DEBUG: SMS Dynamic variables being sent:`, {
-        customer_name: dynamicVars.customer_name,
-        organization_name: dynamicVars.organization_name,
-        lead_status: dynamicVars.lead_status,
-        previous_summary_length: dynamicVars.previous_summary?.length || 0,
-        conversation_context_length: dynamicVars.conversation_context?.length || 0,
-        time_greeting: dynamicVars.time_greeting,
-        first_message_dynamic: dynamicVars.first_message_dynamic?.substring(0, 80),
-        is_outbound: dynamicVars.is_outbound,
-        call_type: dynamicVars.call_type
-      });
-
-      // Build first message override for SMS
-      const isInitialOutreach = history.length <= 1;
-
-      if (conversationChannel === 'sms' && isInitialOutreach) {
-        const firstMessageOverride = dynamicVars.first_message_dynamic || `Hey ${customerName}! Thanks for reaching out. How can I help you?`;
-        conversationConfigOverride = {
-          agent: {
-            first_message: firstMessageOverride
-          }
-        };
-        console.log(`📝 First message override for ${conversationChannel}:`, firstMessageOverride);
-      } else if (conversationChannel === 'sms') {
-        console.log(`📝 Continuing SMS conversation - will send user message after initiation`);
-      }
-    } catch (contextError) {
-      // CRITICAL FALLBACK: If ANY async operation fails, still send initiation message
-      // with fallback dynamic variables so ElevenLabs can render {{first_message_dynamic}}
-      console.error(`❌ Error building SMS context for ${phoneNumber}:`, contextError.message);
-      console.error(`❌ Stack:`, contextError.stack);
-
-      const fallbackName = `Customer`;
-      const fallbackGreeting = `Hey there! Thanks for reaching out. How can I help you today?`;
-
-      dynamicVars = {
-        customer_name: fallbackName,
-        organization_name: "Automarket",
-        lead_status: "New Inquiry",
-        previous_summary: "Context unavailable",
-        conversation_context: "No context available",
-        first_message_dynamic: fallbackGreeting,
-        time_greeting: "Hello!",
-        day_context: "",
-        customer_greeting: fallbackName,
-        greeting_opener: "Hey there!",
-        greeting_variation: "fallback",
-        is_outbound: "false",
-        call_type: "sms_fallback"
-      };
-
-      // For initial outreach, override first_message too
-      if (conversationChannel === 'sms') {
-        conversationConfigOverride = {
-          agent: {
-            first_message: fallbackGreeting
-          }
-        };
-      }
-
-      console.log(`⚠️ Using fallback dynamic variables for ${phoneNumber}`);
-    }
-
-    // ALWAYS send initiation message — this must never be skipped
-    const initiationMessage = {
-      type: 'conversation_initiation_client_data',
-      dynamic_variables: dynamicVars,
-      client_data: {
-        conversation_context: conversationContext || "",
-        phone_number: phoneNumber,
-        customer_phone: phoneNumber,
-        channel: conversationChannel,
-        lead_id: leadId,
-        organization_id: resolvedOrganizationId,
-        context_metadata: {
-          total_messages: history.length,
-          has_elevenlabs_summary: !!(summaryData?.summary && summaryData.summary.length > 20),
-          voice_messages: history.filter(m => m.type === 'voice').length,
-          sms_messages: history.filter(m => m.type === 'text' || m.type === 'sms').length,
-          last_interaction: history.length > 0 ? history[history.length - 1].timestamp : null
-        }
-      }
-    };
-
-    // Add conversation_config_override if it exists (for SMS first message override)
-    if (conversationConfigOverride) {
-      initiationMessage.conversation_config_override = conversationConfigOverride;
-    }
-
+    // Send instantly — no async, no delay
     ws.send(JSON.stringify(initiationMessage));
-    console.log(`✅ [${phoneNumber}] Initiation message sent to ElevenLabs with ${Object.keys(dynamicVars).length} dynamic variables`);
+    console.log(`✅ [${phoneNumber}] Initiation sent with ${Object.keys(dynamicVars).length} dynamic variables (including first_message_dynamic)`);
   });
 
   ws.on('message', async (data) => {
     try {
       const response = JSON.parse(data.toString());
-      console.log(`📨 [${phoneNumber}] Received message type:`, response.type);
 
       if (response.type === 'conversation_initiation_metadata') {
         console.log(`✅ [${phoneNumber}] Conversation initiated on ${conversationChannel} channel`);
 
-        // For SMS: Check if this is initial outreach or continuing conversation
         if (conversationChannel === 'sms' && initialMessage && !conversationConfigOverride) {
-          // Continuing conversation - send user's message to agent
           console.log(`📤 [${phoneNumber}] Sending user message to agent: ${initialMessage.substring(0, 50)}...`);
           ws.send(JSON.stringify({ type: 'user_message', text: initialMessage }));
         } else if (conversationConfigOverride) {
-          // Initial outreach - agent speaks first with first_message override
           console.log(`🎯 [${phoneNumber}] Agent will speak first using first_message override`);
         }
 
       } else if (response.type === 'agent_response') {
         const agentResponse = response.agent_response_event?.agent_response || '';
         if (agentResponse) {
-            console.log(`✅ [${phoneNumber}] Agent response received:`, agentResponse);
-            
-            // FIXED: For SMS + returning users, ignore the first agent response (template greeting)
-            // Only respond to their actual message, not the automated greeting
             const normalized = normalizePhoneNumber(phoneNumber);
             const responseCount = smsResponseCounters.get(normalized) || 0;
             smsResponseCounters.set(normalized, responseCount + 1);
-            
-            if (leadStatus === "Returning Customer" && responseCount === 0) {
-              console.log(`🔇 [${phoneNumber}] Ignoring first SMS response for returning customer: ${agentResponse.substring(0, 50)}...`);
-              return; // Skip this response - don't send SMS or add to history
-            }
-            
-            console.log(`📱 [${phoneNumber}] Processing SMS response #${responseCount + 1} for ${leadStatus}: ${agentResponse.substring(0, 50)}...`);
-            
-            // SECURITY FIX: Use provided organizationId or get from phone if not provided
-            let resolvedOrganizationId = organizationId;
-            if (!resolvedOrganizationId) {
-              resolvedOrganizationId = await getOrganizationIdFromPhone(phoneNumber);
-            }
-            
-            addToConversationHistory(phoneNumber, agentResponse, 'agent', 'text', resolvedOrganizationId);
-            sendSMSReply(phoneNumber, agentResponse, resolvedOrganizationId);
-            
-            // Get the active lead ID for this phone number
-            const leadId = await getActiveLeadForPhone(phoneNumber);
 
-            // ENHANCED: Reset timeout on activity to prevent premature closure
-            // Use existing normalized variable from above
+            if (leadStatus === "Returning Customer" && responseCount === 0) {
+              console.log(`🔇 [${phoneNumber}] Ignoring first SMS response for returning customer`);
+              return;
+            }
+
+            let resolvedOrgId = organizationId;
+            if (!resolvedOrgId) {
+              resolvedOrgId = await getOrganizationIdFromPhone(phoneNumber);
+            }
+
+            addToConversationHistory(phoneNumber, agentResponse, 'agent', 'text', resolvedOrgId);
+            sendSMSReply(phoneNumber, agentResponse, resolvedOrgId);
+
+            const activeLead = await getActiveLeadForPhone(phoneNumber);
+
             if (activeConversationTimeouts.has(normalized)) {
               clearTimeout(activeConversationTimeouts.get(normalized));
               const timeoutId = setTimeout(() => {
-                console.log(`⏰ SMS conversation timeout for ${phoneNumber} - closing to save credits`);
                 if (activeConversations.has(normalized)) {
-                  const ws = activeConversations.get(normalized);
-                  ws.close();
+                  activeConversations.get(normalized).close();
                   activeConversations.delete(normalized);
                 }
                 activeConversationTimeouts.delete(normalized);
@@ -2459,32 +2411,28 @@ function startConversation(phoneNumber, initialMessage, organizationId = null, c
 
             broadcastConversationUpdate({
                 type: 'sms_sent',
-                phoneNumber: phoneNumber,
+                phoneNumber,
                 message: agentResponse,
                 timestamp: new Date().toISOString(),
                 sentBy: 'agent',
-                leadId: leadId,
-                organizationId: resolvedOrganizationId
+                leadId: activeLead,
+                organizationId: resolvedOrgId
             });
         }
-      } else if (response.type === 'agent_chat_response_part') {
-        // Streaming text chunks from ElevenLabs text/SMS mode - final text comes in agent_response
-      } else if (response.type === 'ping') {
-        // Handle ping/pong to keep connection alive
-      } else if (response.type === 'audio') {
-        // Handle audio chunks for SMS channel (ignored)
+      } else if (response.type === 'agent_chat_response_part' || response.type === 'ping' || response.type === 'audio') {
+        // Expected message types — no action needed
       } else {
-        console.log(`📨 [${phoneNumber}] Received unknown message type:`, response.type);
+        console.log(`📨 [${phoneNumber}] Received message type:`, response.type);
       }
     } catch (error) {
       console.error(`❌ [${phoneNumber}] Error processing message:`, error);
     }
   });
 
-  ws.on('close', () => {
-    console.log(`🔌 WebSocket closed for ${phoneNumber}`);
+  ws.on('close', (code, reason) => {
+    console.log(`🔌 WebSocket closed for ${phoneNumber} code=${code} reason=${reason ? reason.toString() : 'none'}`);
     activeConversations.delete(normalized);
-    smsResponseCounters.delete(normalized); // Clean up response counter
+    smsResponseCounters.delete(normalized);
     if (activeConversationTimeouts.has(normalized)) {
       clearTimeout(activeConversationTimeouts.get(normalized));
       activeConversationTimeouts.delete(normalized);
