@@ -82,7 +82,7 @@ export const DarkConversationInput = ({
   const anyCallActive = isCallActive || isManualCallActive;
 
   return (
-    <div className="bg-zinc-950 border-t border-white/[0.06] px-4 py-3 space-y-2.5">
+    <div className="bg-white border-t border-stone-200 px-4 py-3 space-y-2.5">
       {/* Top row: Auto/Manual toggle + status */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -90,11 +90,11 @@ export const DarkConversationInput = ({
             id="auto-mode"
             checked={isAutoMode}
             onCheckedChange={onToggleAutoMode}
-            className="h-4 w-7 data-[state=checked]:bg-blue-600 data-[state=unchecked]:bg-zinc-700"
+            className="h-4 w-7 data-[state=checked]:bg-blue-600 data-[state=unchecked]:bg-stone-300"
           />
           <Label
             htmlFor="auto-mode"
-            className="text-xs text-zinc-400 cursor-pointer select-none"
+            className="text-xs text-stone-500 cursor-pointer select-none"
           >
             {isAutoMode ? "Auto" : "Manual"}
           </Label>
@@ -103,13 +103,13 @@ export const DarkConversationInput = ({
           {anyCallActive && (
             <span className="flex items-center gap-1.5 text-xs">
               <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-emerald-400">
+              <span className="text-emerald-600">
                 {isManualCallActive ? "Manual call active" : "AI call active"}
               </span>
             </span>
           )}
           {!anyCallActive && !isUnderHumanControl && (
-            <span className="text-[10px] text-zinc-600 uppercase tracking-wider">
+            <span className="text-[10px] text-stone-400 uppercase tracking-wider">
               {currentMode === "voice" ? "Voice" : "Text"} mode
             </span>
           )}
@@ -118,13 +118,13 @@ export const DarkConversationInput = ({
 
       {/* Human control banner */}
       {isUnderHumanControl && (
-        <div className="flex items-center justify-between bg-amber-500/5 border border-amber-500/10 rounded-lg px-3 py-2">
+        <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
           <div className="flex items-center gap-2">
-            <UserCheck className="h-4 w-4 text-amber-400" />
-            <span className="text-xs text-amber-300">
+            <UserCheck className="h-4 w-4 text-amber-600" />
+            <span className="text-xs text-amber-700">
               Human control active
               {humanControlAgent && (
-                <span className="text-amber-400/70 ml-1">
+                <span className="text-amber-500 ml-1">
                   ({humanControlAgent})
                 </span>
               )}
@@ -134,7 +134,7 @@ export const DarkConversationInput = ({
             size="sm"
             variant="ghost"
             onClick={onLeaveHumanControl}
-            className="h-7 px-2 text-xs text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
+            className="h-7 px-2 text-xs text-amber-600 hover:text-amber-700 hover:bg-amber-50"
           >
             <LogOut className="h-3 w-3 mr-1" />
             Leave
@@ -160,10 +160,10 @@ export const DarkConversationInput = ({
           }
           className={cn(
             "flex-1 resize-none rounded-lg px-3 py-2 text-[13px] leading-relaxed",
-            "bg-white/[0.04] border border-white/[0.06] text-zinc-200",
-            "placeholder:text-zinc-600",
-            "focus:outline-none focus:ring-0 focus:border-white/[0.12] focus:bg-white/[0.06]",
-            "scrollbar-thin scrollbar-thumb-zinc-700"
+            "bg-stone-50 border border-stone-200 text-stone-900",
+            "placeholder:text-stone-400",
+            "focus:outline-none focus:ring-0 focus:border-blue-300 focus:bg-white",
+            "scrollbar-thin scrollbar-thumb-stone-300"
           )}
         />
         <Button
@@ -173,7 +173,7 @@ export const DarkConversationInput = ({
               ? !humanInput.trim()
               : !textInput.trim()
           }
-          className="h-[52px] w-10 bg-blue-600 hover:bg-blue-500 disabled:bg-white/[0.04] disabled:text-zinc-600 transition-colors duration-150 shrink-0"
+          className="h-[52px] w-10 bg-blue-600 hover:bg-blue-700 disabled:bg-stone-100 disabled:text-stone-400 transition-colors duration-150 shrink-0"
         >
           <Send className="h-4 w-4" />
         </Button>
@@ -186,7 +186,7 @@ export const DarkConversationInput = ({
           <Button
             size="sm"
             onClick={onStartVoiceCall}
-            className="h-8 bg-white/[0.06] hover:bg-white/[0.1] text-zinc-300 border border-white/[0.08] text-xs px-3 transition-all duration-150"
+            className="h-8 bg-white hover:bg-stone-50 text-stone-700 border border-stone-200 shadow-sm text-xs px-3 transition-all duration-150"
           >
             <Phone className="h-3.5 w-3.5 mr-1.5" />
             Jack Call
@@ -198,7 +198,7 @@ export const DarkConversationInput = ({
           <Button
             size="sm"
             onClick={onManualCall}
-            className="h-8 bg-white/[0.06] hover:bg-white/[0.1] text-zinc-300 border border-white/[0.08] text-xs px-3 transition-all duration-150"
+            className="h-8 bg-white hover:bg-stone-50 text-stone-700 border border-stone-200 shadow-sm text-xs px-3 transition-all duration-150"
           >
             <PhoneCall className="h-3.5 w-3.5 mr-1.5" />
             Manual Call
@@ -209,7 +209,7 @@ export const DarkConversationInput = ({
           <Button
             size="sm"
             onClick={onEndManualCall}
-            className="h-8 bg-red-600/80 hover:bg-red-600 text-white text-xs px-3 transition-colors duration-150"
+            className="h-8 bg-red-500 hover:bg-red-600 text-white text-xs px-3 transition-colors duration-150"
           >
             <PhoneOff className="h-3.5 w-3.5 mr-1.5" />
             End Manual Call
@@ -222,7 +222,7 @@ export const DarkConversationInput = ({
             size="sm"
             variant="ghost"
             onClick={onJoinHumanControl}
-            className="h-8 text-xs text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.04] transition-colors duration-150 px-3 ml-auto"
+            className="h-8 text-xs text-stone-400 hover:text-stone-700 hover:bg-stone-50 transition-colors duration-150 px-3 ml-auto"
           >
             <UserCheck className="h-3.5 w-3.5 mr-1.5" />
             Join as Human
@@ -239,7 +239,7 @@ export const DarkConversationInput = ({
               }
             }}
             disabled={!humanInput.trim()}
-            className="h-8 bg-amber-600/80 hover:bg-amber-600 text-white text-xs px-3 ml-auto disabled:bg-white/[0.04] disabled:text-zinc-600 transition-colors duration-150"
+            className="h-8 bg-amber-500 hover:bg-amber-600 text-white text-xs px-3 ml-auto disabled:bg-stone-100 disabled:text-stone-400 transition-colors duration-150"
           >
             <Send className="h-3.5 w-3.5 mr-1.5" />
             Send as Human

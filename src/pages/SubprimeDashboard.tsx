@@ -237,6 +237,25 @@ const SubprimeDashboard = () => {
     }
   };
 
+  const handleDeleteLead = async (leadId: string) => {
+    if (!confirm('Delete this lead? This cannot be undone.')) return;
+    try {
+      const response = await fetch('/api/subprime/delete-lead', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId, organizationId: organization?.id }),
+      });
+      if (!response.ok) throw new Error('HTTP error');
+      const result = await response.json();
+      if (!result.success) throw new Error(result.error || 'Failed');
+      setAllLeads(prev => prev.filter(l => l.id !== leadId));
+      if (selectedLead?.id === leadId) setSelectedLead(null);
+      toast.success('Lead deleted');
+    } catch (_) {
+      toast.error('Failed to delete lead');
+    }
+  };
+
   const handleSelectLead = (lead: SubprimeLead) => {
     setSelectedLead(lead);
   };
@@ -246,8 +265,8 @@ const SubprimeDashboard = () => {
       title: "In Progress Leads",
       content: (
         <div className="space-y-4">
-          <p>Currently <span className="font-semibold text-amber-400">{metrics.inProgress}</span> leads in progress.</p>
-          <ul className="list-disc pl-5 space-y-2 text-sm text-zinc-300">
+          <p>Currently <span className="font-semibold text-amber-600">{metrics.inProgress}</span> leads in progress.</p>
+          <ul className="list-disc pl-5 space-y-2 text-sm text-stone-600">
             <li>{allLeads.filter(l => l.scriptProgress?.currentStep === "screening").length} in Screening</li>
             <li>{allLeads.filter(l => l.scriptProgress?.currentStep === "qualification").length} in Qualification</li>
             <li>{allLeads.filter(l => l.nextAction?.isAutomated).length} in automated follow-up</li>
@@ -259,8 +278,8 @@ const SubprimeDashboard = () => {
       title: "Not Ready Leads",
       content: (
         <div className="space-y-4">
-          <p><span className="font-semibold text-red-400">{metrics.notReady}</span> leads not ready for funding.</p>
-          <ul className="list-disc pl-5 space-y-2 text-sm text-zinc-300">
+          <p><span className="font-semibold text-red-600">{metrics.notReady}</span> leads not ready for funding.</p>
+          <ul className="list-disc pl-5 space-y-2 text-sm text-stone-600">
             <li>{allLeads.filter(l => l.sentiment === "Ghosted").length} gone silent</li>
           </ul>
         </div>
@@ -270,7 +289,7 @@ const SubprimeDashboard = () => {
       title: "Needs Action",
       content: (
         <div className="space-y-4">
-          <p><span className="font-semibold text-violet-400">{metrics.overdueActions}</span> leads require immediate attention.</p>
+          <p><span className="font-semibold text-violet-600">{metrics.overdueActions}</span> leads require immediate attention.</p>
         </div>
       )
     },
@@ -278,7 +297,7 @@ const SubprimeDashboard = () => {
       title: "Ready for Funding",
       content: (
         <div className="space-y-4">
-          <p><span className="font-semibold text-emerald-400">{metrics.readyForFunding}</span> leads ready for financing.</p>
+          <p><span className="font-semibold text-emerald-600">{metrics.readyForFunding}</span> leads ready for financing.</p>
         </div>
       )
     }
@@ -316,20 +335,20 @@ const SubprimeDashboard = () => {
   ];
 
   return (
-    <div className="bg-zinc-950 text-zinc-100 min-h-screen flex flex-col">
+    <div className="bg-stone-50 text-stone-900 min-h-screen flex flex-col">
       {/* Header Bar */}
-      <div className="flex-shrink-0 backdrop-blur-xl bg-zinc-950/80 border-b border-white/[0.06] px-6 py-3">
+      <div className="flex-shrink-0 bg-white border-b border-stone-200 px-6 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <h1 className="text-[15px] font-semibold text-zinc-100 tracking-tight">
+            <h1 className="text-[15px] font-semibold text-stone-900 tracking-tight">
               {organization?.name || 'Lead Management'}
             </h1>
-            <Badge variant="outline" className="text-[10px] font-normal border-white/[0.08] text-zinc-500">
+            <Badge variant="outline" className="text-[10px] font-normal border-stone-200 text-stone-500">
               {hasRole('admin') ? 'Admin' : hasRole('manager') ? 'Manager' : 'Agent'}
             </Badge>
             <div className="flex items-center gap-1.5">
-              <div className={`w-1.5 h-1.5 rounded-full ${autoRefreshEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-600'}`} />
-              <span className="text-[10px] text-zinc-600">
+              <div className={`w-1.5 h-1.5 rounded-full ${autoRefreshEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-stone-300'}`} />
+              <span className="text-[10px] text-stone-500">
                 {autoRefreshEnabled ? 'Live' : 'Paused'}
               </span>
             </div>
@@ -340,9 +359,9 @@ const SubprimeDashboard = () => {
               variant="ghost"
               size="sm"
               onClick={() => setAutoRefreshEnabled(!autoRefreshEnabled)}
-              className="h-8 text-xs text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.04] transition-colors duration-150"
+              className="h-8 text-xs text-stone-500 hover:text-stone-800 hover:bg-stone-100 transition-colors duration-150"
             >
-              <div className={`w-1.5 h-1.5 rounded-full mr-1.5 ${autoRefreshEnabled ? 'bg-emerald-500' : 'bg-zinc-600'}`} />
+              <div className={`w-1.5 h-1.5 rounded-full mr-1.5 ${autoRefreshEnabled ? 'bg-emerald-500' : 'bg-stone-300'}`} />
               {autoRefreshEnabled ? 'Live' : 'Manual'}
             </Button>
 
@@ -351,7 +370,7 @@ const SubprimeDashboard = () => {
               size="sm"
               onClick={loadLeadsFromServer}
               disabled={isLoading}
-              className="h-8 text-xs text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.04] transition-colors duration-150"
+              className="h-8 text-xs text-stone-500 hover:text-stone-800 hover:bg-stone-100 transition-colors duration-150"
             >
               <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isLoading ? 'animate-spin' : ''}`} />
               Refresh
@@ -361,7 +380,7 @@ const SubprimeDashboard = () => {
               <Button
                 onClick={() => setAddLeadDialogOpen(true)}
                 size="sm"
-                className="h-8 bg-white/[0.06] hover:bg-white/[0.1] text-zinc-300 border border-white/[0.08] text-xs transition-all duration-150"
+                className="h-8 bg-blue-600 hover:bg-blue-700 text-white text-xs transition-all duration-150"
               >
                 <UserPlus className="h-3.5 w-3.5 mr-1.5" />
                 Add Lead
@@ -373,7 +392,7 @@ const SubprimeDashboard = () => {
                 variant="ghost"
                 size="sm"
                 onClick={handleDeleteAllLeads}
-                className="h-8 text-xs text-zinc-500 hover:text-red-400 hover:bg-white/[0.04] transition-colors duration-150"
+                className="h-8 text-xs text-stone-400 hover:text-red-600 hover:bg-red-50 transition-colors duration-150"
               >
                 <Trash2 className="h-3.5 w-3.5 mr-1.5" />
                 Clear All
@@ -384,18 +403,18 @@ const SubprimeDashboard = () => {
       </div>
 
       {/* Main Tabs */}
-      <div className="flex-shrink-0 border-b border-white/[0.06] px-6">
+      <div className="flex-shrink-0 border-b border-stone-200 bg-white px-6">
         <Tabs value={activeMainTab} onValueChange={setActiveMainTab}>
           <TabsList className="bg-transparent h-auto gap-6 p-0">
             <TabsTrigger
               value="overview"
-              className="text-zinc-500 data-[state=active]:text-zinc-100 data-[state=active]:bg-transparent data-[state=active]:shadow-none rounded-none border-b-2 border-transparent data-[state=active]:border-zinc-100 px-0 pb-2.5 pt-3 text-[13px] font-medium transition-colors duration-150"
+              className="text-stone-400 data-[state=active]:text-stone-900 data-[state=active]:bg-transparent data-[state=active]:shadow-none rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 px-0 pb-2.5 pt-3 text-[13px] font-medium transition-colors duration-150"
             >
               Lead Overview
             </TabsTrigger>
             <TabsTrigger
               value="analytics"
-              className="text-zinc-500 data-[state=active]:text-zinc-100 data-[state=active]:bg-transparent data-[state=active]:shadow-none rounded-none border-b-2 border-transparent data-[state=active]:border-zinc-100 px-0 pb-2.5 pt-3 text-[13px] font-medium transition-colors duration-150"
+              className="text-stone-400 data-[state=active]:text-stone-900 data-[state=active]:bg-transparent data-[state=active]:shadow-none rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 px-0 pb-2.5 pt-3 text-[13px] font-medium transition-colors duration-150"
             >
               CRM Analytics
             </TabsTrigger>
@@ -413,16 +432,16 @@ const SubprimeDashboard = () => {
                 <button
                   key={kpi.label}
                   onClick={() => handleTileClick(getTileContent()[kpi.tileKey].title, getTileContent()[kpi.tileKey].content)}
-                  className="bg-white/[0.02] border border-white/[0.06] rounded-lg p-4 text-left hover:bg-white/[0.04] transition-all duration-150"
+                  className="bg-white border border-stone-200 rounded-lg p-4 text-left hover:shadow-card-hover hover:border-stone-300 transition-all duration-150"
                 >
                   <div className="flex items-center gap-1.5 mb-3">
                     <div className={`w-1.5 h-1.5 rounded-full ${kpi.dotColor}`} />
-                    <span className="text-[11px] font-medium text-zinc-500 tracking-wide uppercase">
+                    <span className="text-[11px] font-medium text-stone-500 tracking-wide uppercase">
                       {kpi.label}
                     </span>
                   </div>
-                  <div className="text-2xl font-semibold text-zinc-100 tracking-tight">{kpi.value}</div>
-                  <p className="text-xs text-zinc-500 mt-0.5">{kpi.sub}</p>
+                  <div className="text-2xl font-bold text-stone-900 tracking-tight">{kpi.value}</div>
+                  <p className="text-xs text-stone-400 mt-0.5">{kpi.sub}</p>
                 </button>
               ))}
             </div>
@@ -440,10 +459,11 @@ const SubprimeDashboard = () => {
                   searchTerm={searchTerm}
                   onSearchChange={setSearchTerm}
                   onAddLead={() => setAddLeadDialogOpen(true)}
+                  onDeleteLead={handleDeleteLead}
                 />
               </ResizablePanel>
 
-              <ResizableHandle withHandle className="bg-white/[0.04] hover:bg-white/[0.08] transition-colors duration-150" />
+              <ResizableHandle withHandle className="bg-stone-100 hover:bg-stone-200 transition-colors duration-150" />
 
               {/* Right panel: Lead detail + conversation */}
               <ResizablePanel defaultSize={75}>
@@ -533,12 +553,12 @@ const SubprimeDashboard = () => {
         <div className="flex-1 p-6 overflow-y-auto">
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
             <div className="lg:col-span-1">
-              <div className="bg-white/[0.02] border border-white/[0.06] rounded-lg">
+              <div className="bg-white border border-stone-200 rounded-lg shadow-card">
                 <RealTimeAnalyticsPanel />
               </div>
             </div>
             <div className="lg:col-span-3">
-              <div className="bg-white/[0.02] border border-white/[0.06] rounded-lg">
+              <div className="bg-white border border-stone-200 rounded-lg shadow-card">
                 <LeadAnalyticsDashboard />
               </div>
             </div>
@@ -554,10 +574,10 @@ const SubprimeDashboard = () => {
       />
 
       <Dialog open={tileDialogOpen} onOpenChange={setTileDialogOpen}>
-        <DialogContent className="max-w-lg bg-zinc-950 border-white/[0.06] text-zinc-100">
+        <DialogContent className="max-w-lg bg-white border-stone-200 text-stone-900">
           <DialogHeader>
-            <DialogTitle className="text-zinc-100">{activeTileInfo.title}</DialogTitle>
-            <DialogDescription className="text-zinc-400">Detailed breakdown</DialogDescription>
+            <DialogTitle className="text-stone-900">{activeTileInfo.title}</DialogTitle>
+            <DialogDescription className="text-stone-500">Detailed breakdown</DialogDescription>
           </DialogHeader>
           <div className="mt-2">{activeTileInfo.content}</div>
         </DialogContent>

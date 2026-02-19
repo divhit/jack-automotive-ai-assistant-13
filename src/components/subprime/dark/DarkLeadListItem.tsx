@@ -1,4 +1,5 @@
 import { formatDistanceToNow } from "date-fns";
+import { Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SubprimeLead } from "@/data/subprime/subprimeLeads";
 
@@ -6,6 +7,7 @@ interface DarkLeadListItemProps {
   lead: SubprimeLead;
   isSelected: boolean;
   onSelect: (lead: SubprimeLead) => void;
+  onDeleteLead: (leadId: string) => void;
 }
 
 const sentimentEmoji: Record<SubprimeLead["sentiment"], string> = {
@@ -24,12 +26,11 @@ const fundingDotColor: Record<SubprimeLead["fundingReadiness"], string> = {
   "Not Ready": "bg-red-400",
 };
 
-const leftBorderColor = "border-l-transparent";
-
 export const DarkLeadListItem = ({
   lead,
   isSelected,
   onSelect,
+  onDeleteLead,
 }: DarkLeadListItemProps) => {
   const relativeTime = (() => {
     try {
@@ -46,24 +47,24 @@ export const DarkLeadListItem = ({
       type="button"
       onClick={() => onSelect(lead)}
       className={cn(
-        "w-full text-left px-3 py-2.5 border-l-2 transition-colors duration-100",
+        "group w-full text-left px-3 py-2.5 border-l-2 transition-colors duration-100",
         "focus:outline-none focus-visible:ring-1 focus-visible:ring-blue-500",
         isSelected
-          ? "bg-white/[0.04] border-l-white/20"
-          : cn("bg-transparent hover:bg-white/[0.03]", leftBorderColor)
+          ? "bg-blue-50 border-l-blue-500"
+          : "bg-transparent hover:bg-stone-50 border-l-transparent"
       )}
     >
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="font-medium text-zinc-200 truncate text-[13px] tracking-tight">
+            <span className="font-medium text-stone-900 truncate text-[13px] tracking-tight">
               {lead.customerName}
             </span>
             <span className="text-sm" title={lead.sentiment}>
               {sentimentEmoji[lead.sentiment]}
             </span>
           </div>
-          <div className="text-[12px] text-zinc-500 mt-0.5 truncate">
+          <div className="text-[12px] text-stone-500 mt-0.5 truncate">
             {lead.phoneNumber}
           </div>
         </div>
@@ -71,11 +72,18 @@ export const DarkLeadListItem = ({
         <div className="flex flex-col items-end gap-1 shrink-0">
           <span className="flex items-center gap-1">
             <span className={cn("h-1.5 w-1.5 rounded-full", fundingDotColor[lead.fundingReadiness])} />
-            <span className="text-[10px] text-zinc-400">{lead.fundingReadiness}</span>
+            <span className="text-[10px] text-stone-600">{lead.fundingReadiness}</span>
           </span>
-          <span className="text-[11px] text-zinc-600 whitespace-nowrap">
+          <span className="text-[11px] text-stone-400 whitespace-nowrap">
             {relativeTime}
           </span>
+          <button
+            onClick={(e) => { e.stopPropagation(); onDeleteLead(lead.id); }}
+            className="opacity-0 group-hover:opacity-100 mt-1 p-0.5 text-stone-300 hover:text-red-500 transition-all duration-150"
+            title="Delete lead"
+          >
+            <Trash2 className="h-3 w-3" />
+          </button>
         </div>
       </div>
     </button>
