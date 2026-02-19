@@ -240,10 +240,8 @@ const SubprimeDashboard = () => {
   const handleDeleteLead = async (leadId: string) => {
     if (!confirm('Delete this lead? This cannot be undone.')) return;
     try {
-      const response = await fetch('/api/subprime/delete-lead', {
+      const response = await fetch(`/api/subprime/delete-lead?id=${encodeURIComponent(leadId)}&organization_id=${encodeURIComponent(organization?.id || '')}`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leadId, organizationId: organization?.id }),
       });
       if (!response.ok) throw new Error('HTTP error');
       const result = await response.json();
