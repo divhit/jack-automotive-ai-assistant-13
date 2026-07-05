@@ -28,7 +28,7 @@ async function testSMSWebhook() {
     ToZip: '',
     NumSegments: '1',
     MessageSid: 'SM' + Date.now(),
-    AccountSid: 'AC922e23b76c582ae9156d893e0166476c',
+    AccountSid: 'REDACTED_TWILIO_ACCOUNT_SID',
     From: '+16049085474',
     ApiVersion: '2010-04-01'
   };

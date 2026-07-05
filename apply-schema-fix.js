@@ -8,7 +8,7 @@ import fs from 'fs';
 dotenv.config();
 
 const supabaseUrl = process.env.SUPABASE_URL || 'https://dgzadilmtuqvimolzxms.supabase.co';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRnemFkaWxtdHVxdmltb2x6eG1zIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTI1NTIzNiwiZXhwIjoyMDY2ODMxMjM2fQ.AxcnALmg09uWGZzJFQz-7UqlfsDf5VSt0q0CreMHhZE';
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'REDACTED_ROTATE_THIS_KEY';
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 

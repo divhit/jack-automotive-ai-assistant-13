@@ -8,7 +8,7 @@
         "--project-ref=dgzadilmtuqvimolzxms"
       ],
       "env": {
-        "SUPABASE_ACCESS_TOKEN": "sbp_76b60d323249485de1144f002518b9a4f5a0178f"
+        "SUPABASE_ACCESS_TOKEN": "REDACTED_ROTATE_THIS_KEY"
       }
     },
     "twilio": {
@@ -16,7 +16,7 @@
       "args": [
         "-y",
         "@twilio-alpha/mcp",
-        "AC922e23b76c582ae9156d893e0166476c/AC922e23b76c582ae9156d893e0166476c:0202e916041b84b7225c872154597217"
+        "REDACTED_TWILIO_ACCOUNT_SID/REDACTED_TWILIO_ACCOUNT_SID:0202e916041b84b7225c872154597217"
       ]
     }
   }

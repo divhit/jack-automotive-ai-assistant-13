@@ -114,7 +114,7 @@ VALUES ('your-org-id', '+1234567890', 'PN123...', true);
 # Make outbound call via API:
 curl -X POST http://localhost:3001/api/elevenlabs/outbound-call \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Authorization: Bearer REDACTED_ROTATE_THIS_KEY" \
   -H "organizationId: YOUR_ORG_ID" \
   -d '{
     "phoneNumber": "+1234567890",

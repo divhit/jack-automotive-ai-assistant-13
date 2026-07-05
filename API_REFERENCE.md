@@ -592,7 +592,7 @@ const getHistory = async (leadId) => {
 ```bash
 # Send SMS
 curl -X POST https://your-app.onrender.com/api/twilio/send-sms \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer REDACTED_ROTATE_THIS_KEY" \
   -H "organizationId: YOUR_ORG_ID" \
   -H "Content-Type: application/json" \
   -d '{
@@ -603,7 +603,7 @@ curl -X POST https://your-app.onrender.com/api/twilio/send-sms \
 
 # Make voice call
 curl -X POST https://your-app.onrender.com/api/elevenlabs/outbound-call \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer REDACTED_ROTATE_THIS_KEY" \
   -H "organizationId: YOUR_ORG_ID" \
   -H "Content-Type: application/json" \
   -d '{
@@ -613,7 +613,7 @@ curl -X POST https://your-app.onrender.com/api/elevenlabs/outbound-call \
 
 # Get leads
 curl -X GET https://your-app.onrender.com/api/subprime/leads \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer REDACTED_ROTATE_THIS_KEY" \
   -H "organizationId: YOUR_ORG_ID"
 ```
 
